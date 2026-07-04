@@ -1,0 +1,37 @@
+# Enforces the dependency rule from docs/03-ARCHITECTURE.md §3:
+#   domain <- usecase <- interface,  domain <- infrastructure
+#   usecase MUST NOT import infrastructure; wiring happens only in cmd/*.
+#
+# Run in CI (Linux): go-arch-lint check   (from the backend/ module root).
+# NOTE: go-arch-lint v1.15.0 has a Windows path bug (it emits back-slashed
+# paths but matches forward-slash globs), so local `make lint` on Windows
+# under-attaches nested packages. The authoritative check runs on ubuntu in CI,
+# where these forward-slash globs resolve correctly.
+version: 3
+
+# External libraries are allowed anywhere; this lint governs INTERNAL component
+# boundaries only. Leaf components (domain, pkg, config) are absent from deps,
+# so they may depend on no internal component — that encodes domain's
+# stdlib-only rule and keeps pkg/config true leaves.
+allow:
+  depOnAnyVendor: true
+
+components:
+  domain:         { in: internal/domain/** }
+  usecase:        { in: internal/usecase/** }
+  infrastructure: { in: internal/infrastructure/** }
+  interface:      { in: internal/interface/** }
+  pkg:            { in: internal/pkg/** }
+  config:         { in: internal/config }
+  # cmd/* is the only place wiring may import across every layer (DI container).
+  cmd:            { in: cmd/** }
+
+deps:
+  usecase:
+    mayDependOn: [domain, pkg]
+  infrastructure:
+    mayDependOn: [domain, pkg, config]
+  interface:
+    mayDependOn: [domain, usecase, pkg, config]
+  cmd:
+    mayDependOn: [domain, usecase, infrastructure, interface, pkg, config]

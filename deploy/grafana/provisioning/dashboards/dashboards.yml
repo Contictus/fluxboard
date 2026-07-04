@@ -1,0 +1,16 @@
+# Dashboard provider. The dashboards/ directory is intentionally empty in
+# Phase 0 — the four dashboards (API Overview, Billing Health, Jobs & Queues,
+# Security) are authored in Phase 6 (docs/10-INFRA-DEVOPS.md §5) and dropped in
+# here as JSON.
+apiVersion: 1
+
+providers:
+  - name: fluxboard
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true

@@ -1,0 +1,71 @@
+# Fluxboard developer tasks (docs/10-INFRA-DEVOPS.md §3). Run from repo root.
+# Requires: docker + docker compose. Go tooling is invoked via containers where
+# possible so a bare checkout needs no local installs beyond Docker + make.
+
+SHELL := /bin/sh
+COMPOSE := docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.override.yml
+NETWORK := fluxboard_default
+MIGRATIONS := $(CURDIR)/backend/migrations
+
+# Migration DSN targets the owner role on the compose network (see .env).
+DATABASE_URL_MIGRATE ?= postgres://fluxboard_owner:owner_pw@postgres:5432/fluxboard?sslmode=disable
+
+.DEFAULT_GOAL := help
+
+.PHONY: help up down logs migrate migrate-down sqlc gen-client seed stripe-seed \
+        api worker web test test-integration lint audit
+
+help: ## List targets
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+
+up: ## Start the full local stack (builds + hot reload)
+	$(COMPOSE) up --build -d
+
+down: ## Stop the stack and remove volumes
+	$(COMPOSE) down -v
+
+logs: ## Tail all service logs
+	$(COMPOSE) logs -f
+
+migrate: ## Apply all migrations (owner role)
+	docker run --rm --network $(NETWORK) -v "$(MIGRATIONS)":/migrations \
+		migrate/migrate -path=/migrations -database "$(DATABASE_URL_MIGRATE)" up
+
+migrate-down: ## Roll back the last migration
+	docker run --rm --network $(NETWORK) -v "$(MIGRATIONS)":/migrations \
+		migrate/migrate -path=/migrations -database "$(DATABASE_URL_MIGRATE)" down 1
+
+sqlc: ## Regenerate query code from SQL (no-op until queries exist)
+	docker run --rm -v "$(CURDIR)/backend":/src -w /src sqlc/sqlc generate
+
+gen-client: ## Generate the TS API client from openapi.json (Phase 7 stub)
+	@echo "gen-client: stub until the OpenAPI spec exists (Phase 7)."
+
+seed: ## Seed demo tenant + users (Phase 2 stub)
+	@echo "seed: stub until seed data is defined (docs/12-TESTING.md §5)."
+
+stripe-seed: ## Bootstrap Stripe products/prices -> plans (Phase 4 stub)
+	@echo "stripe-seed: stub until billing exists (Phase 4)."
+
+api: ## Run the API with hot reload (in-stack)
+	$(COMPOSE) up api
+
+worker: ## Run the worker (in-stack)
+	$(COMPOSE) up worker
+
+web: ## Run the Next.js dev server (Phase 7 stub)
+	@echo "web: stub until the frontend is scaffolded (Phase 7)."
+
+test: ## Run unit tests
+	cd backend && go test ./...
+
+test-integration: ## Run testcontainers integration suites (grows per phase)
+	cd backend && go test -tags=integration ./...
+
+lint: ## Run golangci-lint + go-arch-lint dependency check
+	cd backend && golangci-lint run ./...
+	cd backend && go-arch-lint check
+
+audit: ## Vulnerability scan (Go + npm)
+	cd backend && govulncheck ./...

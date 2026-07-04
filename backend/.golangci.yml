@@ -1,0 +1,23 @@
+# golangci-lint config. Conservative, high-signal set for a young codebase;
+# tightened as the project grows.
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - bodyclose
+    - noctx
+
+issues:
+  exclude-rules:
+    # Doc-only stub packages carry no logic to lint.
+    - path: doc\.go
+      linters: [unused]

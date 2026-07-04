@@ -1,0 +1,28 @@
+# Dev override (docs/10-INFRA-DEVOPS.md §1): replaces the built api/worker
+# images with a Go toolchain image that mounts the source and hot-reloads via
+# air. Merged automatically by `docker compose` when present. `!reset build:`
+# drops the prod build so these run straight from source.
+#
+# Requires Docker Compose v2.24+ for the !reset tag.
+
+services:
+  api:
+    build: !reset null
+    image: golang:1.25
+    working_dir: /src
+    command: ["sh", "-c", "go run github.com/air-verse/air@v1.61.7 -c .air.toml"]
+    volumes:
+      - ../backend:/src
+      - gocache:/go
+
+  worker:
+    build: !reset null
+    image: golang:1.25
+    working_dir: /src
+    command: ["sh", "-c", "go run ./cmd/worker"]
+    volumes:
+      - ../backend:/src
+      - gocache:/go
+
+volumes:
+  gocache:

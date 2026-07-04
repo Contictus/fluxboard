@@ -1,0 +1,25 @@
+# Secrets / local env
+.env
+*.pem
+
+# Go build output
+backend/tmp/
+backend/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# NOTE: backend/internal/infrastructure/postgres/gen/ is sqlc OUTPUT and IS
+# committed (docs/CLAUDE.md §Code Conventions) — do not ignore it.
+
+# Node / frontend (Phase 7)
+node_modules/
+web/.next/
+web/out/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

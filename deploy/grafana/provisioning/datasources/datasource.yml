@@ -1,0 +1,11 @@
+# Grafana auto-provisions the Prometheus datasource on startup
+# (docs/10-INFRA-DEVOPS.md §5). Dashboards land in Phase 6.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
