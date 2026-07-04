@@ -8,9 +8,7 @@ import "net/http"
 // than adding them later — means the security boundary is visible from day one
 // and turning a stub real is a localized change.
 
-// Auth parses the bearer token and loads session state (Phase 1).
-// TODO(phase1): validate ES256 JWT / API-key, reject revoked sid.
-func Auth(next http.Handler) http.Handler { return next }
+// (Auth is implemented for real in auth.go as Authenticator.Authenticate.)
 
 // TenantResolver resolves the org, verifies membership, and acquires the
 // RLS-scoped DB connection (Phase 2, docs/05-TENANCY-RBAC.md §4).

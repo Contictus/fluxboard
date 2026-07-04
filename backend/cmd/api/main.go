@@ -1,16 +1,18 @@
-// Command api is the Fluxboard HTTP API. Phase 0 boots a prod-shaped server:
-// config, structured logging, DB + Redis clients, Prometheus metrics, the
-// contract-ordered middleware chain, health probes, and graceful shutdown —
-// with no business routes yet.
+// Command api is the Fluxboard HTTP API. It boots a prod-shaped server: config,
+// structured logging, DB + Redis clients, Prometheus metrics, the
+// contract-ordered middleware chain, health probes, the auth surface, and
+// graceful shutdown.
 package main
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,7 +23,13 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/mesutokul/fluxboard/backend/internal/config"
+	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres"
+	redisx "github.com/mesutokul/fluxboard/backend/internal/infrastructure/redis"
 	httpx "github.com/mesutokul/fluxboard/backend/internal/interface/http"
+	"github.com/mesutokul/fluxboard/backend/internal/interface/http/handlers"
+	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
+	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
 )
 
 // version is injected at build time via -ldflags "-X main.version=...".
@@ -46,12 +54,10 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info("starting api", "version", version, "config", cfg.String())
 
-	// Root context cancelled on SIGTERM/SIGINT.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	// Data clients. pgxpool connects lazily, so a down DB does not block boot;
-	// /readyz reports it instead.
+	// Data clients. pgxpool connects lazily; a down DB does not block boot.
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -61,20 +67,48 @@ func run(logger *slog.Logger) error {
 	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
 	defer func() { _ = rdb.Close() }()
 
-	// Metrics registry: go runtime + process + pgxpool pool stats.
+	// Metrics registry.
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector())
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registerPoolStats(reg, pool)
+	obs := newAuthObserver(reg, logger)
+
+	// Auth wiring: signer/verifier, repositories, session cache, usecase.
+	signer, err := loadSigner(cfg, logger)
+	if err != nil {
+		return err
+	}
+	verifier := jwtx.VerifierFromSigners(signer)
+
+	userRepo := postgres.NewUserRepo(pool)
+	sessionRepo := postgres.NewSessionRepo(pool)
+	tokenRepo := postgres.NewTokenRepo(pool)
+	sessionCache := redisx.NewSessionCache(rdb)
+
+	authSvc := authuc.New(authuc.Deps{
+		Users:    userRepo,
+		Sessions: sessionRepo,
+		Tokens:   tokenRepo,
+		Cache:    sessionCache,
+		Signer:   signer,
+		Observer: obs,
+	})
+	authHandlers := handlers.NewAuthHandlers(authSvc, logger, cfg.IsProd())
+	authenticator := &mw.Authenticator{
+		Verifier: verifier,
+		Cache:    sessionCache,
+		Sessions: sessionRepo,
+		Logger:   logger,
+	}
 
 	router := httpx.NewRouter(httpx.Deps{
-		Logger:    logger,
-		WebOrigin: cfg.WebOrigin,
-		Health: httpx.Health{
-			DB:    pool,
-			Redis: redisPinger{rdb},
-		},
-		MetricsHTTP: promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
+		Logger:        logger,
+		WebOrigin:     cfg.WebOrigin,
+		Health:        httpx.Health{DB: pool, Redis: redisPinger{rdb}},
+		MetricsHTTP:   promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
+		Auth:          authHandlers,
+		Authenticator: authenticator,
 	})
 
 	srv := &http.Server{
@@ -83,7 +117,6 @@ func run(logger *slog.Logger) error {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	// Serve until the signal context is cancelled.
 	serveErr := make(chan error, 1)
 	go func() {
 		logger.Info("listening", "addr", cfg.HTTPAddr)
@@ -109,13 +142,67 @@ func run(logger *slog.Logger) error {
 	}
 }
 
+// loadSigner resolves the ES256 signing key: inline PEM, a file path, or (dev
+// only) a freshly generated ephemeral key with a loud warning.
+func loadSigner(cfg *config.Config, logger *slog.Logger) (*jwtx.Signer, error) {
+	pemStr := cfg.JWTPrivateKeyPEM
+	switch {
+	case pemStr == "":
+		logger.Warn("JWT_PRIVATE_KEY_PEM not set; generating an EPHEMERAL dev signing key (tokens will not survive restart)")
+		gen, err := jwtx.GenerateES256PEM()
+		if err != nil {
+			return nil, err
+		}
+		pemStr = gen
+	case !strings.Contains(pemStr, "BEGIN"):
+		b, err := os.ReadFile(pemStr)
+		if err != nil {
+			return nil, fmt.Errorf("read jwt key file: %w", err)
+		}
+		pemStr = string(b)
+	}
+	priv, err := jwtx.LoadPrivateKeyPEM(pemStr)
+	if err != nil {
+		return nil, err
+	}
+	return jwtx.NewSigner(priv)
+}
+
 // redisPinger adapts *redis.Client to httpx.Pinger.
 type redisPinger struct{ c *redis.Client }
 
 func (p redisPinger) Ping(ctx context.Context) error { return p.c.Ping(ctx).Err() }
 
-// registerPoolStats exposes pgxpool connection counts as gauges. Cheap and
-// answered on scrape, so it always reflects the live pool.
+// authObserver implements authuc.Observer over Prometheus counters
+// (docs/10-INFRA-DEVOPS.md §5).
+type authObserver struct {
+	login  *prometheus.CounterVec
+	reuse  prometheus.Counter
+	logger *slog.Logger
+}
+
+func newAuthObserver(reg prometheus.Registerer, logger *slog.Logger) *authObserver {
+	login := prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "auth_login_total", Help: "Login attempts by result."},
+		[]string{"result"},
+	)
+	reuse := prometheus.NewCounter(
+		prometheus.CounterOpts{Name: "auth_refresh_reuse_total", Help: "Refresh-token reuse events (security signal)."},
+	)
+	reg.MustRegister(login, reuse)
+	return &authObserver{login: login, reuse: reuse, logger: logger}
+}
+
+func (o *authObserver) LoginAttempt(_ context.Context, result string) {
+	o.login.WithLabelValues(result).Inc()
+}
+
+func (o *authObserver) RefreshReuse(_ context.Context) {
+	o.reuse.Inc()
+	o.logger.Warn("refresh token reuse detected (family revoked)")
+}
+
+// registerPoolStats exposes pgxpool connection counts as gauges.
 func registerPoolStats(reg prometheus.Registerer, pool *pgxpool.Pool) {
 	reg.MustRegister(prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{Name: "pgxpool_acquired_conns", Help: "Currently acquired connections."},

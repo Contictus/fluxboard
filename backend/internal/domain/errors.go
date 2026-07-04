@@ -9,6 +9,8 @@ var (
 	// ErrNotFound: the requested entity does not exist (or is not visible to
 	// the caller's tenant). Maps to 404.
 	ErrNotFound = errors.New("not found")
+	// ErrUnauthorized: authentication is missing or invalid. Maps to 401.
+	ErrUnauthorized = errors.New("unauthorized")
 	// ErrForbidden: authenticated but not authorized for this action. Maps to 403.
 	ErrForbidden = errors.New("forbidden")
 	// ErrConflict: state precondition failed (e.g. duplicate, rank collision).

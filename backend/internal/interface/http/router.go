@@ -1,6 +1,5 @@
 // Package httpx builds the API's HTTP surface: the chi router, the
-// contract-ordered middleware chain, health probes, and the single
-// domain-error-to-status map (errmap.go).
+// contract-ordered middleware chain, health probes, and route mounting.
 package httpx
 
 import (
@@ -9,47 +8,63 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/mesutokul/fluxboard/backend/internal/interface/http/handlers"
 	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
 )
 
-// Deps are the collaborators the router needs. Everything is an interface or a
-// value so main.go owns construction (no global state — docs/CLAUDE.md).
+// Deps are the collaborators the router needs. main.go owns construction.
 type Deps struct {
-	Logger      *slog.Logger
-	WebOrigin   string
-	Health      Health
-	MetricsHTTP http.Handler // promhttp handler for /metrics
+	Logger        *slog.Logger
+	WebOrigin     string
+	Health        Health
+	MetricsHTTP   http.Handler
+	Auth          *handlers.AuthHandlers
+	Authenticator *mw.Authenticator
 }
 
-// NewRouter assembles the router. The infrastructure middleware wrap every
-// route; the security middleware wrap only the versioned API group, in the
-// exact order fixed by docs/03-ARCHITECTURE.md §2.
+// NewRouter assembles the router. Infrastructure middleware wrap every route;
+// the security chain (auth → tenant → rbac → …) wraps only the routes that need
+// it, in the order fixed by docs/03-ARCHITECTURE.md §2.
 func NewRouter(d Deps) http.Handler {
 	r := chi.NewRouter()
 
-	// Infrastructure chain (1–4 of the contract), applied to all routes.
+	// Infrastructure chain (1–4), applied to all routes.
 	r.Use(mw.RequestID)
 	r.Use(mw.Logger(d.Logger))
 	r.Use(mw.Recoverer)
 	r.Use(mw.CORS(d.WebOrigin))
 
-	// Operational endpoints live outside the auth chain.
+	// Operational endpoints (outside auth).
 	r.Get("/healthz", d.Health.Live)
 	r.Get("/readyz", d.Health.Ready)
 	r.Handle("/metrics", d.MetricsHTTP)
 
-	// Versioned API. Security chain (5–9) goes here; handlers are mounted by
-	// later phases. Present now so the boundary is real from day one.
 	r.Route("/api/v1", func(api chi.Router) {
-		api.Use(mw.Auth)           // 5
-		api.Use(mw.TenantResolver) // 6
-		api.Use(mw.RBAC)           // 7
-		api.Use(mw.Entitlement)    // 8
-		api.Use(mw.RateLimit)      // 9
+		// Auth surface (docs/04-AUTH.md §5) — no org context.
+		api.Route("/auth", func(a chi.Router) {
+			// Public (no access token).
+			a.Post("/register", d.Auth.Register)
+			a.Post("/login", d.Auth.Login)
+			a.Post("/refresh", d.Auth.Refresh)
+			a.Post("/verify-email/confirm", d.Auth.VerifyEmailConfirm)
 
-		// TODO(phase1+): mount resource handlers here.
-		api.Get("/ping", func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]string{"pong": "v1"})
+			// Authenticated auth endpoints.
+			a.Group(func(pr chi.Router) {
+				pr.Use(d.Authenticator.Authenticate)
+				pr.Post("/logout", d.Auth.Logout)
+				pr.Post("/logout-all", d.Auth.LogoutAll)
+			})
+		})
+
+		// Secured resource surface (Phase 2+): the full security chain in
+		// contract order. Handlers mount here as later phases land.
+		api.Group(func(sec chi.Router) {
+			sec.Use(d.Authenticator.Authenticate) // 5
+			sec.Use(mw.TenantResolver)            // 6
+			sec.Use(mw.RBAC)                      // 7
+			sec.Use(mw.Entitlement)               // 8
+			sec.Use(mw.RateLimit)                 // 9
+			// TODO(phase2+): mount /orgs, /projects, /tasks, /billing, ...
 		})
 	})
 
