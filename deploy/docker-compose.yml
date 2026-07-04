@@ -16,7 +16,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_SUPERPASS:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-fluxboard}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
@@ -30,7 +30,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -46,8 +46,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_HOST_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - miniodata:/data
     healthcheck:
@@ -74,8 +74,8 @@ services:
   mailpit:
     image: axllent/mailpit
     ports:
-      - "8025:8025" # web UI
-      - "1025:1025" # SMTP
+      - "${MAILPIT_UI_PORT:-8025}:8025" # web UI
+      - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
@@ -91,7 +91,7 @@ services:
         GIT_SHA: ${GIT_SHA:-dev}
     env_file: ../.env
     ports:
-      - "8080:8080"
+      - "${API_HOST_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,7 +126,7 @@ services:
   prometheus:
     image: prom/prometheus
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_HOST_PORT:-9090}:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
@@ -139,7 +139,7 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
     ports:
-      - "3001:3000"
+      - "${GRAFANA_HOST_PORT:-3001}:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafanadata:/var/lib/grafana
@@ -150,7 +150,7 @@ services:
     image: hibiken/asynqmon
     command: ["--redis-addr=redis:6379"]
     ports:
-      - "8082:8080"
+      - "${ASYNQMON_HOST_PORT:-8082}:8080"
     depends_on:
       redis:
         condition: service_healthy
