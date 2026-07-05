@@ -24,6 +24,7 @@ import (
 
 	"github.com/mesutokul/fluxboard/backend/internal/config"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
+	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/casbinx"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/mailer"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/oauthgoogle"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres"
@@ -34,6 +35,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/aesgcm"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/tenantuc"
 )
 
 // version is injected at build time via -ldflags "-X main.version=...".
@@ -144,13 +146,42 @@ func run(logger *slog.Logger) error {
 		Logger:   logger,
 	}
 
+	// Tenancy + RBAC wiring (docs/05-TENANCY-RBAC.md).
+	tenantPool := postgres.NewTenantPool(pool)
+	orgRepo := postgres.NewOrgRepo(pool)
+	membershipRepo := postgres.NewMembershipRepo(tenantPool)
+	invitationRepo := postgres.NewInvitationRepo(pool, tenantPool)
+	membershipCache := redisx.NewMembershipCache(rdb)
+	enforcer, err := casbinx.New()
+	if err != nil {
+		return err
+	}
+	tenantSvc := tenantuc.New(tenantuc.Deps{
+		Orgs:    orgRepo,
+		Members: membershipRepo,
+		Invites: invitationRepo,
+		Users:   userRepo,
+		Cache:   membershipCache,
+		Mailer:  mail,
+		Logger:  logger,
+	})
+	orgHandlers := handlers.NewOrgHandlers(tenantSvc, logger)
+	tenantGuard := &mw.TenantGuard{
+		Members: membershipRepo,
+		Cache:   membershipCache,
+		Authz:   enforcer,
+		Logger:  logger,
+	}
+
 	router := httpx.NewRouter(httpx.Deps{
 		Logger:        logger,
 		WebOrigin:     cfg.WebOrigin,
 		Health:        httpx.Health{DB: pool, Redis: redisPinger{rdb}},
 		MetricsHTTP:   promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
 		Auth:          authHandlers,
+		Orgs:          orgHandlers,
 		Authenticator: authenticator,
+		Tenant:        tenantGuard,
 	})
 
 	srv := &http.Server{

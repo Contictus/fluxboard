@@ -54,6 +54,20 @@ func (m *Mailer) SendPasswordReset(ctx context.Context, to, rawToken string) err
 			"\n\nThis link expires in 1 hour. If you did not request it, ignore this email.")
 }
 
+// SendInvitation emails the org-invite click-through (docs/05-TENANCY-RBAC.md
+// §5). The link is path-style ({WebOrigin}/invite/{token}) to match the sitemap.
+func (m *Mailer) SendInvitation(ctx context.Context, to, orgName, rawToken string) error {
+	base := strings.TrimRight(m.cfg.WebOrigin, "/")
+	link := base + "/invite/" + url.PathEscape(rawToken)
+	org := orgName
+	if org == "" {
+		org = "an organization"
+	}
+	return m.send(ctx, to, "You've been invited to "+org+" on Fluxboard",
+		"You have been invited to join "+org+" on Fluxboard:\n\n"+link+
+			"\n\nThis invitation expires in 7 days.")
+}
+
 // link builds {WebOrigin}{path}?token=<raw>.
 func (m *Mailer) link(path, rawToken string) string {
 	base := strings.TrimRight(m.cfg.WebOrigin, "/")

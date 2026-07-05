@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/handlers"
 	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
 )
@@ -19,7 +20,9 @@ type Deps struct {
 	Health        Health
 	MetricsHTTP   http.Handler
 	Auth          *handlers.AuthHandlers
+	Orgs          *handlers.OrgHandlers
 	Authenticator *mw.Authenticator
+	Tenant        *mw.TenantGuard
 }
 
 // NewRouter assembles the router. Infrastructure middleware wrap every route;
@@ -68,15 +71,45 @@ func NewRouter(d Deps) http.Handler {
 			})
 		})
 
-		// Secured resource surface (Phase 2+): the full security chain in
-		// contract order. Handlers mount here as later phases land.
+		// Secured resource surface (Phase 2+). Org-root routes run under auth
+		// only (no tenant context yet); org-scoped routes add TenantGuard
+		// (resolve membership + RLS scope) and a per-route Casbin gate, in the
+		// order fixed by docs/03-ARCHITECTURE.md §2.
 		api.Group(func(sec chi.Router) {
 			sec.Use(d.Authenticator.Authenticate) // 5
-			sec.Use(mw.TenantResolver)            // 6
-			sec.Use(mw.RBAC)                      // 7
-			sec.Use(mw.Entitlement)               // 8
-			sec.Use(mw.RateLimit)                 // 9
-			// TODO(phase2+): mount /orgs, /projects, /tasks, /billing, ...
+
+			// Org root (no {orgId} — cannot resolve a tenant).
+			sec.Post("/orgs", d.Orgs.CreateOrg)
+			sec.Get("/orgs", d.Orgs.ListMyOrgs)
+			sec.Post("/invitations/accept", d.Orgs.AcceptInvitation)
+
+			// Org-scoped surface (docs/08 §4).
+			sec.Route("/orgs/{orgId}", func(o chi.Router) {
+				o.Use(d.Tenant.Resolve) // 6 (+ RLS scope inside usecases)
+
+				read := func(obj string) func(http.Handler) http.Handler {
+					return d.Tenant.Require(obj, tenant.ActRead)
+				}
+				write := func(obj string) func(http.Handler) http.Handler {
+					return d.Tenant.Require(obj, tenant.ActWrite)
+				}
+
+				o.With(read(tenant.ObjOrg)).Get("/", d.Orgs.GetOrg)
+				o.With(write(tenant.ObjOrg)).Patch("/", d.Orgs.UpdateOrg)
+				o.With(write(tenant.ObjOwnership)).Delete("/", d.Orgs.DeleteOrg)
+				o.With(write(tenant.ObjOwnership)).Post("/restore", d.Orgs.RestoreOrg)
+				o.With(write(tenant.ObjOwnership)).Post("/transfer-ownership", d.Orgs.TransferOwnership)
+
+				o.With(read(tenant.ObjOrg)).Get("/members", d.Orgs.ListMembers)
+				o.With(read(tenant.ObjOrg)).Delete("/members/me", d.Orgs.Leave)
+				o.With(write(tenant.ObjMembers)).Patch("/members/{userId}", d.Orgs.ChangeMemberRole)
+				o.With(write(tenant.ObjMembers)).Delete("/members/{userId}", d.Orgs.RemoveMember)
+
+				o.With(write(tenant.ObjInvitations)).Get("/invitations", d.Orgs.ListInvitations)
+				o.With(write(tenant.ObjInvitations)).Post("/invitations", d.Orgs.CreateInvitation)
+				o.With(write(tenant.ObjInvitations)).Delete("/invitations/{id}", d.Orgs.RevokeInvitation)
+				o.With(write(tenant.ObjInvitations)).Post("/invitations/{id}/resend", d.Orgs.ResendInvitation)
+			})
 		})
 	})
 

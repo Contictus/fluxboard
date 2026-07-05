@@ -27,3 +27,8 @@ func ptrOrNil(s string) *string {
 	}
 	return &s
 }
+
+// tsVal wraps a time.Time as a valid pgtype.Timestamptz (for non-null params).
+func tsVal(t time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: t, Valid: true}
+}

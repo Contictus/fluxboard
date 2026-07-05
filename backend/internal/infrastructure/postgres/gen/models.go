@@ -12,6 +12,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Invitation struct {
+	ID         uuid.UUID          `json:"id"`
+	OrgID      uuid.UUID          `json:"org_id"`
+	Email      string             `json:"email"`
+	Role       string             `json:"role"`
+	TokenHash  []byte             `json:"token_hash"`
+	InvitedBy  uuid.UUID          `json:"invited_by"`
+	ExpiresAt  time.Time          `json:"expires_at"`
+	AcceptedAt pgtype.Timestamptz `json:"accepted_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
+
+type Membership struct {
+	OrgID     uuid.UUID `json:"org_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type OauthIdentity struct {
 	ID          uuid.UUID `json:"id"`
 	UserID      uuid.UUID `json:"user_id"`
@@ -29,6 +49,18 @@ type OneTimeToken struct {
 	ExpiresAt time.Time          `json:"expires_at"`
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
 	CreatedAt time.Time          `json:"created_at"`
+}
+
+type Organization struct {
+	ID               uuid.UUID          `json:"id"`
+	Slug             string             `json:"slug"`
+	Name             string             `json:"name"`
+	LogoKey          *string            `json:"logo_key"`
+	StripeCustomerID *string            `json:"stripe_customer_id"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+	PurgeAfter       pgtype.Timestamptz `json:"purge_after"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
 type RecoveryCode struct {
@@ -49,6 +81,12 @@ type Session struct {
 	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
 	RevokeReason *string            `json:"revoke_reason"`
 	CreatedAt    time.Time          `json:"created_at"`
+}
+
+type SlugHistory struct {
+	OldSlug   string    `json:"old_slug"`
+	OrgID     uuid.UUID `json:"org_id"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 type User struct {

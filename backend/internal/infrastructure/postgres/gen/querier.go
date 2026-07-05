@@ -15,26 +15,49 @@ type Querier interface {
 	// Single-use consume: marks a matching unused code used. Rows affected = 1 means
 	// the code was valid and is now spent; 0 means invalid/already-used.
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (int64, error)
+	CountMembersByRole(ctx context.Context, arg CountMembersByRoleParams) (int64, error)
+	// Invitations ([T], tenant-scoped) ------------------------------------------
+	CreateInvitation(ctx context.Context, arg CreateInvitationParams) error
+	// ListUserOrgs and ResolveInvitationByToken call SECURITY DEFINER set-returning
+	// functions (app_current_user_orgs / app_invitation_by_token). sqlc's parser
+	// can't infer their RETURNS TABLE columns, so they are hand-written pgx in the
+	// org / invitation repos rather than generated here.
+	// Memberships ([T], tenant-scoped) ------------------------------------------
+	CreateMembership(ctx context.Context, arg CreateMembershipParams) error
 	CreateOAuthIdentity(ctx context.Context, arg CreateOAuthIdentityParams) error
 	CreateOneTimeToken(ctx context.Context, arg CreateOneTimeTokenParams) error
+	// Organizations (global pool, no RLS) ---------------------------------------
+	CreateOrg(ctx context.Context, arg CreateOrgParams) error
 	CreateRecoveryCode(ctx context.Context, arg CreateRecoveryCodeParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) error
+	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error)
 	// Clears any prior codes before a fresh batch is issued (activate / regenerate).
 	DeleteUserRecoveryCodes(ctx context.Context, userID uuid.UUID) error
+	GetInvitation(ctx context.Context, arg GetInvitationParams) (Invitation, error)
+	GetInvitationByEmail(ctx context.Context, arg GetInvitationByEmailParams) (Invitation, error)
+	GetMembership(ctx context.Context, arg GetMembershipParams) (Membership, error)
 	// Looks up an external identity by (provider, subject). domain.ErrNotFound when
 	// absent drives the link-or-create branch in the OAuth callback (04 §4).
 	GetOAuthIdentity(ctx context.Context, arg GetOAuthIdentityParams) (OauthIdentity, error)
+	GetOrgByID(ctx context.Context, id uuid.UUID) (GetOrgByIDRow, error)
+	GetOrgBySlug(ctx context.Context, slug string) (GetOrgBySlugRow, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error)
 	GetSessionByTokenHashForUpdate(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashForUpdateRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
+	InsertSlugHistory(ctx context.Context, arg InsertSlugHistoryParams) error
 	// Live sessions the user can manage: not revoked, not rotated (i.e. the current
 	// head of each refresh family), not expired. Newest first (docs/04-AUTH.md §5).
 	ListActiveUserSessions(ctx context.Context, userID uuid.UUID) ([]ListActiveUserSessionsRow, error)
+	ListMembers(ctx context.Context, orgID uuid.UUID) ([]ListMembersRow, error)
+	ListPendingInvitations(ctx context.Context, orgID uuid.UUID) ([]Invitation, error)
+	MarkInvitationAccepted(ctx context.Context, arg MarkInvitationAcceptedParams) (int64, error)
 	MarkSessionRotated(ctx context.Context, id uuid.UUID) error
 	MarkUserEmailVerified(ctx context.Context, id uuid.UUID) error
+	RestoreOrg(ctx context.Context, id uuid.UUID) error
 	RevokeAllUserSessions(ctx context.Context, arg RevokeAllUserSessionsParams) error
+	RevokeInvitation(ctx context.Context, arg RevokeInvitationParams) (int64, error)
 	RevokeSessionByID(ctx context.Context, arg RevokeSessionByIDParams) error
 	RevokeSessionFamily(ctx context.Context, arg RevokeSessionFamilyParams) error
 	// Ownership-scoped single-session revoke: only affects a row owned by the
@@ -43,6 +66,11 @@ type Querier interface {
 	// Sets (or clears, via empty secret) the encrypted TOTP secret and its enabled
 	// flag together (docs/04-AUTH.md §4 TOTP step).
 	SetUserTOTP(ctx context.Context, arg SetUserTOTPParams) error
+	SoftDeleteOrg(ctx context.Context, arg SoftDeleteOrgParams) error
+	UpdateInvitationToken(ctx context.Context, arg UpdateInvitationTokenParams) (int64, error)
+	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
+	UpdateOrgProfile(ctx context.Context, arg UpdateOrgProfileParams) error
+	UpdateOrgSlug(ctx context.Context, arg UpdateOrgSlugParams) error
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
 }
 
