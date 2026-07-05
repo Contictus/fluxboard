@@ -13,6 +13,9 @@ var (
 	ErrUnauthorized = errors.New("unauthorized")
 	// ErrForbidden: authenticated but not authorized for this action. Maps to 403.
 	ErrForbidden = errors.New("forbidden")
+	// ErrEmailUnverified: the caller's email is not verified; app routes are
+	// blocked until they confirm (FR-AUTH-002). Maps to 403 email_unverified.
+	ErrEmailUnverified = errors.New("email not verified")
 	// ErrConflict: state precondition failed (e.g. duplicate, rank collision).
 	// Maps to 409.
 	ErrConflict = errors.New("conflict")

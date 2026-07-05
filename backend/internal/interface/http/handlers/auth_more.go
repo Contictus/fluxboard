@@ -95,12 +95,13 @@ func (h *AuthHandlers) VerifyEmailRequest(w http.ResponseWriter, r *http.Request
 // --- Sessions -------------------------------------------------------------
 
 type sessionResp struct {
-	ID        string    `json:"id"`
-	UserAgent string    `json:"user_agent"`
-	IP        string    `json:"ip,omitempty"`
-	Current   bool      `json:"current"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
+	ID         string    `json:"id"`
+	UserAgent  string    `json:"user_agent"`
+	IP         string    `json:"ip,omitempty"`
+	Current    bool      `json:"current"`
+	CreatedAt  time.Time `json:"created_at"`
+	LastUsedAt time.Time `json:"last_used_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 // Sessions lists the caller's live sessions, flagging the one making the request.
@@ -115,7 +116,8 @@ func (h *AuthHandlers) Sessions(w http.ResponseWriter, r *http.Request) {
 	for _, s := range sessions {
 		items = append(items, sessionResp{
 			ID: s.ID, UserAgent: s.UserAgent, IP: s.IP,
-			Current: s.ID == p.SID, CreatedAt: s.CreatedAt, ExpiresAt: s.ExpiresAt,
+			Current: s.ID == p.SID, CreatedAt: s.CreatedAt,
+			LastUsedAt: s.LastUsedAt, ExpiresAt: s.ExpiresAt,
 		})
 	}
 	response.JSON(w, http.StatusOK, map[string]any{"items": items})

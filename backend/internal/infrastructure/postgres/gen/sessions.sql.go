@@ -45,7 +45,7 @@ const getSessionByID = `-- name: GetSessionByID :one
 SELECT id, family_id, user_id, token_hash, user_agent,
        coalesce(host(ip), '')::text AS ip,
        expires_at, rotated_at, revoked_at,
-       coalesce(revoke_reason, '')::text AS revoke_reason, created_at
+       coalesce(revoke_reason, '')::text AS revoke_reason, created_at, last_used_at
 FROM sessions
 WHERE id = $1
 `
@@ -62,6 +62,7 @@ type GetSessionByIDRow struct {
 	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
 	RevokeReason string             `json:"revoke_reason"`
 	CreatedAt    time.Time          `json:"created_at"`
+	LastUsedAt   time.Time          `json:"last_used_at"`
 }
 
 func (q *Queries) GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error) {
@@ -79,6 +80,7 @@ func (q *Queries) GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionB
 		&i.RevokedAt,
 		&i.RevokeReason,
 		&i.CreatedAt,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -130,7 +132,7 @@ const listActiveUserSessions = `-- name: ListActiveUserSessions :many
 SELECT id, family_id, user_id, token_hash, user_agent,
        coalesce(host(ip), '')::text AS ip,
        expires_at, rotated_at, revoked_at,
-       coalesce(revoke_reason, '')::text AS revoke_reason, created_at
+       coalesce(revoke_reason, '')::text AS revoke_reason, created_at, last_used_at
 FROM sessions
 WHERE user_id = $1
   AND revoked_at IS NULL
@@ -151,6 +153,7 @@ type ListActiveUserSessionsRow struct {
 	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
 	RevokeReason string             `json:"revoke_reason"`
 	CreatedAt    time.Time          `json:"created_at"`
+	LastUsedAt   time.Time          `json:"last_used_at"`
 }
 
 // Live sessions the user can manage: not revoked, not rotated (i.e. the current
@@ -176,6 +179,7 @@ func (q *Queries) ListActiveUserSessions(ctx context.Context, userID uuid.UUID) 
 			&i.RevokedAt,
 			&i.RevokeReason,
 			&i.CreatedAt,
+			&i.LastUsedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -264,4 +268,16 @@ func (q *Queries) RevokeUserSessionByID(ctx context.Context, arg RevokeUserSessi
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const touchSessionLastUsed = `-- name: TouchSessionLastUsed :exec
+UPDATE sessions SET last_used_at = now()
+WHERE id = $1 AND revoked_at IS NULL AND rotated_at IS NULL
+`
+
+// Advance last_used_at for a live session head. Called by the auth middleware on
+// the cache-miss backfill path (≤ once per cache TTL), not per request.
+func (q *Queries) TouchSessionLastUsed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, touchSessionLastUsed, id)
+	return err
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
@@ -51,11 +52,36 @@ func (r *MembershipRepo) Get(ctx context.Context, orgID, userID string) (*tenant
 	return m, nil
 }
 
-func (r *MembershipRepo) List(ctx context.Context, orgID string) ([]tenant.Member, error) {
+func (r *MembershipRepo) List(ctx context.Context, orgID string, mq tenant.MemberQuery) ([]tenant.Member, error) {
+	limit := mq.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	var rolePtr *string
+	if mq.Role != nil {
+		s := string(*mq.Role)
+		rolePtr = &s
+	}
+	var qPtr *string
+	if qv := mq.Q; qv != "" {
+		qPtr = &qv
+	}
+	after := pgtype.Timestamptz{}
+	afterUser := pgtype.UUID{}
+	if !mq.AfterCreated.IsZero() {
+		after = pgtype.Timestamptz{Time: mq.AfterCreated, Valid: true}
+		if uid, err := parseUUID(mq.AfterUser); err == nil {
+			afterUser = pgtype.UUID{Bytes: uid, Valid: true}
+		}
+	}
+
 	var out []tenant.Member
 	err := r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
 		oid, _ := parseUUID(orgID)
-		rows, err := q.ListMembers(ctx, oid)
+		rows, err := q.ListMembersFiltered(ctx, gen.ListMembersFilteredParams{
+			OrgID: oid, Role: rolePtr, Q: qPtr,
+			AfterCreated: after, AfterUser: afterUser, Lim: int32(limit),
+		})
 		if err != nil {
 			return err
 		}

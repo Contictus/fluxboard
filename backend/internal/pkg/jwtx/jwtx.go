@@ -35,6 +35,7 @@ const ScopePending2FA = "pending_2fa"
 type Claims struct {
 	SID   string `json:"sid,omitempty"`
 	Scope string `json:"scope,omitempty"`
+	Ver   bool   `json:"ver,omitempty"` // email verified at issue time (FR-AUTH-002 gate)
 	jwt.RegisteredClaims
 }
 
@@ -63,10 +64,13 @@ func (s *Signer) KID() string { return s.kid }
 // PublicKey returns the verification key (feed it into NewVerifier).
 func (s *Signer) PublicKey() *ecdsa.PublicKey { return &s.key.PublicKey }
 
-// Sign issues a signed access token for subject/sid valid for ttl from now.
-func (s *Signer) Sign(subject, sid string, now time.Time, ttl time.Duration) (string, error) {
+// Sign issues a signed access token for subject/sid valid for ttl from now. The
+// verified flag records whether the user's email was verified at issue time so
+// the RequireVerified gate need not hit the DB per request (FR-AUTH-002).
+func (s *Signer) Sign(subject, sid string, verified bool, now time.Time, ttl time.Duration) (string, error) {
 	claims := Claims{
 		SID: sid,
+		Ver: verified,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    Issuer,
 			Subject:   subject,

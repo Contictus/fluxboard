@@ -34,6 +34,10 @@ INSERT INTO slug_history (old_slug, org_id, expires_at)
 VALUES (@old_slug, @org_id, @expires_at)
 ON CONFLICT (old_slug) DO UPDATE SET org_id = EXCLUDED.org_id, expires_at = EXCLUDED.expires_at;
 
+-- name: GetSlugRedirect :one
+-- Resolve a stale slug to its org within the 30-day 301 window (FR-TEN-007).
+SELECT org_id FROM slug_history WHERE old_slug = @old_slug AND expires_at > now();
+
 -- name: SoftDeleteOrg :exec
 UPDATE organizations
 SET deleted_at = now(), purge_after = @purge_after
@@ -68,6 +72,28 @@ FROM memberships m
 JOIN users u ON u.id = m.user_id
 WHERE m.org_id = @org_id
 ORDER BY m.created_at;
+
+-- name: ListMembersFiltered :many
+-- Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role
+-- and text (name/email) filters; the (created_at,user_id) cursor is exclusive.
+SELECT m.user_id, u.email, u.name,
+       coalesce(u.avatar_key, '')::text AS avatar_key,
+       m.role, m.created_at
+FROM memberships m
+JOIN users u ON u.id = m.user_id
+WHERE m.org_id = @org_id
+  AND (sqlc.narg('role')::text IS NULL OR m.role = sqlc.narg('role'))
+  AND (
+        sqlc.narg('q')::text IS NULL
+        OR u.name ILIKE '%' || sqlc.narg('q') || '%'
+        OR u.email ILIKE '%' || sqlc.narg('q') || '%'
+      )
+  AND (
+        sqlc.narg('after_created')::timestamptz IS NULL
+        OR (m.created_at, m.user_id) > (sqlc.narg('after_created'), sqlc.narg('after_user')::uuid)
+      )
+ORDER BY m.created_at, m.user_id
+LIMIT sqlc.arg('lim');
 
 -- name: UpdateMemberRole :execrows
 UPDATE memberships SET role = @role

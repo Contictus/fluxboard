@@ -44,6 +44,8 @@ type Querier interface {
 	GetOrgBySlug(ctx context.Context, slug string) (GetOrgBySlugRow, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error)
 	GetSessionByTokenHashForUpdate(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashForUpdateRow, error)
+	// Resolve a stale slug to its org within the 30-day 301 window (FR-TEN-007).
+	GetSlugRedirect(ctx context.Context, oldSlug string) (uuid.UUID, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
 	InsertSlugHistory(ctx context.Context, arg InsertSlugHistoryParams) error
@@ -51,6 +53,9 @@ type Querier interface {
 	// head of each refresh family), not expired. Newest first (docs/04-AUTH.md §5).
 	ListActiveUserSessions(ctx context.Context, userID uuid.UUID) ([]ListActiveUserSessionsRow, error)
 	ListMembers(ctx context.Context, orgID uuid.UUID) ([]ListMembersRow, error)
+	// Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role
+	// and text (name/email) filters; the (created_at,user_id) cursor is exclusive.
+	ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]ListMembersFilteredRow, error)
 	ListPendingInvitations(ctx context.Context, orgID uuid.UUID) ([]Invitation, error)
 	MarkInvitationAccepted(ctx context.Context, arg MarkInvitationAcceptedParams) (int64, error)
 	MarkSessionRotated(ctx context.Context, id uuid.UUID) error
@@ -67,6 +72,9 @@ type Querier interface {
 	// flag together (docs/04-AUTH.md §4 TOTP step).
 	SetUserTOTP(ctx context.Context, arg SetUserTOTPParams) error
 	SoftDeleteOrg(ctx context.Context, arg SoftDeleteOrgParams) error
+	// Advance last_used_at for a live session head. Called by the auth middleware on
+	// the cache-miss backfill path (≤ once per cache TTL), not per request.
+	TouchSessionLastUsed(ctx context.Context, id uuid.UUID) error
 	UpdateInvitationToken(ctx context.Context, arg UpdateInvitationTokenParams) (int64, error)
 	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
 	UpdateOrgProfile(ctx context.Context, arg UpdateOrgProfileParams) error

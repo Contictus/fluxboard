@@ -17,8 +17,9 @@ var testNow = time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
 // ---- fakes ----------------------------------------------------------------
 
 type fakeOrgs struct {
-	orgs    map[string]*tenant.Organization
-	members *fakeMembers
+	orgs        map[string]*tenant.Organization
+	members     *fakeMembers
+	slugHistory map[string]string // old slug -> org id (301 window)
 }
 
 func (f *fakeOrgs) CreateWithOwner(_ context.Context, o *tenant.Organization, ownerID string) error {
@@ -50,6 +51,13 @@ func (f *fakeOrgs) GetBySlug(_ context.Context, slug string) (*tenant.Organizati
 		}
 	}
 	return nil, domain.ErrNotFound
+}
+
+func (f *fakeOrgs) SlugRedirectTarget(_ context.Context, oldSlug string) (string, error) {
+	if id, ok := f.slugHistory[oldSlug]; ok {
+		return id, nil
+	}
+	return "", domain.ErrNotFound
 }
 
 func (f *fakeOrgs) ListForUser(_ context.Context, userID string) ([]tenant.OrgMembership, error) {
@@ -88,6 +96,10 @@ func (f *fakeOrgs) UpdateSlug(_ context.Context, id, newSlug string, _ time.Time
 	if !ok {
 		return domain.ErrNotFound
 	}
+	if f.slugHistory == nil {
+		f.slugHistory = map[string]string{}
+	}
+	f.slugHistory[o.Slug] = id // record old slug for 301 window
 	o.Slug = newSlug
 	return nil
 }
@@ -133,9 +145,12 @@ func (f *fakeMembers) Get(_ context.Context, orgID, userID string) (*tenant.Memb
 	return nil, domain.ErrNotFound
 }
 
-func (f *fakeMembers) List(_ context.Context, orgID string) ([]tenant.Member, error) {
+func (f *fakeMembers) List(_ context.Context, orgID string, q tenant.MemberQuery) ([]tenant.Member, error) {
 	var out []tenant.Member
 	for _, m := range f.m[orgID] {
+		if q.Role != nil && m.Role != *q.Role {
+			continue
+		}
 		out = append(out, tenant.Member{UserID: m.UserID, Role: m.Role, CreatedAt: m.CreatedAt})
 	}
 	return out, nil
@@ -445,7 +460,7 @@ func TestCreateInvitation_AlreadyMember(t *testing.T) {
 	org, _ := h.svc.CreateOrg(ctx(), "owner-1", "Org", "org1")
 	h.users.byEmail["bob@x.com"] = &auth.User{ID: "bob", Email: "bob@x.com"}
 	h.members.add(org.ID, "bob", tenant.RoleMember)
-	_, err := h.svc.CreateInvitation(ctx(), org.ID, "owner-1", "bob@x.com", tenant.RoleMember)
+	_, err := h.svc.CreateInvitation(ctx(), org.ID, "owner-1", "bob@x.com", tenant.RoleMember, "")
 	if !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("inviting an existing member must 409, got %v", err)
 	}
@@ -454,10 +469,10 @@ func TestCreateInvitation_AlreadyMember(t *testing.T) {
 func TestCreateInvitation_AlreadyPending(t *testing.T) {
 	h := newHarness()
 	org, _ := h.svc.CreateOrg(ctx(), "owner-1", "Org", "org1")
-	if _, err := h.svc.CreateInvitation(ctx(), org.ID, "owner-1", "new@x.com", tenant.RoleMember); err != nil {
+	if _, err := h.svc.CreateInvitation(ctx(), org.ID, "owner-1", "new@x.com", tenant.RoleMember, ""); err != nil {
 		t.Fatal(err)
 	}
-	_, err := h.svc.CreateInvitation(ctx(), org.ID, "owner-1", "new@x.com", tenant.RoleMember)
+	_, err := h.svc.CreateInvitation(ctx(), org.ID, "owner-1", "new@x.com", tenant.RoleMember, "")
 	if !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("second pending invite must 409, got %v", err)
 	}
@@ -466,7 +481,7 @@ func TestCreateInvitation_AlreadyPending(t *testing.T) {
 func TestCreateInvitation_BadRole(t *testing.T) {
 	h := newHarness()
 	org, _ := h.svc.CreateOrg(ctx(), "owner-1", "Org", "org1")
-	_, err := h.svc.CreateInvitation(ctx(), org.ID, "owner-1", "x@x.com", tenant.RoleOwner)
+	_, err := h.svc.CreateInvitation(ctx(), org.ID, "owner-1", "x@x.com", tenant.RoleOwner, "")
 	if !errors.Is(err, domain.ErrValidation) {
 		t.Fatalf("inviting as OWNER must be validation error, got %v", err)
 	}

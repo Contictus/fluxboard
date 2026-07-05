@@ -11,6 +11,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/response"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
+	"github.com/mesutokul/fluxboard/backend/internal/pkg/reqmeta"
 )
 
 // ctxKeyPrincipal stores the authenticated Principal. (Offset from the iota keys
@@ -22,9 +23,11 @@ const authCacheTTL = 60 * time.Second
 
 // Principal is the authenticated caller derived from a validated access token.
 // No role/tenant here — those are resolved per request downstream (ADR 008).
+// EmailVerified mirrors the token's `ver` claim for the RequireVerified gate.
 type Principal struct {
-	UserID string
-	SID    string
+	UserID        string
+	SID           string
+	EmailVerified bool
 }
 
 // WithPrincipal stores p in ctx.
@@ -70,8 +73,29 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 			response.Error(w, domain.ErrUnauthorized)
 			return
 		}
-		ctx := WithPrincipal(r.Context(), Principal{UserID: claims.Subject, SID: claims.SID})
+		ctx := WithPrincipal(r.Context(), Principal{UserID: claims.Subject, SID: claims.SID, EmailVerified: claims.Ver})
+		ctx = reqmeta.WithActor(ctx, claims.Subject) // enrich audit entries with the actor
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// RequireVerified blocks callers whose email is not verified (FR-AUTH-002). It
+// reads the `ver` claim surfaced on the Principal, so it must run AFTER
+// Authenticate. Account-management auth routes (logout, sessions, 2FA, resend
+// verify) are mounted outside this gate so an unverified user can still act on
+// their own account.
+func RequireVerified(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := PrincipalFrom(r.Context())
+		if !ok {
+			response.Error(w, domain.ErrUnauthorized)
+			return
+		}
+		if !p.EmailVerified {
+			response.Error(w, domain.ErrEmailUnverified)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -91,6 +115,15 @@ func (a *Authenticator) sessionLive(ctx context.Context, sid string, now time.Ti
 	}
 	if err := a.Cache.MarkActive(ctx, sid, authCacheTTL); err != nil {
 		a.Logger.Warn("session cache backfill failed", "err", err)
+	}
+	// Advance last_used_at on the backfill path (≤ once per cache TTL). Optional
+	// capability: only the concrete repo implements it (FR-AUTH-008).
+	if t, ok := a.Sessions.(interface {
+		TouchLastUsed(context.Context, string) error
+	}); ok {
+		if err := t.TouchLastUsed(ctx, sid); err != nil {
+			a.Logger.Warn("session touch last_used failed", "err", err)
+		}
 	}
 	return true
 }

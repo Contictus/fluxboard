@@ -10,14 +10,17 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/audit"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/argon2x"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/clock"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
+	"github.com/mesutokul/fluxboard/backend/internal/pkg/reqmeta"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/token"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/uuidv7"
 )
@@ -58,6 +61,7 @@ type Service struct {
 	google   auth.OAuthProvider
 	clock    clock.Clock
 	obs      Observer
+	auditor  audit.Writer
 
 	accessTTL  time.Duration
 	refreshTTL time.Duration
@@ -81,6 +85,7 @@ type Deps struct {
 	Google   auth.OAuthProvider
 	Clock    clock.Clock
 	Observer Observer
+	Audit    audit.Writer
 
 	AccessTTL  time.Duration // default 15m
 	RefreshTTL time.Duration // default 7d
@@ -104,15 +109,41 @@ func New(d Deps) *Service {
 	if d.Mailer == nil {
 		d.Mailer = noopMailer{}
 	}
+	if d.Audit == nil {
+		d.Audit = noopAudit{}
+	}
 	return &Service{
 		users: d.Users, sessions: d.Sessions, tokens: d.Tokens,
 		recovery: d.Recovery, oauth: d.OAuth, cache: d.Cache,
 		limiter: d.Limiter, mailer: d.Mailer,
 		signer: d.Signer, verifier: d.Verifier, cipher: d.Cipher, google: d.Google,
-		clock: d.Clock, obs: d.Observer,
+		clock: d.Clock, obs: d.Observer, auditor: d.Audit,
 		accessTTL: d.AccessTTL, refreshTTL: d.RefreshTTL,
 	}
 }
+
+// writeAudit appends an audit entry best-effort, enriching missing actor/IP/UA
+// from the request context (pkg/reqmeta). A failed write is logged, never
+// surfaced — audit is telemetry, not part of the request contract.
+func (s *Service) writeAudit(ctx context.Context, e audit.Entry) {
+	m := reqmeta.From(ctx)
+	if e.ActorUserID == "" {
+		e.ActorUserID = m.ActorUserID
+	}
+	if e.IP == "" {
+		e.IP = m.IP
+	}
+	if e.UserAgent == "" {
+		e.UserAgent = m.UserAgent
+	}
+	if err := s.auditor.Append(ctx, e); err != nil {
+		slog.Default().WarnContext(ctx, "audit append failed", "action", e.Action, "err", err)
+	}
+}
+
+type noopAudit struct{}
+
+func (noopAudit) Append(context.Context, audit.Entry) error { return nil }
 
 // SecretCipher encrypts/decrypts secrets at rest (the TOTP secret). Satisfied by
 // pkg/aesgcm.Cipher; an interface here keeps the usecase off infrastructure.
@@ -308,7 +339,15 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, newPassword strin
 	if err := s.users.UpdatePasswordHash(ctx, u.ID, hash); err != nil {
 		return err
 	}
-	return s.sessions.RevokeAllForUser(ctx, u.ID, "password_reset")
+	if err := s.sessions.RevokeAllForUser(ctx, u.ID, "password_reset"); err != nil {
+		return err
+	}
+	s.writeAudit(ctx, audit.Entry{
+		ActorUserID: u.ID,
+		Action:      audit.ActionPasswordReset,
+		Severity:    audit.SeveritySecurity,
+	})
+	return nil
 }
 
 // ChangePassword verifies the current password, sets a new one, and revokes all
@@ -346,6 +385,11 @@ func (s *Service) ChangePassword(ctx context.Context, userID, currentPassword, n
 	if currentSID != "" {
 		_ = s.cache.Revoke(ctx, currentSID)
 	}
+	s.writeAudit(ctx, audit.Entry{
+		ActorUserID: u.ID,
+		Action:      audit.ActionPasswordChange,
+		Severity:    audit.SeveritySecurity,
+	})
 	return nil
 }
 
@@ -422,6 +466,12 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (LoginResult, error)
 	}
 	if !ok {
 		s.observe(ctx).LoginAttempt(ctx, "invalid")
+		s.writeAudit(ctx, audit.Entry{
+			ActorUserID: u.ID,
+			Action:      audit.ActionLoginFailed,
+			Metadata:    map[string]any{"reason": "invalid_password"},
+			Severity:    audit.SeverityWarning,
+		})
 		return LoginResult{}, domain.ErrUnauthorized
 	}
 
@@ -480,7 +530,14 @@ func (s *Service) issueSession(ctx context.Context, userID, userAgent, ip string
 // finishTokens signs the access JWT, primes the session cache, and assembles
 // the Tokens result shared by login and refresh.
 func (s *Service) finishTokens(ctx context.Context, userID, sid, rawRefresh string, now, refreshExpiry time.Time) (Tokens, error) {
-	access, err := s.signer.Sign(userID, sid, now, s.accessTTL)
+	// Stamp the email-verified flag into the access token so RequireVerified is a
+	// claim check, not a per-request DB read. A lookup failure is fail-closed
+	// (verified=false → gated), which is the safe default.
+	verified := false
+	if u, err := s.users.GetByID(ctx, userID); err == nil {
+		verified = u.EmailVerified
+	}
+	access, err := s.signer.Sign(userID, sid, verified, now, s.accessTTL)
 	if err != nil {
 		return Tokens{}, err
 	}
@@ -522,6 +579,10 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh, userAgent, ip string)
 	if err != nil {
 		if errors.Is(err, auth.ErrRefreshReuse) {
 			s.observe(ctx).RefreshReuse(ctx)
+			s.writeAudit(ctx, audit.Entry{
+				Action:   audit.ActionRefreshReuse,
+				Severity: audit.SeveritySecurity,
+			})
 		}
 		return Tokens{}, err
 	}
@@ -569,6 +630,13 @@ func (s *Service) RevokeSession(ctx context.Context, userID, sessionID string) e
 	if err := s.sessions.RevokeByIDForUser(ctx, sessionID, userID, "revoked_by_user"); err != nil {
 		return err
 	}
+	s.writeAudit(ctx, audit.Entry{
+		ActorUserID: userID,
+		Action:      audit.ActionSessionRevoke,
+		TargetType:  "session",
+		TargetID:    sessionID,
+		Severity:    audit.SeverityInfo,
+	})
 	return s.cache.Revoke(ctx, sessionID)
 }
 

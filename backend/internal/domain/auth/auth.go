@@ -51,6 +51,7 @@ type Session struct {
 	RevokedAt    *time.Time
 	RevokeReason string
 	CreatedAt    time.Time
+	LastUsedAt   time.Time
 }
 
 // Active reports whether the session can still be exchanged: not rotated, not

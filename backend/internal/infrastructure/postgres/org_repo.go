@@ -96,6 +96,19 @@ func (r *OrgRepo) GetBySlug(ctx context.Context, slug string) (*tenant.Organizat
 	}, nil
 }
 
+// SlugRedirectTarget resolves a stale slug to its org id via slug_history within
+// the 301 window (FR-TEN-007). domain.ErrNotFound when absent or expired.
+func (r *OrgRepo) SlugRedirectTarget(ctx context.Context, oldSlug string) (string, error) {
+	orgID, err := r.q.GetSlugRedirect(ctx, oldSlug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", domain.ErrNotFound
+		}
+		return "", fmt.Errorf("slug redirect: %w", err)
+	}
+	return orgID.String(), nil
+}
+
 // ListForUser calls the SECURITY DEFINER function directly (raw pool) — it is
 // the sanctioned cross-tenant read (ADR-014). Hand-written because sqlc cannot
 // infer the function's RETURNS TABLE columns.

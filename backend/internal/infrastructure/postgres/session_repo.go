@@ -76,7 +76,20 @@ func (r *SessionRepo) GetByID(ctx context.Context, id string) (*auth.Session, er
 		RevokedAt:    tsPtr(row.RevokedAt),
 		RevokeReason: row.RevokeReason,
 		CreatedAt:    row.CreatedAt,
+		LastUsedAt:   row.LastUsedAt,
 	}, nil
+}
+
+// TouchLastUsed advances a live session's last_used_at. Best-effort; the auth
+// middleware calls it on the cache-miss backfill path (FR-AUTH-008). Not part of
+// the domain SessionRepository port — the middleware type-asserts for it — so
+// test fakes need not implement it.
+func (r *SessionRepo) TouchLastUsed(ctx context.Context, id string) error {
+	sid, err := parseUUID(id)
+	if err != nil {
+		return fmt.Errorf("touch session: %w", err)
+	}
+	return r.q.TouchSessionLastUsed(ctx, sid)
 }
 
 // Rotate runs steps 1–6 of docs/04-AUTH.md §3 in one serializable transaction.
@@ -201,6 +214,7 @@ func (r *SessionRepo) ListForUser(ctx context.Context, userID string) ([]*auth.S
 			RevokedAt:    tsPtr(row.RevokedAt),
 			RevokeReason: row.RevokeReason,
 			CreatedAt:    row.CreatedAt,
+			LastUsedAt:   row.LastUsedAt,
 		})
 	}
 	return out, nil

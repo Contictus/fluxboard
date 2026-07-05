@@ -36,6 +36,7 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(mw.Logger(d.Logger))
 	r.Use(mw.Recoverer)
 	r.Use(mw.CORS(d.WebOrigin))
+	r.Use(mw.ClientMeta) // stash client IP/UA for audit enrichment (pkg/reqmeta)
 
 	// Operational endpoints (outside auth).
 	r.Get("/healthz", d.Health.Live)
@@ -77,10 +78,14 @@ func NewRouter(d Deps) http.Handler {
 		// order fixed by docs/03-ARCHITECTURE.md §2.
 		api.Group(func(sec chi.Router) {
 			sec.Use(d.Authenticator.Authenticate) // 5
+			sec.Use(mw.RequireVerified)           // FR-AUTH-002: block unverified email
 
 			// Org root (no {orgId} — cannot resolve a tenant).
 			sec.Post("/orgs", d.Orgs.CreateOrg)
 			sec.Get("/orgs", d.Orgs.ListMyOrgs)
+			// Static "by-slug" is matched ahead of the {orgId} subrouter; org ids
+			// are UUIDs so there is no collision (FR-TEN-007 slug 301 resolver).
+			sec.Get("/orgs/by-slug/{slug}", d.Orgs.ResolveSlug)
 			sec.Post("/invitations/accept", d.Orgs.AcceptInvitation)
 
 			// Org-scoped surface (docs/08 §4).

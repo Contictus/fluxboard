@@ -12,6 +12,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AuditLog struct {
+	ID                 uuid.UUID   `json:"id"`
+	OrgID              pgtype.UUID `json:"org_id"`
+	ActorUserID        pgtype.UUID `json:"actor_user_id"`
+	ImpersonatorUserID pgtype.UUID `json:"impersonator_user_id"`
+	Action             string      `json:"action"`
+	TargetType         *string     `json:"target_type"`
+	TargetID           *string     `json:"target_id"`
+	Metadata           []byte      `json:"metadata"`
+	Ip                 *netip.Addr `json:"ip"`
+	UserAgent          *string     `json:"user_agent"`
+	Severity           string      `json:"severity"`
+	CreatedAt          time.Time   `json:"created_at"`
+}
+
 type Invitation struct {
 	ID         uuid.UUID          `json:"id"`
 	OrgID      uuid.UUID          `json:"org_id"`
@@ -81,6 +96,7 @@ type Session struct {
 	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
 	RevokeReason *string            `json:"revoke_reason"`
 	CreatedAt    time.Time          `json:"created_at"`
+	LastUsedAt   time.Time          `json:"last_used_at"`
 }
 
 type SlugHistory struct {

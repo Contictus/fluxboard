@@ -276,6 +276,18 @@ func (q *Queries) GetOrgBySlug(ctx context.Context, slug string) (GetOrgBySlugRo
 	return i, err
 }
 
+const getSlugRedirect = `-- name: GetSlugRedirect :one
+SELECT org_id FROM slug_history WHERE old_slug = $1 AND expires_at > now()
+`
+
+// Resolve a stale slug to its org within the 30-day 301 window (FR-TEN-007).
+func (q *Queries) GetSlugRedirect(ctx context.Context, oldSlug string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getSlugRedirect, oldSlug)
+	var org_id uuid.UUID
+	err := row.Scan(&org_id)
+	return org_id, err
+}
+
 const insertSlugHistory = `-- name: InsertSlugHistory :exec
 INSERT INTO slug_history (old_slug, org_id, expires_at)
 VALUES ($1, $2, $3)
@@ -321,6 +333,81 @@ func (q *Queries) ListMembers(ctx context.Context, orgID uuid.UUID) ([]ListMembe
 	var items []ListMembersRow
 	for rows.Next() {
 		var i ListMembersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Email,
+			&i.Name,
+			&i.AvatarKey,
+			&i.Role,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMembersFiltered = `-- name: ListMembersFiltered :many
+SELECT m.user_id, u.email, u.name,
+       coalesce(u.avatar_key, '')::text AS avatar_key,
+       m.role, m.created_at
+FROM memberships m
+JOIN users u ON u.id = m.user_id
+WHERE m.org_id = $1
+  AND ($2::text IS NULL OR m.role = $2)
+  AND (
+        $3::text IS NULL
+        OR u.name ILIKE '%' || $3 || '%'
+        OR u.email ILIKE '%' || $3 || '%'
+      )
+  AND (
+        $4::timestamptz IS NULL
+        OR (m.created_at, m.user_id) > ($4, $5::uuid)
+      )
+ORDER BY m.created_at, m.user_id
+LIMIT $6
+`
+
+type ListMembersFilteredParams struct {
+	OrgID        uuid.UUID          `json:"org_id"`
+	Role         *string            `json:"role"`
+	Q            *string            `json:"q"`
+	AfterCreated pgtype.Timestamptz `json:"after_created"`
+	AfterUser    pgtype.UUID        `json:"after_user"`
+	Lim          int32              `json:"lim"`
+}
+
+type ListMembersFilteredRow struct {
+	UserID    uuid.UUID `json:"user_id"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	AvatarKey string    `json:"avatar_key"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role
+// and text (name/email) filters; the (created_at,user_id) cursor is exclusive.
+func (q *Queries) ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]ListMembersFilteredRow, error) {
+	rows, err := q.db.Query(ctx, listMembersFiltered,
+		arg.OrgID,
+		arg.Role,
+		arg.Q,
+		arg.AfterCreated,
+		arg.AfterUser,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMembersFilteredRow
+	for rows.Next() {
+		var i ListMembersFilteredRow
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Email,

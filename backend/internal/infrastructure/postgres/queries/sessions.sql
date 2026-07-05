@@ -6,7 +6,7 @@ VALUES (@id, @family_id, @user_id, @token_hash, @user_agent, nullif(@ip, '')::in
 SELECT id, family_id, user_id, token_hash, user_agent,
        coalesce(host(ip), '')::text AS ip,
        expires_at, rotated_at, revoked_at,
-       coalesce(revoke_reason, '')::text AS revoke_reason, created_at
+       coalesce(revoke_reason, '')::text AS revoke_reason, created_at, last_used_at
 FROM sessions
 WHERE id = @id;
 
@@ -43,13 +43,19 @@ WHERE user_id = @user_id AND revoked_at IS NULL;
 SELECT id, family_id, user_id, token_hash, user_agent,
        coalesce(host(ip), '')::text AS ip,
        expires_at, rotated_at, revoked_at,
-       coalesce(revoke_reason, '')::text AS revoke_reason, created_at
+       coalesce(revoke_reason, '')::text AS revoke_reason, created_at, last_used_at
 FROM sessions
 WHERE user_id = @user_id
   AND revoked_at IS NULL
   AND rotated_at IS NULL
   AND expires_at > now()
 ORDER BY created_at DESC;
+
+-- name: TouchSessionLastUsed :exec
+-- Advance last_used_at for a live session head. Called by the auth middleware on
+-- the cache-miss backfill path (≤ once per cache TTL), not per request.
+UPDATE sessions SET last_used_at = now()
+WHERE id = @id AND revoked_at IS NULL AND rotated_at IS NULL;
 
 -- name: RevokeUserSessionByID :execrows
 -- Ownership-scoped single-session revoke: only affects a row owned by the

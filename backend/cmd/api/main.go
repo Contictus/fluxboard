@@ -98,6 +98,7 @@ func run(logger *slog.Logger) error {
 	tokenRepo := postgres.NewTokenRepo(pool)
 	recoveryRepo := postgres.NewRecoveryRepo(pool)
 	oauthRepo := postgres.NewOAuthRepo(pool)
+	auditRepo := postgres.NewAuditRepo(pool)
 	sessionCache := redisx.NewSessionCache(rdb)
 	limiter := redisx.NewLoginRateLimiter(rdb, loginRateLimit, loginRateWindow)
 	oauthStates := redisx.NewOAuthStateStore(rdb)
@@ -127,6 +128,7 @@ func run(logger *slog.Logger) error {
 		Cipher:   cipher,
 		Google:   google,
 		Observer: obs,
+		Audit:    auditRepo,
 	})
 	var states auth.OAuthStateStore
 	if google != nil {
@@ -163,6 +165,8 @@ func run(logger *slog.Logger) error {
 		Users:   userRepo,
 		Cache:   membershipCache,
 		Mailer:  mail,
+		Audit:   auditRepo,
+		Idem:    redisx.NewIdempotencyStore(rdb),
 		Logger:  logger,
 	})
 	orgHandlers := handlers.NewOrgHandlers(tenantSvc, logger)

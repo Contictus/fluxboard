@@ -7,6 +7,8 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -154,6 +156,26 @@ func (h *OrgHandlers) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, map[string]string{"org_id": out.OrgID, "role": string(out.Role)})
 }
 
+// ResolveSlug maps a slug (possibly a stale one within the 301 window) to its
+// org (FR-TEN-007). A stale slug returns 301 with a Location header pointing at
+// the canonical org resource; an active slug returns 200 with the org.
+func (h *OrgHandlers) ResolveSlug(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	res, err := h.svc.ResolveSlug(r.Context(), slug)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	if res.Redirected {
+		w.Header().Set("Location", "/api/v1/orgs/"+res.Org.ID)
+		response.JSON(w, http.StatusMovedPermanently, map[string]any{
+			"id": res.Org.ID, "slug": res.Org.Slug, "redirected": true,
+		})
+		return
+	}
+	response.JSON(w, http.StatusOK, toOrgResp(res.Org))
+}
+
 // ---- Org scoped (TenantGuard) ---------------------------------------------
 
 // GetOrg returns the resolved org (any member).
@@ -250,22 +272,37 @@ func (h *OrgHandlers) TransferOwnership(w http.ResponseWriter, r *http.Request) 
 
 // ---- Members --------------------------------------------------------------
 
-// ListMembers returns the org members (any member).
+// ListMembers returns the org members filtered by ?role=&q= and keyset-paginated
+// via ?cursor=&limit= (docs/08 §4). Any member may read.
 func (h *OrgHandlers) ListMembers(w http.ResponseWriter, r *http.Request) {
 	tc, _ := mw.TenantFrom(r.Context())
-	members, err := h.svc.ListMembers(r.Context(), tc.OrgID)
+	q := r.URL.Query()
+
+	var role *tenant.OrgRole
+	if rv := strings.ToUpper(strings.TrimSpace(q.Get("role"))); rv != "" {
+		or := tenant.OrgRole(rv)
+		role = &or
+	}
+	limit := 0
+	if lv := q.Get("limit"); lv != "" {
+		if n, err := strconv.Atoi(lv); err == nil {
+			limit = n
+		}
+	}
+
+	page, err := h.svc.ListMembers(r.Context(), tc.OrgID, role, q.Get("q"), q.Get("cursor"), limit)
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
-	items := make([]memberResp, 0, len(members))
-	for _, m := range members {
+	items := make([]memberResp, 0, len(page.Items))
+	for _, m := range page.Items {
 		items = append(items, memberResp{
 			UserID: m.UserID, Email: m.Email, Name: m.Name, AvatarKey: m.AvatarKey,
 			Role: string(m.Role), CreatedAt: m.CreatedAt,
 		})
 	}
-	response.JSON(w, http.StatusOK, map[string]any{"items": items})
+	response.JSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": page.NextCursor})
 }
 
 type changeRoleReq struct {
@@ -337,7 +374,7 @@ func (h *OrgHandlers) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	inv, err := h.svc.CreateInvitation(r.Context(), tc.OrgID, tc.UserID, req.Email, tenant.OrgRole(req.Role))
+	inv, err := h.svc.CreateInvitation(r.Context(), tc.OrgID, tc.UserID, req.Email, tenant.OrgRole(req.Role), r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		response.Error(w, err)
 		return

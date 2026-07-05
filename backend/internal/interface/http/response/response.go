@@ -63,6 +63,8 @@ func statusFor(err error) (int, string) {
 		return http.StatusUnprocessableEntity, "validation_failed"
 	case errors.Is(err, domain.ErrUnauthorized):
 		return http.StatusUnauthorized, "unauthorized"
+	case errors.Is(err, domain.ErrEmailUnverified):
+		return http.StatusForbidden, "email_unverified"
 	case errors.Is(err, domain.ErrForbidden):
 		return http.StatusForbidden, "forbidden"
 	case errors.Is(err, domain.ErrNotFound):

@@ -19,6 +19,10 @@ type OrgRepository interface {
 	GetByID(ctx context.Context, id string) (*Organization, error)
 	// GetBySlug returns domain.ErrNotFound when absent (excludes soft-deleted).
 	GetBySlug(ctx context.Context, slug string) (*Organization, error)
+	// SlugRedirectTarget resolves a stale slug to its org id via slug_history
+	// within the 30-day 301 window (FR-TEN-007). domain.ErrNotFound when absent
+	// or expired.
+	SlugRedirectTarget(ctx context.Context, oldSlug string) (string, error)
 	// ListForUser returns every org the user belongs to with their role.
 	ListForUser(ctx context.Context, userID string) ([]OrgMembership, error)
 	// UpdateProfile sets name and (optionally) logo. logoKey nil leaves it.
@@ -38,8 +42,9 @@ type OrgRepository interface {
 type MembershipRepository interface {
 	// Get returns the user's membership, or domain.ErrNotFound.
 	Get(ctx context.Context, orgID, userID string) (*Membership, error)
-	// List returns members joined with user display fields.
-	List(ctx context.Context, orgID string) ([]Member, error)
+	// List returns members joined with user display fields, filtered and keyset-
+	// paginated per q (docs/08 §4 ?role=&q=). Ordered by (created_at, user_id).
+	List(ctx context.Context, orgID string, q MemberQuery) ([]Member, error)
 	// UpdateRole changes a member's role. Returns domain.ErrNotFound if absent.
 	UpdateRole(ctx context.Context, orgID, userID string, role OrgRole) error
 	// Delete removes a membership. Returns domain.ErrNotFound if absent.
@@ -53,6 +58,17 @@ type MembershipRepository interface {
 	// in ONE tenant-scoped transaction (docs/05 §5). Returns domain.ErrConflict
 	// if already a member, domain.ErrNotFound/ErrConflict if the invite is gone.
 	AcceptInvitation(ctx context.Context, orgID, invitationID, userID string, role OrgRole) error
+}
+
+// MemberQuery filters and paginates a member list (docs/08 §4). Role/Q are
+// optional filters; AfterCreated+AfterUser are the keyset cursor (exclusive);
+// Limit caps the page. Zero AfterCreated means "from the start".
+type MemberQuery struct {
+	Role         *OrgRole
+	Q            string
+	AfterCreated time.Time
+	AfterUser    string
+	Limit        int
 }
 
 // InvitationRepository persists invitations ([T], RLS-isolated). Per-org reads

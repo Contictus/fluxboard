@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/audit"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/token"
 )
@@ -24,13 +25,25 @@ type AcceptOutcome struct {
 //
 // The plan seat-count / pending-invite entitlement 402 gate (docs/05 §5) is
 // deferred to Phase 4 with the billing tables.
-func (s *Service) CreateInvitation(ctx context.Context, orgID, inviterID, email string, role tenant.OrgRole) (*tenant.Invitation, error) {
+func (s *Service) CreateInvitation(ctx context.Context, orgID, inviterID, email string, role tenant.OrgRole, idempotencyKey string) (*tenant.Invitation, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !validEmail(email) {
 		return nil, fmt.Errorf("%w: valid email required", domain.ErrValidation)
 	}
 	if !role.Assignable() {
 		return nil, fmt.Errorf("%w: role must be ADMIN, MEMBER, or GUEST", domain.ErrValidation)
+	}
+
+	// Idempotency-Key replay (docs/08 §4): a retried request with the same key
+	// returns the invitation created the first time instead of a duplicate.
+	idemKey := ""
+	if s.idem != nil && strings.TrimSpace(idempotencyKey) != "" {
+		idemKey = "invite:idem:" + orgID + ":" + strings.TrimSpace(idempotencyKey)
+		if priorID, err := s.idem.Get(ctx, idemKey); err == nil && priorID != "" {
+			if inv, err := s.invites.Get(ctx, orgID, priorID); err == nil {
+				return inv, nil
+			}
+		}
 	}
 
 	// Reject if the address already belongs to a member.
@@ -72,7 +85,23 @@ func (s *Service) CreateInvitation(ctx context.Context, orgID, inviterID, email 
 	}
 
 	s.sendInvite(ctx, orgID, email, raw)
-	return s.invites.GetByEmail(ctx, orgID, email)
+	out, err := s.invites.GetByEmail(ctx, orgID, email)
+	if err != nil {
+		return nil, err
+	}
+	if idemKey != "" {
+		_ = s.idem.Set(ctx, idemKey, out.ID, idempotencyTTL)
+	}
+	s.writeAudit(ctx, audit.Entry{
+		OrgID:       orgID,
+		ActorUserID: inviterID,
+		Action:      audit.ActionInvitationCreate,
+		TargetType:  "invitation",
+		TargetID:    out.ID,
+		Metadata:    map[string]any{"email": email, "role": string(role)},
+		Severity:    audit.SeverityInfo,
+	})
+	return out, nil
 }
 
 // ListInvitations returns the org's pending invitations (ADMIN+ gate).
@@ -82,7 +111,17 @@ func (s *Service) ListInvitations(ctx context.Context, orgID string) ([]tenant.I
 
 // RevokeInvitation revokes a pending invitation (ADMIN+ gate).
 func (s *Service) RevokeInvitation(ctx context.Context, orgID, id string) error {
-	return s.invites.Revoke(ctx, orgID, id)
+	if err := s.invites.Revoke(ctx, orgID, id); err != nil {
+		return err
+	}
+	s.writeAudit(ctx, audit.Entry{
+		OrgID:      orgID,
+		Action:     audit.ActionInvitationRevoke,
+		TargetType: "invitation",
+		TargetID:   id,
+		Severity:   audit.SeverityInfo,
+	})
+	return nil
 }
 
 // ResendInvitation rotates the token and expiry of a pending invitation and
@@ -121,10 +160,26 @@ func (s *Service) AcceptInvitation(ctx context.Context, userID, rawToken string)
 	if !inv.Pending(s.now()) {
 		return nil, fmt.Errorf("%w: invitation expired or already used", domain.ErrConflict)
 	}
+	// The invitation may be accepted by an account whose email differs from the
+	// invited address (docs/05 §5 permits it); we bind to the authenticated user
+	// regardless but record the mismatch for the audit trail.
+	emailMismatch := false
+	if u, err := s.users.GetByID(ctx, userID); err == nil {
+		emailMismatch = !strings.EqualFold(strings.TrimSpace(u.Email), inv.Email)
+	}
 	if err := s.members.AcceptInvitation(ctx, inv.OrgID, inv.ID, userID, inv.Role); err != nil {
 		return nil, err
 	}
 	_ = s.cache.Invalidate(ctx, inv.OrgID, userID)
+	s.writeAudit(ctx, audit.Entry{
+		OrgID:       inv.OrgID,
+		ActorUserID: userID,
+		Action:      audit.ActionInvitationAccept,
+		TargetType:  "invitation",
+		TargetID:    inv.ID,
+		Metadata:    map[string]any{"email": inv.Email, "role": string(inv.Role), "email_mismatch": emailMismatch},
+		Severity:    audit.SeverityInfo,
+	})
 	return &AcceptOutcome{OrgID: inv.OrgID, Role: inv.Role}, nil
 }
 
