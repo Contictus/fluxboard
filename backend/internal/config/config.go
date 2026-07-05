@@ -27,6 +27,11 @@ type Config struct {
 	JWTPrivateKeyPEM string `envconfig:"JWT_PRIVATE_KEY_PEM" secret:"true"`
 	TOTPEncKey       string `envconfig:"TOTP_ENC_KEY" secret:"true"`
 
+	// Google OAuth2 (PKCE). Empty client id => the Google login routes 403.
+	GoogleClientID     string `envconfig:"GOOGLE_CLIENT_ID"`
+	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET" secret:"true"`
+	GoogleRedirectURL  string `envconfig:"GOOGLE_REDIRECT_URL" default:"http://localhost:8080/api/v1/auth/oauth/google/callback"`
+
 	// Billing (Phase 4).
 	StripeSecretKey     string `envconfig:"STRIPE_SECRET_KEY" secret:"true"`
 	StripeWebhookSecret string `envconfig:"STRIPE_WEBHOOK_SECRET" secret:"true"`
@@ -69,6 +74,8 @@ func (c *Config) String() string {
 	fmt.Fprintf(&b, "DatabaseURL=%s DatabaseURLMigrate=%s RedisAddr=%s ",
 		redactDSN(c.DatabaseURL), redactDSN(c.DatabaseURLMigrate), c.RedisAddr)
 	fmt.Fprintf(&b, "JWTPrivateKeyPEM=%s TOTPEncKey=%s ", mask(c.JWTPrivateKeyPEM), mask(c.TOTPEncKey))
+	fmt.Fprintf(&b, "GoogleClientID=%s GoogleClientSecret=%s GoogleRedirectURL=%s ",
+		c.GoogleClientID, mask(c.GoogleClientSecret), c.GoogleRedirectURL)
 	fmt.Fprintf(&b, "StripeSecretKey=%s StripeWebhookSecret=%s ", mask(c.StripeSecretKey), mask(c.StripeWebhookSecret))
 	fmt.Fprintf(&b, "MinIOEndpoint=%s MinIOAccessKey=%s MinIOSecretKey=%s MinIOBucket=%s MinIOUseSSL=%t ",
 		c.MinIOEndpoint, mask(c.MinIOAccessKey), mask(c.MinIOSecretKey), c.MinIOBucket, c.MinIOUseSSL)

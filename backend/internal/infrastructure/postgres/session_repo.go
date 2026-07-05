@@ -177,3 +177,53 @@ func (r *SessionRepo) RevokeAllForUser(ctx context.Context, userID, reason strin
 	}
 	return r.q.RevokeAllUserSessions(ctx, gen.RevokeAllUserSessionsParams{Reason: ptrOrNil(reason), UserID: uid})
 }
+
+func (r *SessionRepo) ListForUser(ctx context.Context, userID string) ([]*auth.Session, error) {
+	uid, err := parseUUID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	rows, err := r.q.ListActiveUserSessions(ctx, uid)
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	out := make([]*auth.Session, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, &auth.Session{
+			ID:           row.ID.String(),
+			FamilyID:     row.FamilyID.String(),
+			UserID:       row.UserID.String(),
+			TokenHash:    row.TokenHash,
+			UserAgent:    row.UserAgent,
+			IP:           row.Ip,
+			ExpiresAt:    row.ExpiresAt,
+			RotatedAt:    tsPtr(row.RotatedAt),
+			RevokedAt:    tsPtr(row.RevokedAt),
+			RevokeReason: row.RevokeReason,
+			CreatedAt:    row.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+func (r *SessionRepo) RevokeByIDForUser(ctx context.Context, id, userID, reason string) error {
+	sid, err := parseUUID(id)
+	if err != nil {
+		// A non-UUID id can never match a row; treat as not-found, not a 500.
+		return domain.ErrNotFound
+	}
+	uid, err := parseUUID(userID)
+	if err != nil {
+		return fmt.Errorf("revoke session: %w", err)
+	}
+	n, err := r.q.RevokeUserSessionByID(ctx, gen.RevokeUserSessionByIDParams{
+		Reason: ptrOrNil(reason), ID: sid, UserID: uid,
+	})
+	if err != nil {
+		return fmt.Errorf("revoke session: %w", err)
+	}
+	if n == 0 {
+		return domain.ErrNotFound // not owned, already revoked, or nonexistent
+	}
+	return nil
+}

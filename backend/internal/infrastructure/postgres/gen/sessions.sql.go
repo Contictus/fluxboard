@@ -126,6 +126,67 @@ func (q *Queries) GetSessionByTokenHashForUpdate(ctx context.Context, tokenHash 
 	return i, err
 }
 
+const listActiveUserSessions = `-- name: ListActiveUserSessions :many
+SELECT id, family_id, user_id, token_hash, user_agent,
+       coalesce(host(ip), '')::text AS ip,
+       expires_at, rotated_at, revoked_at,
+       coalesce(revoke_reason, '')::text AS revoke_reason, created_at
+FROM sessions
+WHERE user_id = $1
+  AND revoked_at IS NULL
+  AND rotated_at IS NULL
+  AND expires_at > now()
+ORDER BY created_at DESC
+`
+
+type ListActiveUserSessionsRow struct {
+	ID           uuid.UUID          `json:"id"`
+	FamilyID     uuid.UUID          `json:"family_id"`
+	UserID       uuid.UUID          `json:"user_id"`
+	TokenHash    []byte             `json:"token_hash"`
+	UserAgent    string             `json:"user_agent"`
+	Ip           string             `json:"ip"`
+	ExpiresAt    time.Time          `json:"expires_at"`
+	RotatedAt    pgtype.Timestamptz `json:"rotated_at"`
+	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
+	RevokeReason string             `json:"revoke_reason"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
+// Live sessions the user can manage: not revoked, not rotated (i.e. the current
+// head of each refresh family), not expired. Newest first (docs/04-AUTH.md §5).
+func (q *Queries) ListActiveUserSessions(ctx context.Context, userID uuid.UUID) ([]ListActiveUserSessionsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveUserSessions, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveUserSessionsRow
+	for rows.Next() {
+		var i ListActiveUserSessionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FamilyID,
+			&i.UserID,
+			&i.TokenHash,
+			&i.UserAgent,
+			&i.Ip,
+			&i.ExpiresAt,
+			&i.RotatedAt,
+			&i.RevokedAt,
+			&i.RevokeReason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markSessionRotated = `-- name: MarkSessionRotated :exec
 UPDATE sessions SET rotated_at = now() WHERE id = $1
 `
@@ -181,4 +242,26 @@ type RevokeSessionFamilyParams struct {
 func (q *Queries) RevokeSessionFamily(ctx context.Context, arg RevokeSessionFamilyParams) error {
 	_, err := q.db.Exec(ctx, revokeSessionFamily, arg.Reason, arg.FamilyID)
 	return err
+}
+
+const revokeUserSessionByID = `-- name: RevokeUserSessionByID :execrows
+UPDATE sessions
+SET revoked_at = now(), revoke_reason = $1
+WHERE id = $2 AND user_id = $3 AND revoked_at IS NULL
+`
+
+type RevokeUserSessionByIDParams struct {
+	Reason *string   `json:"reason"`
+	ID     uuid.UUID `json:"id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+// Ownership-scoped single-session revoke: only affects a row owned by the
+// caller, so one user cannot revoke another's session. Returns rows affected.
+func (q *Queries) RevokeUserSessionByID(ctx context.Context, arg RevokeUserSessionByIDParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeUserSessionByID, arg.Reason, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

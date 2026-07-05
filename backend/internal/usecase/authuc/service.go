@@ -6,6 +6,8 @@ package authuc
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -27,6 +29,12 @@ const sessionCacheTTL = 60 * time.Second
 // emailVerifyTTL matches docs/04-AUTH.md §2 (24h).
 const emailVerifyTTL = 24 * time.Hour
 
+// passwordResetTTL matches docs/04-AUTH.md §2 (1h).
+const passwordResetTTL = time.Hour
+
+// pending2FATTL matches docs/04-AUTH.md §2: the pending-2FA JWT lives 5 min.
+const pending2FATTL = 5 * time.Minute
+
 // Observer receives auth metrics/security signals (docs/10-INFRA-DEVOPS.md §5).
 // Implemented in cmd/api against Prometheus counters + audit.
 type Observer interface {
@@ -39,8 +47,15 @@ type Service struct {
 	users    auth.UserRepository
 	sessions auth.SessionRepository
 	tokens   auth.OneTimeTokenRepository
+	recovery auth.RecoveryCodeRepository
+	oauth    auth.OAuthIdentityRepository
 	cache    auth.SessionCache
+	limiter  auth.LoginRateLimiter
+	mailer   Mailer
 	signer   *jwtx.Signer
+	verifier *jwtx.Verifier
+	cipher   SecretCipher
+	google   auth.OAuthProvider
 	clock    clock.Clock
 	obs      Observer
 
@@ -48,13 +63,22 @@ type Service struct {
 	refreshTTL time.Duration
 }
 
-// Deps bundles Service collaborators.
+// Deps bundles Service collaborators. Repos/collaborators used only by specific
+// slices (recovery, oauth, cipher, google, verifier) may be nil in tests that do
+// not exercise those flows; the corresponding methods then return an error.
 type Deps struct {
 	Users    auth.UserRepository
 	Sessions auth.SessionRepository
 	Tokens   auth.OneTimeTokenRepository
+	Recovery auth.RecoveryCodeRepository
+	OAuth    auth.OAuthIdentityRepository
 	Cache    auth.SessionCache
+	Limiter  auth.LoginRateLimiter
+	Mailer   Mailer
 	Signer   *jwtx.Signer
+	Verifier *jwtx.Verifier
+	Cipher   SecretCipher
+	Google   auth.OAuthProvider
 	Clock    clock.Clock
 	Observer Observer
 
@@ -62,7 +86,8 @@ type Deps struct {
 	RefreshTTL time.Duration // default 7d
 }
 
-// New builds a Service, applying default TTLs.
+// New builds a Service, applying default TTLs and no-op fallbacks for optional
+// collaborators (limiter/mailer) so tests can omit them.
 func New(d Deps) *Service {
 	if d.AccessTTL == 0 {
 		d.AccessTTL = 15 * time.Minute
@@ -73,11 +98,27 @@ func New(d Deps) *Service {
 	if d.Clock == nil {
 		d.Clock = clock.System{}
 	}
+	if d.Limiter == nil {
+		d.Limiter = noopLimiter{}
+	}
+	if d.Mailer == nil {
+		d.Mailer = noopMailer{}
+	}
 	return &Service{
-		users: d.Users, sessions: d.Sessions, tokens: d.Tokens, cache: d.Cache,
-		signer: d.Signer, clock: d.Clock, obs: d.Observer,
+		users: d.Users, sessions: d.Sessions, tokens: d.Tokens,
+		recovery: d.Recovery, oauth: d.OAuth, cache: d.Cache,
+		limiter: d.Limiter, mailer: d.Mailer,
+		signer: d.Signer, verifier: d.Verifier, cipher: d.Cipher, google: d.Google,
+		clock: d.Clock, obs: d.Observer,
 		accessTTL: d.AccessTTL, refreshTTL: d.RefreshTTL,
 	}
+}
+
+// SecretCipher encrypts/decrypts secrets at rest (the TOTP secret). Satisfied by
+// pkg/aesgcm.Cipher; an interface here keeps the usecase off infrastructure.
+type SecretCipher interface {
+	Encrypt(plaintext string) (string, error)
+	Decrypt(ciphertext string) (string, error)
 }
 
 // Tokens is the result of a successful login/refresh. RefreshToken is the raw
@@ -148,6 +189,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 	if err != nil {
 		return RegisterResult{}, err
 	}
+	if err := s.mailer.SendEmailVerify(ctx, u.Email, rawVerify); err != nil {
+		return RegisterResult{}, err
+	}
 	return RegisterResult{Created: true, UserID: u.ID, VerifyToken: rawVerify}, nil
 }
 
@@ -169,6 +213,28 @@ func (s *Service) mintEmailVerify(ctx context.Context, userID string, now time.T
 	return raw, nil
 }
 
+// ResendEmailVerify re-mints and re-sends the verification link. To avoid
+// enumeration it returns nil whether the email is unknown or already verified
+// (docs/04-AUTH.md §6).
+func (s *Service) ResendEmailVerify(ctx context.Context, email string) error {
+	email = normalizeEmail(email)
+	u, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	if u.EmailVerified {
+		return nil
+	}
+	raw, err := s.mintEmailVerify(ctx, u.ID, s.clock.Now())
+	if err != nil {
+		return err
+	}
+	return s.mailer.SendEmailVerify(ctx, u.Email, raw)
+}
+
 // VerifyEmail consumes an email-verification token and marks the user verified.
 func (s *Service) VerifyEmail(ctx context.Context, rawToken string) error {
 	ott, err := s.tokens.Consume(ctx, auth.PurposeEmailVerify, token.Hash(rawToken), s.clock.Now())
@@ -181,6 +247,108 @@ func (s *Service) VerifyEmail(ctx context.Context, rawToken string) error {
 	return s.users.MarkEmailVerified(ctx, ott.UserID)
 }
 
+// --- Password reset / change ----------------------------------------------
+
+// ForgotPassword mints a 1h password-reset token and emails it. To avoid
+// enumeration it returns nil whether or not the email exists (docs/04-AUTH.md §6);
+// an unknown address simply does no work.
+func (s *Service) ForgotPassword(ctx context.Context, email string) error {
+	email = normalizeEmail(email)
+	u, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil // silent: no enumeration
+		}
+		return err
+	}
+	// OAuth-only accounts have no password to reset; stay silent all the same.
+	if !u.HasPassword() {
+		return nil
+	}
+	raw, err := token.New()
+	if err != nil {
+		return err
+	}
+	now := s.clock.Now()
+	ott := &auth.OneTimeToken{
+		ID:        uuidv7.New().String(),
+		Purpose:   auth.PurposePasswordReset,
+		UserID:    u.ID,
+		TokenHash: token.Hash(raw),
+		ExpiresAt: now.Add(passwordResetTTL),
+	}
+	if err := s.tokens.Create(ctx, ott); err != nil {
+		return err
+	}
+	return s.mailer.SendPasswordReset(ctx, u.Email, raw)
+}
+
+// ResetPassword consumes a password-reset token, sets the new password (policy
+// enforced), and revokes every session so a leaked token cannot outlive the
+// reset (FR-AUTH-010/012, docs/04-AUTH.md §6).
+func (s *Service) ResetPassword(ctx context.Context, rawToken, newPassword string) error {
+	ott, err := s.tokens.Consume(ctx, auth.PurposePasswordReset, token.Hash(rawToken), s.clock.Now())
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.ErrUnauthorized // invalid / expired / used
+		}
+		return err
+	}
+	u, err := s.users.GetByID(ctx, ott.UserID)
+	if err != nil {
+		return err
+	}
+	if err := argon2x.CheckPolicy(newPassword, u.Email); err != nil {
+		return fmt.Errorf("%s: %w", err.Error(), domain.ErrValidation)
+	}
+	hash, err := argon2x.Hash(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.users.UpdatePasswordHash(ctx, u.ID, hash); err != nil {
+		return err
+	}
+	return s.sessions.RevokeAllForUser(ctx, u.ID, "password_reset")
+}
+
+// ChangePassword verifies the current password, sets a new one, and revokes all
+// sessions (including the caller's) so every device must re-authenticate — the
+// secure default for a credential change (FR-AUTH-010). The caller's cache entry
+// is evicted immediately so the change takes effect without waiting for the TTL.
+func (s *Service) ChangePassword(ctx context.Context, userID, currentPassword, newPassword, currentSID string) error {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !u.HasPassword() {
+		return domain.ErrForbidden // OAuth-only account: nothing to change here
+	}
+	ok, err := argon2x.Verify(currentPassword, u.PasswordHash)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrUnauthorized
+	}
+	if err := argon2x.CheckPolicy(newPassword, u.Email); err != nil {
+		return fmt.Errorf("%s: %w", err.Error(), domain.ErrValidation)
+	}
+	hash, err := argon2x.Hash(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.users.UpdatePasswordHash(ctx, u.ID, hash); err != nil {
+		return err
+	}
+	if err := s.sessions.RevokeAllForUser(ctx, u.ID, "password_change"); err != nil {
+		return err
+	}
+	if currentSID != "" {
+		_ = s.cache.Revoke(ctx, currentSID)
+	}
+	return nil
+}
+
 // --- Login ----------------------------------------------------------------
 
 // LoginInput carries credentials plus request metadata for the session row.
@@ -191,10 +359,40 @@ type LoginInput struct {
 	IP        string
 }
 
-// Login verifies credentials with uniform timing and issues a new session.
-// All failure causes return the same domain.ErrUnauthorized (no enumeration).
-func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
+// LoginResult is the outcome of a password login. Exactly one of Tokens (login
+// complete) or TwoFactor (a second factor is required) is set. When TwoFactor
+// is true, PendingToken is a short-lived JWT (scope=pending_2fa) the client
+// echoes back to POST /auth/2fa/verify.
+type LoginResult struct {
+	Tokens       *Tokens
+	TwoFactor    bool
+	PendingToken string
+}
+
+// RateLimitError signals the login throttle tripped (docs/04-AUTH.md §4). It
+// wraps domain.ErrRateLimited (→ 429) and carries the suggested backoff so the
+// HTTP layer can set Retry-After.
+type RateLimitError struct{ RetryAfter time.Duration }
+
+func (e *RateLimitError) Error() string { return "too many login attempts" }
+func (e *RateLimitError) Unwrap() error { return domain.ErrRateLimited }
+
+// Login gates on the per-(email,IP) rate limiter, verifies credentials with
+// uniform timing, and either issues a session or (TOTP users) returns a pending
+// 2FA token. All credential failures return the same domain.ErrUnauthorized so
+// nothing leaks account existence (no enumeration).
+func (s *Service) Login(ctx context.Context, in LoginInput) (LoginResult, error) {
 	email := normalizeEmail(in.Email)
+
+	rlKey := loginRLKey(email, in.IP)
+	allowed, retryAfter, err := s.limiter.Allow(ctx, rlKey)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	if !allowed {
+		s.observe(ctx).LoginAttempt(ctx, "rate_limited")
+		return LoginResult{}, &RateLimitError{RetryAfter: retryAfter}
+	}
 
 	u, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
@@ -203,38 +401,56 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (Tokens, error) {
 			// account existence (docs/04-AUTH.md §4).
 			_, _ = argon2x.Verify(in.Password, argon2x.DummyHash)
 			s.observe(ctx).LoginAttempt(ctx, "invalid")
-			return Tokens{}, domain.ErrUnauthorized
+			return LoginResult{}, domain.ErrUnauthorized
 		}
-		return Tokens{}, err
+		return LoginResult{}, err
 	}
 
 	if u.Locked() {
 		s.observe(ctx).LoginAttempt(ctx, "locked")
-		return Tokens{}, domain.ErrUnauthorized
+		return LoginResult{}, domain.ErrUnauthorized
 	}
 	if !u.HasPassword() {
 		_, _ = argon2x.Verify(in.Password, argon2x.DummyHash)
 		s.observe(ctx).LoginAttempt(ctx, "invalid")
-		return Tokens{}, domain.ErrUnauthorized
+		return LoginResult{}, domain.ErrUnauthorized
 	}
 
 	ok, err := argon2x.Verify(in.Password, u.PasswordHash)
 	if err != nil {
-		return Tokens{}, err
+		return LoginResult{}, err
 	}
 	if !ok {
 		s.observe(ctx).LoginAttempt(ctx, "invalid")
-		return Tokens{}, domain.ErrUnauthorized
+		return LoginResult{}, domain.ErrUnauthorized
 	}
 
-	// TODO(phase1 2FA): if u.TOTPEnabled -> return pending-2fa token instead.
+	// Credentials are correct: clear the throttle so the user's own earlier
+	// typos never lock them out.
+	_ = s.limiter.Reset(ctx, rlKey)
+
+	if u.TOTPEnabled {
+		pending, err := s.signer.SignPending2FA(u.ID, s.clock.Now(), pending2FATTL)
+		if err != nil {
+			return LoginResult{}, err
+		}
+		s.observe(ctx).LoginAttempt(ctx, "2fa_required")
+		return LoginResult{TwoFactor: true, PendingToken: pending}, nil
+	}
 
 	tokens, err := s.issueSession(ctx, u.ID, in.UserAgent, in.IP)
 	if err != nil {
-		return Tokens{}, err
+		return LoginResult{}, err
 	}
 	s.observe(ctx).LoginAttempt(ctx, "success")
-	return tokens, nil
+	return LoginResult{Tokens: &tokens}, nil
+}
+
+// loginRLKey is the throttle key from docs/04-AUTH.md §4:
+// rl:login:{sha1(email)}:{ip}. Hashing the email keeps addresses out of Redis.
+func loginRLKey(email, ip string) string {
+	sum := sha1.Sum([]byte(email))
+	return "rl:login:" + hex.EncodeToString(sum[:]) + ":" + ip
 }
 
 // issueSession creates a fresh session family and mints access+refresh tokens.
@@ -338,6 +554,24 @@ func (s *Service) LogoutAll(ctx context.Context, userID, currentSID string) erro
 	return nil
 }
 
+// --- Sessions management ---------------------------------------------------
+
+// ListSessions returns the caller's live sessions for GET /auth/sessions.
+func (s *Service) ListSessions(ctx context.Context, userID string) ([]*auth.Session, error) {
+	return s.sessions.ListForUser(ctx, userID)
+}
+
+// RevokeSession revokes one of the caller's sessions by id (DELETE
+// /auth/sessions/{id}). Ownership is enforced in the repo; a non-owned or
+// already-dead id surfaces as domain.ErrNotFound. The cache is evicted so the
+// revocation is immediate rather than bounded by the cache TTL.
+func (s *Service) RevokeSession(ctx context.Context, userID, sessionID string) error {
+	if err := s.sessions.RevokeByIDForUser(ctx, sessionID, userID, "revoked_by_user"); err != nil {
+		return err
+	}
+	return s.cache.Revoke(ctx, sessionID)
+}
+
 // --- helpers --------------------------------------------------------------
 
 // observe returns the Observer or a no-op if none was wired.
@@ -352,6 +586,25 @@ type noopObserver struct{}
 
 func (noopObserver) LoginAttempt(context.Context, string) {}
 func (noopObserver) RefreshReuse(context.Context)         {}
+
+// Mailer delivers the transactional auth emails. Implemented in
+// infrastructure/mailer; a dev build logs instead of sending (docs/04-AUTH.md).
+type Mailer interface {
+	SendEmailVerify(ctx context.Context, to, rawToken string) error
+	SendPasswordReset(ctx context.Context, to, rawToken string) error
+}
+
+type noopMailer struct{}
+
+func (noopMailer) SendEmailVerify(context.Context, string, string) error   { return nil }
+func (noopMailer) SendPasswordReset(context.Context, string, string) error { return nil }
+
+type noopLimiter struct{}
+
+func (noopLimiter) Allow(context.Context, string) (bool, time.Duration, error) {
+	return true, 0, nil
+}
+func (noopLimiter) Reset(context.Context, string) error { return nil }
 
 func normalizeEmail(e string) string { return strings.ToLower(strings.TrimSpace(e)) }
 

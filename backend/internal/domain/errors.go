@@ -20,4 +20,7 @@ var (
 	ErrPlanLimit = errors.New("plan limit exceeded")
 	// ErrValidation: input failed validation. Maps to 400/422.
 	ErrValidation = errors.New("validation failed")
+	// ErrRateLimited: too many requests; caller should back off. Maps to 429
+	// (with a Retry-After header set by the HTTP layer).
+	ErrRateLimited = errors.New("rate limited")
 )

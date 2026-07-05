@@ -126,3 +126,15 @@ func (r *UserRepo) MarkEmailVerified(ctx context.Context, id string) error {
 	}
 	return r.q.MarkUserEmailVerified(ctx, uid)
 }
+
+func (r *UserRepo) SetTOTP(ctx context.Context, id, encSecret string, enabled bool) error {
+	uid, err := parseUUID(id)
+	if err != nil {
+		return fmt.Errorf("set totp: %w", err)
+	}
+	return r.q.SetUserTOTP(ctx, gen.SetUserTOTPParams{
+		TotpSecret:  encSecret, // "" -> nullif -> NULL (disable clears the secret)
+		TotpEnabled: enabled,
+		ID:          uid,
+	})
+}

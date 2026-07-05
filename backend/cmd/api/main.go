@@ -23,11 +23,15 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/mesutokul/fluxboard/backend/internal/config"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
+	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/mailer"
+	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/oauthgoogle"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres"
 	redisx "github.com/mesutokul/fluxboard/backend/internal/infrastructure/redis"
 	httpx "github.com/mesutokul/fluxboard/backend/internal/interface/http"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/handlers"
 	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
+	"github.com/mesutokul/fluxboard/backend/internal/pkg/aesgcm"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
 )
@@ -36,6 +40,12 @@ import (
 var version = "dev"
 
 const shutdownDrain = 20 * time.Second
+
+// Login throttle budget (docs/04-AUTH.md §4, FR-AUTH-011).
+const (
+	loginRateLimit  = 10
+	loginRateWindow = 15 * time.Minute
+)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -84,17 +94,49 @@ func run(logger *slog.Logger) error {
 	userRepo := postgres.NewUserRepo(pool)
 	sessionRepo := postgres.NewSessionRepo(pool)
 	tokenRepo := postgres.NewTokenRepo(pool)
+	recoveryRepo := postgres.NewRecoveryRepo(pool)
+	oauthRepo := postgres.NewOAuthRepo(pool)
 	sessionCache := redisx.NewSessionCache(rdb)
+	limiter := redisx.NewLoginRateLimiter(rdb, loginRateLimit, loginRateWindow)
+	oauthStates := redisx.NewOAuthStateStore(rdb)
+
+	mail := mailer.New(mailer.Config{
+		Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUser,
+		Password: cfg.SMTPPassword, From: cfg.SMTPFrom, WebOrigin: cfg.WebOrigin,
+	}, logger)
+
+	cipher, err := loadTOTPCipher(cfg, logger)
+	if err != nil {
+		return err
+	}
+	google := loadGoogleProvider(cfg, logger)
 
 	authSvc := authuc.New(authuc.Deps{
 		Users:    userRepo,
 		Sessions: sessionRepo,
 		Tokens:   tokenRepo,
+		Recovery: recoveryRepo,
+		OAuth:    oauthRepo,
 		Cache:    sessionCache,
+		Limiter:  limiter,
+		Mailer:   mail,
 		Signer:   signer,
+		Verifier: verifier,
+		Cipher:   cipher,
+		Google:   google,
 		Observer: obs,
 	})
-	authHandlers := handlers.NewAuthHandlers(authSvc, logger, cfg.IsProd())
+	var states auth.OAuthStateStore
+	if google != nil {
+		states = oauthStates
+	}
+	authHandlers := handlers.NewAuthHandlers(handlers.AuthConfig{
+		Service:      authSvc,
+		States:       states,
+		Logger:       logger,
+		WebOrigin:    cfg.WebOrigin,
+		CookieSecure: cfg.IsProd(),
+	})
 	authenticator := &mw.Authenticator{
 		Verifier: verifier,
 		Cache:    sessionCache,
@@ -166,6 +208,35 @@ func loadSigner(cfg *config.Config, logger *slog.Logger) (*jwtx.Signer, error) {
 		return nil, err
 	}
 	return jwtx.NewSigner(priv)
+}
+
+// loadTOTPCipher builds the AES-GCM cipher for TOTP secrets, or returns a nil
+// interface (2FA disabled) when TOTP_ENC_KEY is unset. Returning an explicit nil
+// interface — not a typed nil — matters: the usecase gates on `cipher == nil`.
+func loadTOTPCipher(cfg *config.Config, logger *slog.Logger) (authuc.SecretCipher, error) {
+	if cfg.TOTPEncKey == "" {
+		logger.Warn("TOTP_ENC_KEY not set; 2FA endpoints are disabled")
+		return nil, nil
+	}
+	key, err := aesgcm.ParseKey(cfg.TOTPEncKey)
+	if err != nil {
+		return nil, fmt.Errorf("totp enc key: %w", err)
+	}
+	c, err := aesgcm.New(key)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// loadGoogleProvider builds the Google OAuth provider, or a nil interface when
+// client credentials are unset (Google login routes then 403).
+func loadGoogleProvider(cfg *config.Config, logger *slog.Logger) auth.OAuthProvider {
+	if cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" {
+		logger.Warn("GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set; Google OAuth is disabled")
+		return nil
+	}
+	return oauthgoogle.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
 }
 
 // redisPinger adapts *redis.Client to httpx.Pinger.

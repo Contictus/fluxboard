@@ -46,13 +46,25 @@ func NewRouter(d Deps) http.Handler {
 			a.Post("/register", d.Auth.Register)
 			a.Post("/login", d.Auth.Login)
 			a.Post("/refresh", d.Auth.Refresh)
+			a.Post("/2fa/verify", d.Auth.Verify2FA)
+			a.Post("/verify-email/request", d.Auth.VerifyEmailRequest)
 			a.Post("/verify-email/confirm", d.Auth.VerifyEmailConfirm)
+			a.Post("/password/forgot", d.Auth.PasswordForgot)
+			a.Post("/password/reset", d.Auth.PasswordReset)
+			a.Get("/oauth/google/start", d.Auth.OAuthGoogleStart)
+			a.Get("/oauth/google/callback", d.Auth.OAuthGoogleCallback)
 
 			// Authenticated auth endpoints.
 			a.Group(func(pr chi.Router) {
 				pr.Use(d.Authenticator.Authenticate)
 				pr.Post("/logout", d.Auth.Logout)
 				pr.Post("/logout-all", d.Auth.LogoutAll)
+				pr.Post("/password/change", d.Auth.PasswordChange)
+				pr.Get("/sessions", d.Auth.Sessions)
+				pr.Delete("/sessions/{id}", d.Auth.RevokeSession)
+				pr.Post("/2fa/enroll", d.Auth.Enroll2FA)
+				pr.Post("/2fa/activate", d.Auth.Activate2FA)
+				pr.Delete("/2fa", d.Auth.Disable2FA)
 			})
 		})
 

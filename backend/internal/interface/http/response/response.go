@@ -71,6 +71,8 @@ func statusFor(err error) (int, string) {
 		return http.StatusConflict, "conflict"
 	case errors.Is(err, domain.ErrPlanLimit):
 		return http.StatusPaymentRequired, "plan_limit_exceeded"
+	case errors.Is(err, domain.ErrRateLimited):
+		return http.StatusTooManyRequests, "rate_limited"
 	default:
 		return http.StatusInternalServerError, "internal"
 	}

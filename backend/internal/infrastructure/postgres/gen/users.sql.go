@@ -142,6 +142,25 @@ func (q *Queries) MarkUserEmailVerified(ctx context.Context, id uuid.UUID) error
 	return err
 }
 
+const setUserTOTP = `-- name: SetUserTOTP :exec
+UPDATE users
+SET totp_secret = nullif($1, '')::text, totp_enabled = $2
+WHERE id = $3
+`
+
+type SetUserTOTPParams struct {
+	TotpSecret  interface{} `json:"totp_secret"`
+	TotpEnabled bool        `json:"totp_enabled"`
+	ID          uuid.UUID   `json:"id"`
+}
+
+// Sets (or clears, via empty secret) the encrypted TOTP secret and its enabled
+// flag together (docs/04-AUTH.md §4 TOTP step).
+func (q *Queries) SetUserTOTP(ctx context.Context, arg SetUserTOTPParams) error {
+	_, err := q.db.Exec(ctx, setUserTOTP, arg.TotpSecret, arg.TotpEnabled, arg.ID)
+	return err
+}
+
 const updateUserPasswordHash = `-- name: UpdateUserPasswordHash :exec
 UPDATE users SET password_hash = $1 WHERE id = $2
 `

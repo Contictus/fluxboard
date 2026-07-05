@@ -29,3 +29,10 @@ UPDATE users SET password_hash = @password_hash WHERE id = @id;
 
 -- name: MarkUserEmailVerified :exec
 UPDATE users SET email_verified = true WHERE id = @id;
+
+-- name: SetUserTOTP :exec
+-- Sets (or clears, via empty secret) the encrypted TOTP secret and its enabled
+-- flag together (docs/04-AUTH.md §4 TOTP step).
+UPDATE users
+SET totp_secret = nullif(@totp_secret, '')::text, totp_enabled = @totp_enabled
+WHERE id = @id;

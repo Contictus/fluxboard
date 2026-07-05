@@ -23,11 +23,18 @@ const (
 	Audience = "fluxboard-api"
 )
 
+// ScopePending2FA marks a pending-2FA JWT (docs/04-AUTH.md §4): issued after a
+// correct password when TOTP is enabled, exchanged at /auth/2fa/verify for a
+// real session. It is NOT an access token.
+const ScopePending2FA = "pending_2fa"
+
 // Claims is the access-token payload (docs/04-AUTH.md §2). No role/tenant claims
 // live here (ADR 008): authorization is resolved per request, never baked into
-// the token, so a revoked privilege applies immediately.
+// the token, so a revoked privilege applies immediately. Scope is empty for
+// access tokens and set for special-purpose tokens (e.g. pending_2fa).
 type Claims struct {
-	SID string `json:"sid"`
+	SID   string `json:"sid,omitempty"`
+	Scope string `json:"scope,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -77,6 +84,28 @@ func (s *Signer) Sign(subject, sid string, now time.Time, ttl time.Duration) (st
 	return signed, nil
 }
 
+// SignPending2FA issues a short-lived JWT (scope=pending_2fa, no sid) that the
+// client exchanges for a session after passing the TOTP step (docs/04-AUTH.md §4).
+func (s *Signer) SignPending2FA(subject string, now time.Time, ttl time.Duration) (string, error) {
+	claims := Claims{
+		Scope: ScopePending2FA,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    Issuer,
+			Subject:   subject,
+			Audience:  jwt.ClaimStrings{Audience},
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+		},
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	tok.Header["kid"] = s.kid
+	signed, err := tok.SignedString(s.key)
+	if err != nil {
+		return "", fmt.Errorf("jwtx sign pending: %w", err)
+	}
+	return signed, nil
+}
+
 // Verifier validates tokens against a kid->public-key set (1–2 keys).
 type Verifier struct {
 	keys map[string]*ecdsa.PublicKey
@@ -117,7 +146,38 @@ func (v *Verifier) Verify(tokenStr string) (*Claims, error) {
 	if err != nil {
 		return nil, fmt.Errorf("jwtx verify: %w", err)
 	}
+	// An access token must carry no scope: a pending-2FA (or any special-purpose)
+	// token must never be accepted as a bearer credential.
+	if claims.Scope != "" {
+		return nil, fmt.Errorf("jwtx: unexpected token scope %q", claims.Scope)
+	}
 	return claims, nil
+}
+
+// VerifyPending2FA validates a pending-2FA token and returns its subject
+// (user id). It enforces scope=pending_2fa so an access token cannot be replayed
+// here and vice-versa (docs/04-AUTH.md §4).
+func (v *Verifier) VerifyPending2FA(tokenStr string) (userID string, err error) {
+	claims := &Claims{}
+	_, err = jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
+		kid, _ := t.Header["kid"].(string)
+		pub, ok := v.keys[kid]
+		if !ok {
+			return nil, fmt.Errorf("jwtx: unknown kid %q", kid)
+		}
+		return pub, nil
+	},
+		jwt.WithValidMethods([]string{"ES256"}),
+		jwt.WithIssuer(Issuer),
+		jwt.WithAudience(Audience),
+	)
+	if err != nil {
+		return "", fmt.Errorf("jwtx verify pending: %w", err)
+	}
+	if claims.Scope != ScopePending2FA {
+		return "", fmt.Errorf("jwtx: not a pending_2fa token")
+	}
+	return claims.Subject, nil
 }
 
 // LoadPrivateKeyPEM parses an ECDSA private key from a PKCS#8 or SEC1 PEM.

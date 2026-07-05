@@ -12,18 +12,37 @@ import (
 
 type Querier interface {
 	ConsumeOneTimeToken(ctx context.Context, arg ConsumeOneTimeTokenParams) (OneTimeToken, error)
+	// Single-use consume: marks a matching unused code used. Rows affected = 1 means
+	// the code was valid and is now spent; 0 means invalid/already-used.
+	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (int64, error)
+	CreateOAuthIdentity(ctx context.Context, arg CreateOAuthIdentityParams) error
 	CreateOneTimeToken(ctx context.Context, arg CreateOneTimeTokenParams) error
+	CreateRecoveryCode(ctx context.Context, arg CreateRecoveryCodeParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) error
+	// Clears any prior codes before a fresh batch is issued (activate / regenerate).
+	DeleteUserRecoveryCodes(ctx context.Context, userID uuid.UUID) error
+	// Looks up an external identity by (provider, subject). domain.ErrNotFound when
+	// absent drives the link-or-create branch in the OAuth callback (04 §4).
+	GetOAuthIdentity(ctx context.Context, arg GetOAuthIdentityParams) (OauthIdentity, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error)
 	GetSessionByTokenHashForUpdate(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashForUpdateRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
+	// Live sessions the user can manage: not revoked, not rotated (i.e. the current
+	// head of each refresh family), not expired. Newest first (docs/04-AUTH.md §5).
+	ListActiveUserSessions(ctx context.Context, userID uuid.UUID) ([]ListActiveUserSessionsRow, error)
 	MarkSessionRotated(ctx context.Context, id uuid.UUID) error
 	MarkUserEmailVerified(ctx context.Context, id uuid.UUID) error
 	RevokeAllUserSessions(ctx context.Context, arg RevokeAllUserSessionsParams) error
 	RevokeSessionByID(ctx context.Context, arg RevokeSessionByIDParams) error
 	RevokeSessionFamily(ctx context.Context, arg RevokeSessionFamilyParams) error
+	// Ownership-scoped single-session revoke: only affects a row owned by the
+	// caller, so one user cannot revoke another's session. Returns rows affected.
+	RevokeUserSessionByID(ctx context.Context, arg RevokeUserSessionByIDParams) (int64, error)
+	// Sets (or clears, via empty secret) the encrypted TOTP secret and its enabled
+	// flag together (docs/04-AUTH.md §4 TOTP step).
+	SetUserTOTP(ctx context.Context, arg SetUserTOTPParams) error
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
 }
 

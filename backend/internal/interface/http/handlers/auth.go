@@ -10,9 +10,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
 	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/response"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
@@ -27,14 +29,29 @@ const (
 // AuthHandlers serves the authentication endpoints.
 type AuthHandlers struct {
 	svc          *authuc.Service
+	states       auth.OAuthStateStore
 	logger       *slog.Logger
 	cookieSecure bool
+	webOrigin    string
 }
 
-// NewAuthHandlers builds AuthHandlers. cookieSecure should be true in prod
-// (HTTPS); false in local dev over http so the cookie is still set.
-func NewAuthHandlers(svc *authuc.Service, logger *slog.Logger, cookieSecure bool) *AuthHandlers {
-	return &AuthHandlers{svc: svc, logger: logger, cookieSecure: cookieSecure}
+// AuthConfig carries the collaborators for the auth surface.
+type AuthConfig struct {
+	Service   *authuc.Service
+	States    auth.OAuthStateStore // nil when Google OAuth is unconfigured
+	Logger    *slog.Logger
+	WebOrigin string
+	// CookieSecure should be true in prod (HTTPS); false in local dev over http
+	// so the cookie is still set.
+	CookieSecure bool
+}
+
+// NewAuthHandlers builds AuthHandlers from AuthConfig.
+func NewAuthHandlers(c AuthConfig) *AuthHandlers {
+	return &AuthHandlers{
+		svc: c.Service, states: c.States, logger: c.Logger,
+		cookieSecure: c.CookieSecure, webOrigin: c.WebOrigin,
+	}
 }
 
 type registerReq struct {
@@ -57,11 +74,10 @@ func (h *AuthHandlers) Register(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, err)
 		return
 	}
-	// In production the verify link is emailed (Phase 5). For now, log it in dev
-	// so the flow is testable end-to-end.
-	if res.Created {
-		h.logger.Info("email verification token issued (dev)", "user_id", res.UserID, "verify_token", res.VerifyToken)
-	}
+	// The verification link is sent by the usecase via the mailer (dev builds
+	// log it when SMTP is unconfigured). Response is identical regardless of
+	// whether an account was created (no enumeration).
+	_ = res
 	response.JSON(w, http.StatusAccepted, map[string]string{
 		"message": "If the email is valid, a verification link has been sent.",
 	})
@@ -79,25 +95,57 @@ type tokenResp struct {
 	UserID      string    `json:"user_id"`
 }
 
-// Login authenticates and issues an access token (JSON) + refresh cookie.
+type twoFactorResp struct {
+	Status       string `json:"status"` // always "2fa_required"
+	PendingToken string `json:"pending_token"`
+}
+
+// Login authenticates and either issues an access token (JSON) + refresh cookie,
+// or — for TOTP users — returns a pending-2FA token to exchange at /auth/2fa/verify.
 func (h *AuthHandlers) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	tokens, err := h.svc.Login(r.Context(), authuc.LoginInput{
+	res, err := h.svc.Login(r.Context(), authuc.LoginInput{
 		Email: req.Email, Password: req.Password,
 		UserAgent: r.UserAgent(), IP: clientIP(r),
 	})
 	if err != nil {
-		response.Error(w, err)
+		writeAuthError(w, err)
 		return
 	}
-	h.setRefreshCookie(w, tokens.RefreshToken, tokens.RefreshExpiresAt)
+	if res.TwoFactor {
+		response.JSON(w, http.StatusOK, twoFactorResp{
+			Status: "2fa_required", PendingToken: res.PendingToken,
+		})
+		return
+	}
+	h.writeSession(w, res.Tokens)
+}
+
+// writeSession sets the refresh cookie and renders the access-token body shared
+// by login, 2FA verify, and OAuth callback.
+func (h *AuthHandlers) writeSession(w http.ResponseWriter, t *authuc.Tokens) {
+	h.setRefreshCookie(w, t.RefreshToken, t.RefreshExpiresAt)
 	response.JSON(w, http.StatusOK, tokenResp{
-		AccessToken: tokens.AccessToken, TokenType: "Bearer",
-		ExpiresAt: tokens.AccessExpiresAt, UserID: tokens.UserID,
+		AccessToken: t.AccessToken, TokenType: "Bearer",
+		ExpiresAt: t.AccessExpiresAt, UserID: t.UserID,
 	})
+}
+
+// writeAuthError adds a Retry-After header for throttled logins, then renders
+// the standard error envelope.
+func writeAuthError(w http.ResponseWriter, err error) {
+	var rle *authuc.RateLimitError
+	if errors.As(err, &rle) {
+		secs := int(rle.RetryAfter.Seconds())
+		if secs < 1 {
+			secs = 1
+		}
+		w.Header().Set("Retry-After", strconv.Itoa(secs))
+	}
+	response.Error(w, err)
 }
 
 // Refresh rotates the refresh-cookie token. CSRF posture (docs/04-AUTH.md §5):

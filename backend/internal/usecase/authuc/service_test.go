@@ -36,12 +36,29 @@ func (f *fakeUsers) GetByID(_ context.Context, id string) (*auth.User, error) {
 	}
 	return nil, domain.ErrNotFound
 }
-func (f *fakeUsers) UpdatePasswordHash(context.Context, string, string) error { return nil }
-func (f *fakeUsers) MarkEmailVerified(context.Context, string) error          { return nil }
+func (f *fakeUsers) UpdatePasswordHash(_ context.Context, id, hash string) error {
+	for _, u := range f.byEmail {
+		if u.ID == id {
+			u.PasswordHash = hash
+		}
+	}
+	return nil
+}
+func (f *fakeUsers) MarkEmailVerified(context.Context, string) error { return nil }
+func (f *fakeUsers) SetTOTP(_ context.Context, id, enc string, enabled bool) error {
+	for _, u := range f.byEmail {
+		if u.ID == id {
+			u.TOTPSecret = enc
+			u.TOTPEnabled = enabled
+		}
+	}
+	return nil
+}
 
 type fakeSessions struct {
-	created   []*auth.Session
-	reuseNext bool
+	created    []*auth.Session
+	reuseNext  bool
+	revokedAll int
 }
 
 func (f *fakeSessions) Create(_ context.Context, s *auth.Session) error {
@@ -57,8 +74,15 @@ func (f *fakeSessions) Rotate(_ context.Context, _, newHash []byte, newID, ua, i
 	}
 	return &auth.Session{ID: newID, FamilyID: "fam", UserID: "user-1", TokenHash: newHash, UserAgent: ua, IP: ip, ExpiresAt: exp}, nil
 }
-func (f *fakeSessions) RevokeByID(context.Context, string, string) error      { return nil }
-func (f *fakeSessions) RevokeAllForUser(context.Context, string, string) error { return nil }
+func (f *fakeSessions) RevokeByID(context.Context, string, string) error { return nil }
+func (f *fakeSessions) RevokeAllForUser(_ context.Context, _, _ string) error {
+	f.revokedAll++
+	return nil
+}
+func (f *fakeSessions) ListForUser(context.Context, string) ([]*auth.Session, error) {
+	return nil, nil
+}
+func (f *fakeSessions) RevokeByIDForUser(context.Context, string, string, string) error { return nil }
 
 type fakeTokens struct{}
 
@@ -121,11 +145,11 @@ func TestLoginSuccessIssuesVerifiableToken(t *testing.T) {
 	svc, users := newTestService(t, sess, obs)
 	seedUser(t, users, "a@b.com", "a-strong-passphrase-1")
 
-	tokens, err := svc.Login(context.Background(), LoginInput{Email: "A@b.com", Password: "a-strong-passphrase-1"})
+	res, err := svc.Login(context.Background(), LoginInput{Email: "A@b.com", Password: "a-strong-passphrase-1"})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
-	if tokens.AccessToken == "" || tokens.RefreshToken == "" {
+	if res.Tokens == nil || res.Tokens.AccessToken == "" || res.Tokens.RefreshToken == "" {
 		t.Fatal("expected non-empty tokens")
 	}
 	if len(sess.created) != 1 {
