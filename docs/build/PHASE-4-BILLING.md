@@ -100,8 +100,8 @@ Portal only).
 ## Section 6 — Wiring
 
 - [x] 4.6.1 `cmd/api/main.go`: `stripex.New(cfg.StripeMode, cfg.StripeWebhookSecret, cfg.WebOrigin)` gateway; billing repos (PlanRepo+ProcessedEventRepo on plain pool; Sub/Invoice/Usage/Webhook over tenantPool); `redisx.NewEntitlementCache`; `billinguc.New` (BaseURL=cfg.WebOrigin); `mw.EntitlementGuard{Resolver: billingSvc}`. Set `httpx.Deps` Billing/Webhooks/Entitlement → billing endpoints now live.
-- [ ] 4.6.2 Attach entitlement checks to existing writes: project create (max_projects), invitation send/seat count (max_members, FR-TEN-004), attachment quota (align existing app-level `OrgStorageQuotaBytes` with plan `max_storage_bytes`). FR-BILL-004/009.
-- [ ] 4.6.3 `cmd/worker/main.go`: wire billing deps for the new jobs (subscription/usage/outbox repos, stripe gateway).
+- [x] 4.6.2 Entitlement checks on writes: project-create → `EntitlementGuard.RequireProjects()` (max_projects), invitation-create → `RequireMembers()` (max_members) — both middleware gates on the route (rich 402 `{limit,current,max}` via `response.PlanLimit`); counts via new concrete `ProjectRepo.CountByOrg`/`MembershipRepo.CountMembers` (sqlc `CountProjectsByOrg`/`CountMembers`) injected as closures (not on the domain ports → no fake churn). Attachment quota moved into `taskuc.RequestUpload`: optional `EntitlementResolver` → plan `max_storage_bytes` (nil ⇒ Free const), quota exceed now `ErrPlanLimit` (402, was ErrConflict). FR-BILL-004/009.
+- [~] 4.6.3 `cmd/worker/main.go` billing deps — **deferred to §7**: nothing to wire until the outbox-drain/usage/reconcile handlers exist; deps + handler registration land together there.
 
 ## Section 7 — Jobs (`internal/interface/jobs/`)
 

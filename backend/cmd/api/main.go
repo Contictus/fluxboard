@@ -197,24 +197,12 @@ func run(logger *slog.Logger) error {
 	attachmentRepo := postgres.NewAttachmentRepo(tenantPool)
 	objectStore := loadObjectStore(ctx, cfg, logger) // FR-TASK-006; nil disables attachments
 
-	projectSvc := projectuc.New(projectuc.Deps{
-		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
-		Columns: columnRepo, Tasks: taskRepo, Logger: logger,
-	})
-	taskSvc := taskuc.New(taskuc.Deps{
-		Tasks: taskRepo, Subtasks: subtaskRepo, Labels: labelRepo, Comments: commentRepo,
-		Activity: activityRepo, Attachments: attachmentRepo, Projects: projectRepo,
-		Members: projectMemberRepo, Boards: boardRepo, Columns: columnRepo,
-		Store: objectStore, Logger: logger,
-	})
-	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
-	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
-
-	// Phase 4 — billing wiring (docs/06). The gateway selects stub vs live from
-	// STRIPE_MODE; stub needs no keys (the webhook secret is the HMAC key). Plan +
-	// processed-event tables are global (plain pool); subscription/invoice/usage/
-	// outbox/webhook are [T] over the RLS-enforcing TenantPool. BaseURL is the
-	// public app origin for Checkout/Portal return links.
+	// Phase 4 — billing wiring (docs/06). Built before taskSvc so the storage
+	// quota check can resolve the org's plan ceiling. The gateway selects stub vs
+	// live from STRIPE_MODE; stub needs no keys (the webhook secret is the HMAC
+	// key). Plan + processed-event tables are global (plain pool);
+	// subscription/invoice/usage/outbox/webhook are [T] over the RLS-enforcing
+	// TenantPool. BaseURL is the public app origin for Checkout/Portal returns.
 	stripeGW, err := stripex.New(cfg.StripeMode, cfg.StripeWebhookSecret, cfg.WebOrigin)
 	if err != nil {
 		return err
@@ -232,9 +220,31 @@ func run(logger *slog.Logger) error {
 		Logger:   logger,
 		BaseURL:  cfg.WebOrigin,
 	})
+
+	projectSvc := projectuc.New(projectuc.Deps{
+		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
+		Columns: columnRepo, Tasks: taskRepo, Logger: logger,
+	})
+	taskSvc := taskuc.New(taskuc.Deps{
+		Tasks: taskRepo, Subtasks: subtaskRepo, Labels: labelRepo, Comments: commentRepo,
+		Activity: activityRepo, Attachments: attachmentRepo, Projects: projectRepo,
+		Members: projectMemberRepo, Boards: boardRepo, Columns: columnRepo,
+		Store: objectStore, Entitlements: billingSvc, Logger: logger,
+	})
+	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
+	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
 	billingHandlers := handlers.NewBillingHandlers(billingSvc, logger)
 	webhookHandlers := handlers.NewWebhookHandlers(billingSvc, stripeGW, logger)
-	entitlementGuard := &mw.EntitlementGuard{Resolver: billingSvc, Logger: logger}
+
+	// EntitlementGuard gates resource-creating writes on the org's plan limits
+	// (FR-BILL-009). The counts live in the project/tenant domains, so they enter
+	// as closures over the concrete repos (§6.2).
+	entitlementGuard := &mw.EntitlementGuard{
+		Resolver:     billingSvc,
+		ProjectCount: projectRepo.CountByOrg,
+		MemberCount:  membershipRepo.CountMembers,
+		Logger:       logger,
+	}
 
 	router := httpx.NewRouter(httpx.Deps{
 		Logger:        logger,

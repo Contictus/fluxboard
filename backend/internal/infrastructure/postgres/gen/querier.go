@@ -34,7 +34,11 @@ type Querier interface {
 	// the code was valid and is now spent; 0 means invalid/already-used.
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (int64, error)
 	CountColumnTasks(ctx context.Context, arg CountColumnTasksParams) (int64, error)
+	// Total member (seat) count for the plan-limit gate (FR-BILL-009).
+	CountMembers(ctx context.Context, orgID uuid.UUID) (int64, error)
 	CountMembersByRole(ctx context.Context, arg CountMembersByRoleParams) (int64, error)
+	// Live (non-archived) project count for the plan-limit gate (FR-BILL-009).
+	CountProjectsByOrg(ctx context.Context, orgID uuid.UUID) (int64, error)
 	// Attachments ([T], tenant-scoped) — FR-TASK-006 -----------------------------
 	// Insert the 'pending' row alongside minting a presigned PUT URL.
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) error

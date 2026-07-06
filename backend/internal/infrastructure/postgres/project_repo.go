@@ -24,6 +24,20 @@ func NewProjectRepo(tp *TenantPool) *ProjectRepo { return &ProjectRepo{tp: tp} }
 
 var _ project.ProjectRepository = (*ProjectRepo)(nil)
 
+// CountByOrg returns the org's live (non-archived) project count for the
+// plan-limit gate (FR-BILL-009). Concrete-only (not on ProjectRepository) —
+// called by the entitlement middleware over the concrete repo.
+func (r *ProjectRepo) CountByOrg(ctx context.Context, orgID string) (int64, error) {
+	var n int64
+	err := r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
+		oid, _ := parseUUID(orgID)
+		c, err := q.CountProjectsByOrg(ctx, oid)
+		n = c
+		return err
+	})
+	return n, err
+}
+
 func (r *ProjectRepo) Create(ctx context.Context, orgID string, p *project.Project) error {
 	id, err := parseUUID(p.ID)
 	if err != nil {

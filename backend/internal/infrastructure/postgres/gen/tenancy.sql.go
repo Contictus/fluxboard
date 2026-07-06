@@ -13,6 +13,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countMembers = `-- name: CountMembers :one
+SELECT count(*) FROM memberships WHERE org_id = $1
+`
+
+// Total member (seat) count for the plan-limit gate (FR-BILL-009).
+func (q *Queries) CountMembers(ctx context.Context, orgID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countMembers, orgID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countMembersByRole = `-- name: CountMembersByRole :one
 SELECT count(*) FROM memberships WHERE org_id = $1 AND role = $2
 `

@@ -176,6 +176,20 @@ func (s *Service) BulkMove(ctx context.Context, orgID, userID string, taskIDs []
 // attachmentsEnabled reports whether object storage is wired.
 func (s *Service) attachmentsEnabled() bool { return s.store != nil }
 
+// storageQuota returns the org's committed-storage ceiling in bytes: the plan's
+// max_storage_bytes when the entitlement resolver is wired (FR-BILL-009), else
+// the Free-tier constant. A negative return means unlimited (business plan).
+func (s *Service) storageQuota(ctx context.Context, orgID string) (int64, error) {
+	if s.entitlements == nil {
+		return project.OrgStorageQuotaBytes, nil
+	}
+	ent, err := s.entitlements.Resolve(ctx, orgID)
+	if err != nil {
+		return 0, err
+	}
+	return ent.MaxStorageBytes, nil
+}
+
 // RequestUpload validates an upload and returns the pending row plus a presigned
 // PUT URL the client uploads to directly (CONTRIBUTOR+). The API never proxies
 // bytes. ErrConflict when the org storage quota would be exceeded.
@@ -197,8 +211,12 @@ func (s *Service) RequestUpload(ctx context.Context, orgID, userID, taskID, file
 	if err != nil {
 		return nil, "", err
 	}
-	if used+size > project.OrgStorageQuotaBytes {
-		return nil, "", domain.ErrConflict // storage quota exceeded
+	quota, err := s.storageQuota(ctx, orgID)
+	if err != nil {
+		return nil, "", err
+	}
+	if quota >= 0 && used+size > quota {
+		return nil, "", domain.ErrPlanLimit // storage quota exceeded (FR-BILL-009)
 	}
 	id := newID()
 	key := objectKey(orgID, taskID, id, filename)

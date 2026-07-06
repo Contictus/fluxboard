@@ -145,6 +145,20 @@ func (r *MembershipRepo) CountByRole(ctx context.Context, orgID string, role ten
 	return n, err
 }
 
+// CountMembers returns the org's total member (seat) count for the plan-limit
+// gate (FR-BILL-009). Concrete-only (not on MembershipRepository) — called by
+// the entitlement middleware over the concrete repo.
+func (r *MembershipRepo) CountMembers(ctx context.Context, orgID string) (int64, error) {
+	var n int64
+	err := r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
+		oid, _ := parseUUID(orgID)
+		c, err := q.CountMembers(ctx, oid)
+		n = c
+		return err
+	})
+	return n, err
+}
+
 func (r *MembershipRepo) TransferOwnership(ctx context.Context, orgID, fromUserID, toUserID string) error {
 	fromID, err := parseUUID(fromUserID)
 	if err != nil {

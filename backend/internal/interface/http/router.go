@@ -121,7 +121,7 @@ func NewRouter(d Deps) http.Handler {
 				o.With(write(tenant.ObjMembers)).Delete("/members/{userId}", d.Orgs.RemoveMember)
 
 				o.With(write(tenant.ObjInvitations)).Get("/invitations", d.Orgs.ListInvitations)
-				o.With(write(tenant.ObjInvitations)).Post("/invitations", d.Orgs.CreateInvitation)
+				o.With(write(tenant.ObjInvitations), d.Entitlement.RequireMembers()).Post("/invitations", d.Orgs.CreateInvitation)
 				o.With(write(tenant.ObjInvitations)).Delete("/invitations/{id}", d.Orgs.RevokeInvitation)
 				o.With(write(tenant.ObjInvitations)).Post("/invitations/{id}/resend", d.Orgs.ResendInvitation)
 
@@ -129,7 +129,7 @@ func NewRouter(d Deps) http.Handler {
 				// org write:projects gate (MEMBER+); everything else runs under
 				// read:org and defers to the project-role gate in projectuc.
 				o.With(read(tenant.ObjOrg)).Get("/projects", d.Projects.ListProjects)
-				o.With(write(tenant.ObjProjects)).Post("/projects", d.Projects.CreateProject)
+				o.With(write(tenant.ObjProjects), d.Entitlement.RequireProjects()).Post("/projects", d.Projects.CreateProject)
 				o.Route("/projects/{projectId}", func(p chi.Router) {
 					p.With(read(tenant.ObjOrg)).Get("/", d.Projects.GetProject)
 					p.With(read(tenant.ObjOrg)).Patch("/", d.Projects.UpdateProject)

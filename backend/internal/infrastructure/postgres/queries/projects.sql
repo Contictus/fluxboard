@@ -44,3 +44,7 @@ WHERE org_id = @org_id AND id = @id;
 UPDATE projects SET task_counter = task_counter + 1
 WHERE org_id = @org_id AND id = @id
 RETURNING task_counter;
+
+-- name: CountProjectsByOrg :one
+-- Live (non-archived) project count for the plan-limit gate (FR-BILL-009).
+SELECT count(*) FROM projects WHERE org_id = @org_id AND archived_at IS NULL;

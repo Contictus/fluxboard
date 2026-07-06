@@ -13,20 +13,21 @@ new session resumes with zero re-derivation.
 ## ▶ Current Position
 
 - **Phase:** 4 — Billing
-- **Next check:** `4.6.1` (Wiring: main.go builds gateway/repos/cache/billinguc)
-- **Last verified commit:** `690fdf2` (Phase 4 §5 HTTP)
+- **Next check:** `4.7.1` (Jobs: outbox:drain scheduler + Asynq handler)
+- **Last verified commit:** `<pending §6.2 commit>` (Phase 4 §6.1–6.2 wiring + enforcement)
 - **Stack state:** migrations at `0012`; plans seeded (3 rows); MODE=stub.
-  Sections 0–5 DONE (decisions, migrations, domain, usecase, infra, HTTP). §5
-  added: unauthenticated `POST /api/v1/webhooks/stripe` (signature-verified in
-  handler), org-scoped `/orgs/{orgId}/billing/*` (summary/invoices/checkout/
-  preview-change/change/cancel/resume/portal) gated ADMIN via `read`/`write`
-  (ObjBilling) — added ADMIN billing-read Casbin policy; `EntitlementGuard`
-  402-middleware (`response.PlanLimit`). `go test ./...` 96 pass. Next: Section 6
-  Wiring — main.go must construct the stripe gateway + billing repos + entitlement
-  cache + billinguc + guard and set the new `httpx.Deps` fields (Billing/Webhooks/
-  Entitlement), which are nil until then (routes registered but not yet live). Then
-  §6.2 attaches concrete `LimitProbe`s to project-create/invite/attachment.
-  Repos not yet DB-integration-tested (that's §8/§9).
+  Sections 0–6 DONE (§6.3 worker deps deferred into §7). §6.1: main.go builds the
+  stripe gateway + billing repos + entitlement cache + billinguc + guard; billing
+  endpoints + webhook are LIVE. §6.2: plan-limit enforcement — project-create
+  (RequireProjects/max_projects) + invitation-create (RequireMembers/max_members)
+  middleware gates (rich 402 {limit,current,max}); attachment upload now checks
+  the plan's max_storage_bytes (taskuc.RequestUpload, ErrPlanLimit). New concrete
+  count methods ProjectRepo.CountByOrg / MembershipRepo.CountMembers (+ sqlc).
+  `go test ./...` 96 pass. Next: Section 7 Jobs — outbox:drain (5s scheduler →
+  Asynq per-row, TaskID=outbox id dedup), usage counters + usage:aggregate hourly
+  + usage:push_stripe daily, billing:reconcile nightly; register on the worker mux
+  + jobs.Schedule(); §6.3 worker billing-dep wiring happens here too. Repos still
+  not DB-integration-tested (that's §8/§9).
 
 Update these four lines whenever a section closes.
 

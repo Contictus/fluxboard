@@ -13,44 +13,55 @@ import (
 	"time"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/billing"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/rank"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/uuidv7"
 )
 
+// EntitlementResolver resolves an org's entitlements so the storage-quota check
+// uses the plan's max_storage_bytes instead of the hardcoded Free ceiling
+// (FR-BILL-009). Optional: nil falls back to project.OrgStorageQuotaBytes.
+// Implemented by billinguc.Service.
+type EntitlementResolver interface {
+	Resolve(ctx context.Context, orgID string) (billing.Entitlements, error)
+}
+
 // Deps are the collaborators the service needs.
 type Deps struct {
-	Tasks       project.TaskRepository
-	Subtasks    project.SubtaskRepository
-	Labels      project.LabelRepository
-	Comments    project.CommentRepository
-	Activity    project.ActivityRepository
-	Attachments project.AttachmentRepository
-	Projects    project.ProjectRepository
-	Members     project.ProjectMemberRepository
-	Boards      project.BoardRepository
-	Columns     project.ColumnRepository
-	Store       project.ObjectStore // MinIO; nil disables attachment endpoints
-	Logger      *slog.Logger
-	Now         func() time.Time // injectable for tests; defaults to time.Now
+	Tasks        project.TaskRepository
+	Subtasks     project.SubtaskRepository
+	Labels       project.LabelRepository
+	Comments     project.CommentRepository
+	Activity     project.ActivityRepository
+	Attachments  project.AttachmentRepository
+	Projects     project.ProjectRepository
+	Members      project.ProjectMemberRepository
+	Boards       project.BoardRepository
+	Columns      project.ColumnRepository
+	Store        project.ObjectStore // MinIO; nil disables attachment endpoints
+	Entitlements EntitlementResolver // plan storage ceiling; nil ⇒ Free const
+	Logger       *slog.Logger
+	Now          func() time.Time // injectable for tests; defaults to time.Now
 }
 
 // Service implements the task application logic.
 type Service struct {
-	tasks       project.TaskRepository
-	subtasks    project.SubtaskRepository
-	labels      project.LabelRepository
-	comments    project.CommentRepository
-	activity    project.ActivityRepository
-	attachments project.AttachmentRepository
-	projects    project.ProjectRepository
-	members     project.ProjectMemberRepository
-	boards      project.BoardRepository
-	columns     project.ColumnRepository
-	store       project.ObjectStore
-	logger      *slog.Logger
-	now         func() time.Time
+	tasks        project.TaskRepository
+	subtasks     project.SubtaskRepository
+	labels       project.LabelRepository
+	comments     project.CommentRepository
+	activity     project.ActivityRepository
+	attachments  project.AttachmentRepository
+	projects     project.ProjectRepository
+	members      project.ProjectMemberRepository
+	boards       project.BoardRepository
+	columns      project.ColumnRepository
+	store        project.ObjectStore
+	entitlements EntitlementResolver
+	logger       *slog.Logger
+	now          func() time.Time
 }
 
 // New builds a Service from Deps.
@@ -67,7 +78,7 @@ func New(d Deps) *Service {
 		tasks: d.Tasks, subtasks: d.Subtasks, labels: d.Labels, comments: d.Comments,
 		activity: d.Activity, attachments: d.Attachments, projects: d.Projects,
 		members: d.Members, boards: d.Boards, columns: d.Columns, store: d.Store,
-		logger: logger, now: now,
+		entitlements: d.Entitlements, logger: logger, now: now,
 	}
 }
 

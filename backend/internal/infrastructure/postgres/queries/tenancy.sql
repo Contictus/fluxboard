@@ -105,6 +105,10 @@ DELETE FROM memberships WHERE org_id = @org_id AND user_id = @user_id;
 -- name: CountMembersByRole :one
 SELECT count(*) FROM memberships WHERE org_id = @org_id AND role = @role;
 
+-- name: CountMembers :one
+-- Total member (seat) count for the plan-limit gate (FR-BILL-009).
+SELECT count(*) FROM memberships WHERE org_id = @org_id;
+
 -- Invitations ([T], tenant-scoped) ------------------------------------------
 
 -- name: CreateInvitation :exec

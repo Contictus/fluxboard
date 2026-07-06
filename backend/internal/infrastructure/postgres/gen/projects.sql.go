@@ -13,6 +13,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countProjectsByOrg = `-- name: CountProjectsByOrg :one
+SELECT count(*) FROM projects WHERE org_id = $1 AND archived_at IS NULL
+`
+
+// Live (non-archived) project count for the plan-limit gate (FR-BILL-009).
+func (q *Queries) CountProjectsByOrg(ctx context.Context, orgID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countProjectsByOrg, orgID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createProject = `-- name: CreateProject :exec
 
 INSERT INTO projects (id, org_id, key, name, description, color, visibility, created_by)
