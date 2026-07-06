@@ -58,12 +58,12 @@ Portal only).
 
 ## Section 2 — Domain (`internal/domain/billing/`)
 
-- [ ] 4.2.1 `billing.go`: `Plan` model + `PlanCode` enum (free/pro/business) with limits; `Entitlements` struct (06 §7).
-- [ ] 4.2.2 `billing.go`: `Subscription` model + `SubStatus` enum (active/trialing/past_due/unpaid/canceled) + `Transition`/`DeriveEntitlements(plan,status)` per state machine 06 §2.
-- [ ] 4.2.3 `billing.go`: `Invoice`, `UsageRecord`, `OutboxItem`, `ProcessedEvent` models. Money fields int64 minor units.
-- [ ] 4.2.4 `ports.go`: repo ports — `SubscriptionRepository`, `InvoiceRepository`, `ProcessedEventRepository`, `UsageRepository`, `OutboxRepository` (methods orgID-first for [T]).
-- [ ] 4.2.5 `ports.go`: `StripeGateway` (CreateCheckout, UpcomingInvoice, UpdateSubscription, CancelSubscription, PortalSession, PushUsage, ConstructEvent) + `EntitlementCache` (Get/Set/Bust).
-- [ ] 4.2.6 [VERIFY] `project_test.go`-style unit test: every state-machine edge + `DeriveEntitlements` for each (plan,status) pair. FR-BILL-004/006.
+- [x] 4.2.1 `billing.go`: `Plan` model + `PlanCode` enum (free/pro/business) with limits; `Entitlements` struct (06 §7).
+- [x] 4.2.2 `billing.go`: `Subscription` model + `SubStatus` enum (active/trialing/past_due/unpaid/canceled) + `CanTransition`/`DeriveEntitlements(plan,status)` per state machine 06 §2.
+- [x] 4.2.3 `billing.go`: `Invoice`, `UsageRecord`, `OutboxItem`, `ProcessedEvent` models. Money fields int64 minor units.
+- [x] 4.2.4 `ports.go`: repo ports — `SubscriptionRepository`, `InvoiceRepository`, `ProcessedEventRepository`, `UsageRepository`, `OutboxRepository` + `PlanRepository`/`WebhookRepository` (methods orgID-first for [T]).
+- [x] 4.2.5 `ports.go`: `StripeGateway` (CreateCheckout, UpcomingInvoice, UpdateSubscription, CancelSubscription, PortalSession, PushUsage, ConstructEvent) + `EntitlementCache` (Get/Set/Bust).
+- [x] 4.2.6 [VERIFY] `project_test.go`-style unit test: every state-machine edge + `DeriveEntitlements` for each (plan,status) pair. FR-BILL-004/006. → `go test ./internal/domain/billing/` green (5 tests).
 
 ## Section 3 — Usecase (`internal/usecase/billinguc/`)
 
