@@ -14,7 +14,7 @@ new session resumes with zero re-derivation.
 
 - **Phase:** 4 — Billing
 - **Next check:** `4.5.1` (HTTP: stripe webhook handler)
-- **Last verified commit:** `<§4 commit>` (Phase 4 §4 infra)
+- **Last verified commit:** `7cc72b7` (Phase 4 §4 infra)
 - **Stack state:** migrations at `0012`; plans seeded (3 rows); MODE=stub.
   Sections 0–4 DONE (decisions, migrations, domain, usecase, infra). Stripe stub
   gateway (HMAC-verified crafted webhooks), postgres repos (plan/subscription/
