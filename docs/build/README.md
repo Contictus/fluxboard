@@ -13,10 +13,12 @@ new session resumes with zero re-derivation.
 ## ▶ Current Position
 
 - **Phase:** 4 — Billing
-- **Next check:** `4.2.1` (domain/billing models)
-- **Last verified commit:** _(pending Section 0–1 commit)_
-- **Stack state:** migrations at `0012` (billing DDL+RLS); plans seeded (3 rows);
-  MODE=stub; build green. Section 0 (decisions) + Section 1 (migrations) DONE.
+- **Next check:** `4.4.1` (infra: stripe gateway impl)
+- **Last verified commit:** `13f48c9` (Phase 4 §3 billinguc)
+- **Stack state:** migrations at `0012`; plans seeded (3 rows); MODE=stub.
+  Sections 0–3 DONE (decisions, migrations, domain, usecase). `billinguc`
+  service + webhook idempotency core built against domain ports; `go test ./...`
+  91 pass. Next: Section 4 infra (Stripe stub adapter, postgres/redis repos, sqlc).
 
 Update these four lines whenever a section closes.
 

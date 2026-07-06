@@ -67,14 +67,14 @@ Portal only).
 
 ## Section 3 — Usecase (`internal/usecase/billinguc/`)
 
-- [ ] 4.3.1 `service.go`: `Summary(orgID)` → plan, seats, renewal, payment-method brand/last4, usage vs limits. FR-BILL-001.
-- [ ] 4.3.2 `Checkout(orgID, planCode, seats)` → lazy Stripe customer, `CreateCheckout` with idempotency key `co:{org}:{plan}:{unix/300}`, metadata `org_id`. FR-BILL-002, 06 §3.
-- [ ] 4.3.3 `PreviewChange(orgID, planCode)` → `UpcomingInvoice` proration figure. FR-BILL-003.
-- [ ] 4.3.4 `ApplyChange(orgID, planCode)` → `UpdateSubscription(proration_behavior=create_prorations)` under idempotency key. FR-BILL-003.
-- [ ] 4.3.5 `Cancel(orgID, atPeriodEnd)` / `Resume(orgID)`. Immediate cancel = admin-only (Phase 6). FR-BILL-004.
-- [ ] 4.3.6 `Portal(orgID)` → Billing Portal session URL. FR-BILL-006.
-- [ ] 4.3.7 `ProcessEvent(event)` webhook usecase: transactional insert-dedup → staleness guard (`event.created` vs `last_stripe_event_at`) → dispatch to per-type side effects → enqueue outbox emails; all in ONE tx. FR-BILL-005, 06 §4.
-- [ ] 4.3.8 Event handlers (inside ProcessEvent): `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`, `invoice.finalized`, else→`handled=false`. Each busts entitlement cache where state changes. 06 §4 table.
+- [x] 4.3.1 `service.go`: `Summary(orgID)` → plan, renewal, cancel flag, status/warning + resolved entitlement limits (`SummaryView`); `Resolve(orgID)` cache-first entitlements shared with §5 middleware. Usage-vs-limits composed at HTTP layer (counts live in project/tenant domains, not billing — layering). `ListInvoices` for §5.4. FR-BILL-001/009.
+- [x] 4.3.2 `Checkout(orgID, planCode, seats)` → lazy Stripe customer (EnsureCustomer + persist on sub row), `CreateCheckout` with idempotency key `co:{org}:{plan}:{unix/300}`, success/cancel URLs from `BaseURL`; rejects `free`. FR-BILL-002, 06 §3.
+- [x] 4.3.3 `PreviewChange(orgID, planCode)` → `UpcomingInvoice` proration figure (requires live Stripe sub, else ErrConflict). FR-BILL-003. TODO(seats): qty not mirrored, previews 1.
+- [x] 4.3.4 `ApplyChange(orgID, planCode)` → `UpdateSubscription(create_prorations)` under idem key `chg:{org}:{plan}:{unix/300}`; busts cache. FR-BILL-003.
+- [x] 4.3.5 `Cancel(orgID, atPeriodEnd)` / `Resume(orgID)` → gateway + cache bust. Immediate cancel = admin-only (Phase 6). FR-BILL-004.
+- [x] 4.3.6 `Portal(orgID)` → Billing Portal session URL. FR-BILL-006.
+- [x] 4.3.7 `webhook.go` `ProcessEvent(event)`: unroutable→global ledger handled=false; routable→build `WebhookMutation` (ledger + side effects) → `WebhookRepository.Apply` (dedup+staleness+effects in ONE tx, infra §4.4) → bust cache on `result.SubscriptionCh`. FR-BILL-005, 06 §4.
+- [x] 4.3.8 Event handlers (`buildSideEffects`): `checkout.session.completed`(+welcome), `customer.subscription.updated`, `customer.subscription.deleted`(+OWNER email), `invoice.payment_succeeded`(recovery→active+resolved), `invoice.payment_failed`(→past_due+dunning), `invoice.finalized`, else→`handled=false`. Sub events build full mirror; invoice events merge status onto current row. 06 §4 table. Unit tests (10) green.
 
 ## Section 4 — Infra
 
