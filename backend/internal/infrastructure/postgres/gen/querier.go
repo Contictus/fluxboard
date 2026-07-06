@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -22,6 +23,9 @@ type Querier interface {
 	// distinct rank, so the repo issues per-task MoveTask calls instead of a set-based
 	// UPDATE (the (column_id, rank) unique index forbids sharing a rank).
 	BulkAssignTasks(ctx context.Context, arg BulkAssignTasksParams) (int64, error)
+	// Atomically mark up to @lim undrained rows drained and return them. FOR UPDATE
+	// SKIP LOCKED lets concurrent drainers make progress without contending.
+	ClaimOutboxBatch(ctx context.Context, arg ClaimOutboxBatchParams) ([]Outbox, error)
 	// Flip a pending row to committed (idempotency: no-op if already committed via
 	// the WHERE status filter). size_bytes is corrected to the HEAD-verified size.
 	CommitAttachment(ctx context.Context, arg CommitAttachmentParams) (int64, error)
@@ -84,18 +88,35 @@ type Querier interface {
 	GetOAuthIdentity(ctx context.Context, arg GetOAuthIdentityParams) (OauthIdentity, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (GetOrgByIDRow, error)
 	GetOrgBySlug(ctx context.Context, slug string) (GetOrgBySlugRow, error)
+	// Billing — Phase 4 (docs/06-BILLING.md, FR-BILL-001..009) ---------------------
+	// plans + processed_stripe_events are GLOBAL (no RLS); subscriptions + invoices
+	// are [T] (RLS via TenantPool). The webhook consumer writes the global ledger and
+	// the [T] mirrors in one transaction (webhook_repo.go).
+	GetPlan(ctx context.Context, code string) (Plan, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
 	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (GetProjectMemberRow, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error)
 	GetSessionByTokenHashForUpdate(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashForUpdateRow, error)
 	// Resolve a stale slug to its org within the 30-day 301 window (FR-TEN-007).
 	GetSlugRedirect(ctx context.Context, oldSlug string) (uuid.UUID, error)
+	// free, pro, business by ascending caps (business = -1 sorts first, acceptable)
+	GetSubscription(ctx context.Context, orgID uuid.UUID) (Subscription, error)
+	// Staleness read for the out-of-order webhook guard (06 §4). ErrNoRows = no row.
+	GetSubscriptionLastEvent(ctx context.Context, orgID uuid.UUID) (pgtype.Timestamptz, error)
 	GetSubtask(ctx context.Context, arg GetSubtaskParams) (Subtask, error)
 	// Live tasks only; trashed tasks are addressable through the Trash queries.
 	GetTask(ctx context.Context, arg GetTaskParams) (GetTaskRow, error)
 	GetTrashedTask(ctx context.Context, arg GetTrashedTaskParams) (GetTrashedTaskRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
+	// Transactional outbox — Phase 4 / 09 §2 --------------------------------------
+	// outbox [T]: producers INSERT within their write tx (the webhook does so in
+	// webhook_repo); the worker's outbox:drain claims undrained rows and enqueues to
+	// Asynq with TaskID = outbox id (at-most-once enqueue).
+	InsertOutbox(ctx context.Context, arg InsertOutboxParams) error
+	// Webhook dedup primitive (06 §4): rows-affected 0 ⇒ duplicate. Runs both inside
+	// the tenant tx (webhook_repo) and on the plain pool (processed_event_repo).
+	InsertProcessedEvent(ctx context.Context, arg InsertProcessedEventParams) (int64, error)
 	InsertSlugHistory(ctx context.Context, arg InsertSlugHistoryParams) error
 	// All non-deleted org ids (organizations has no RLS). Drives per-tenant
 	// maintenance jobs (trash purge, attachment GC) which then run under WithTenant.
@@ -107,6 +128,7 @@ type Querier interface {
 	ListAttachmentsByTask(ctx context.Context, arg ListAttachmentsByTaskParams) ([]Attachment, error)
 	ListColumnsByBoard(ctx context.Context, arg ListColumnsByBoardParams) ([]BoardColumn, error)
 	ListCommentsByTask(ctx context.Context, arg ListCommentsByTaskParams) ([]Comment, error)
+	ListInvoicesByOrg(ctx context.Context, orgID uuid.UUID) ([]Invoice, error)
 	ListLabels(ctx context.Context, orgID uuid.UUID) ([]Label, error)
 	ListLabelsForTask(ctx context.Context, arg ListLabelsForTaskParams) ([]Label, error)
 	ListMembers(ctx context.Context, orgID uuid.UUID) ([]ListMembersRow, error)
@@ -117,6 +139,7 @@ type Querier interface {
 	// orphan GC removes their objects then their rows (per-tenant).
 	ListOrphanAttachments(ctx context.Context, arg ListOrphanAttachmentsParams) ([]Attachment, error)
 	ListPendingInvitations(ctx context.Context, orgID uuid.UUID) ([]Invitation, error)
+	ListPlans(ctx context.Context) ([]Plan, error)
 	ListProjectMembers(ctx context.Context, arg ListProjectMembersParams) ([]ListProjectMembersRow, error)
 	// Visibility filter (FR-PROJ-002/003): see_all (org ADMIN+) returns every
 	// project; otherwise 'org'-visible plus 'private' ones the user is a member of.
@@ -125,8 +148,11 @@ type Querier interface {
 	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error)
 	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error)
 	ListTrashedTasks(ctx context.Context, arg ListTrashedTasksParams) ([]ListTrashedTasksRow, error)
+	// Metered aggregates for a day not yet pushed to Stripe.
+	ListUsageForPush(ctx context.Context, arg ListUsageForPushParams) ([]UsageRecord, error)
 	MarkInvitationAccepted(ctx context.Context, arg MarkInvitationAcceptedParams) (int64, error)
 	MarkSessionRotated(ctx context.Context, id uuid.UUID) error
+	MarkUsagePushed(ctx context.Context, arg MarkUsagePushedParams) error
 	MarkUserEmailVerified(ctx context.Context, id uuid.UUID) error
 	// Relocate a task. The (column_id, rank) unique index makes a concurrent
 	// identical move raise a unique violation → domain.ErrConflict → 409 (FR-PROJ-005).
@@ -181,6 +207,16 @@ type Querier interface {
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
+	UpsertInvoice(ctx context.Context, arg UpsertInvoiceParams) error
+	// Full desired state, keyed on org_id. The caller owns last_stripe_event_at:
+	// persistCustomer passes the row's existing value; the webhook passes the event
+	// time (after its staleness guard), so EXCLUDED never regresses it.
+	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) error
+	// Usage metering — Phase 4 (docs/06-BILLING.md §5, FR-BILL-007) ----------------
+	// usage_records [T]: hourly idempotent UPSERT of the per-(org, metric, day)
+	// aggregate; daily job pushes Business-plan aggregates to Stripe with action=set.
+	// Idempotent set (not increment) so re-running the hourly aggregate is harmless.
+	UpsertUsage(ctx context.Context, arg UpsertUsageParams) error
 	// Count how many of the given ids are live tasks in this org (bulk pre-check).
 	ValidateTaskIDs(ctx context.Context, arg ValidateTaskIDsParams) (int64, error)
 }

@@ -86,6 +86,21 @@ type Invitation struct {
 	CreatedAt  time.Time          `json:"created_at"`
 }
 
+type Invoice struct {
+	ID              uuid.UUID          `json:"id"`
+	OrgID           uuid.UUID          `json:"org_id"`
+	StripeInvoiceID string             `json:"stripe_invoice_id"`
+	Number          *string            `json:"number"`
+	Status          string             `json:"status"`
+	AmountDue       int64              `json:"amount_due"`
+	AmountPaid      int64              `json:"amount_paid"`
+	Currency        string             `json:"currency"`
+	HostedPdfUrl    *string            `json:"hosted_pdf_url"`
+	PeriodStart     pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd       pgtype.Timestamptz `json:"period_end"`
+	CreatedAt       time.Time          `json:"created_at"`
+}
+
 type Label struct {
 	ID        uuid.UUID `json:"id"`
 	OrgID     uuid.UUID `json:"org_id"`
@@ -131,6 +146,39 @@ type Organization struct {
 	PurgeAfter       pgtype.Timestamptz `json:"purge_after"`
 	CreatedAt        time.Time          `json:"created_at"`
 	UpdatedAt        time.Time          `json:"updated_at"`
+}
+
+type Outbox struct {
+	ID        uuid.UUID          `json:"id"`
+	OrgID     uuid.UUID          `json:"org_id"`
+	Kind      string             `json:"kind"`
+	Payload   []byte             `json:"payload"`
+	CreatedAt time.Time          `json:"created_at"`
+	DrainedAt pgtype.Timestamptz `json:"drained_at"`
+}
+
+type Plan struct {
+	Code                  string  `json:"code"`
+	Name                  string  `json:"name"`
+	StripeProductID       *string `json:"stripe_product_id"`
+	SeatPriceID           *string `json:"seat_price_id"`
+	MeteredStoragePriceID *string `json:"metered_storage_price_id"`
+	MeteredApiPriceID     *string `json:"metered_api_price_id"`
+	MaxMembers            int32   `json:"max_members"`
+	MaxProjects           int32   `json:"max_projects"`
+	MaxStorageBytes       int64   `json:"max_storage_bytes"`
+	ApiRatePerMin         int32   `json:"api_rate_per_min"`
+	AuditRetentionDays    int32   `json:"audit_retention_days"`
+	Metered               bool    `json:"metered"`
+}
+
+type ProcessedStripeEvent struct {
+	EventID     string    `json:"event_id"`
+	Type        string    `json:"type"`
+	Payload     []byte    `json:"payload"`
+	Handled     bool      `json:"handled"`
+	Error       *string   `json:"error"`
+	ProcessedAt time.Time `json:"processed_at"`
 }
 
 type Project struct {
@@ -183,6 +231,20 @@ type SlugHistory struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+type Subscription struct {
+	ID                   uuid.UUID          `json:"id"`
+	OrgID                uuid.UUID          `json:"org_id"`
+	PlanCode             string             `json:"plan_code"`
+	StripeSubscriptionID *string            `json:"stripe_subscription_id"`
+	StripeCustomerID     *string            `json:"stripe_customer_id"`
+	Status               string             `json:"status"`
+	CurrentPeriodEnd     pgtype.Timestamptz `json:"current_period_end"`
+	CancelAtPeriodEnd    bool               `json:"cancel_at_period_end"`
+	LastStripeEventAt    pgtype.Timestamptz `json:"last_stripe_event_at"`
+	CreatedAt            time.Time          `json:"created_at"`
+	UpdatedAt            time.Time          `json:"updated_at"`
+}
+
 type Subtask struct {
 	ID        uuid.UUID `json:"id"`
 	OrgID     uuid.UUID `json:"org_id"`
@@ -228,6 +290,14 @@ type TaskLabel struct {
 	TaskID  uuid.UUID `json:"task_id"`
 	LabelID uuid.UUID `json:"label_id"`
 	OrgID   uuid.UUID `json:"org_id"`
+}
+
+type UsageRecord struct {
+	OrgID      uuid.UUID          `json:"org_id"`
+	Metric     string             `json:"metric"`
+	PeriodDate time.Time          `json:"period_date"`
+	Value      int64              `json:"value"`
+	PushedAt   pgtype.Timestamptz `json:"pushed_at"`
 }
 
 type User struct {

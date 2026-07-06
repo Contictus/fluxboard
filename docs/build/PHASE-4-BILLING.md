@@ -78,15 +78,15 @@ Portal only).
 
 ## Section 4 — Infra
 
-- [ ] 4.4.1 `internal/infrastructure/stripe/client.go`: init `stripe-go` with secret; `StripeGateway` impl skeleton. (fake impl if MODE=stub.)
-- [ ] 4.4.2 `stripe/`: CreateCheckout, UpdateSubscription, CancelSubscription, UpcomingInvoice, PortalSession.
-- [ ] 4.4.3 `stripe/`: PushUsage (`UsageRecord.New` Action="set"). FR-BILL-007.
-- [ ] 4.4.4 `stripe/`: ConstructEvent (`webhook.ConstructEventWithOptions`, 5-min tolerance). FR-BILL-005.
-- [ ] 4.4.5 `internal/infrastructure/postgres/subscription_repo.go` over TenantPool (upsert-by-org, get, set-status).
-- [ ] 4.4.6 `postgres/invoice_repo.go`, `processed_event_repo.go` (plain pool — global table, insert-on-conflict-do-nothing returns rowsAffected), `usage_repo.go` (upsert on conflict).
-- [ ] 4.4.7 `postgres/outbox_repo.go`: `Insert(tx)` within a caller tx + `ClaimBatch` (`UPDATE … WHERE drained_at IS NULL RETURNING`). 09 §2.
-- [ ] 4.4.8 `internal/infrastructure/redis/entitlement_cache.go`: `ent:{orgID}` TTL 60s, write-through `Bust`. 06 §7.
-- [ ] 4.4.9 Add all new queries to `queries/{billing,usage,outbox}.sql`; `sqlc generate`.
+- [x] 4.4.1 `internal/infrastructure/stripe/client.go` (pkg `stripex`): `New(mode,secret,baseURL)` → `StubGateway` (MODE=stub) impl of `billing.StripeGateway`; `live` errors not-impl (§4.0.2). (fake impl, MODE=stub.)
+- [x] 4.4.2 `stripex`: CreateCheckout (fake URL w/ idem key), EnsureCustomer (deterministic `cus_stub_{org}`), UpdateSubscription/CancelSubscription/Resume (no-op), UpcomingInvoice (stub proration), PortalSession (fake URL).
+- [x] 4.4.3 `stripex`: PushUsage — no-op stub (real `UsageRecord.New` Action="set" in live adapter). FR-BILL-007.
+- [x] 4.4.4 `stripex`: ConstructEvent — HMAC-SHA256 shared-secret verify of raw body (fail-closed on empty secret/sig → ErrValidation) + crafted-payload→`billing.StripeEvent` mapper; `Sign()` helper for tests/e2e. (real `webhook.ConstructEventWithOptions` 5-min tolerance in live.) FR-BILL-005. Unit tests (5) green.
+- [x] 4.4.5 `postgres/subscription_repo.go` over TenantPool (Get, Upsert full desired state ON CONFLICT(org_id)); `plan_repo.go` (PlanRepo, plain pool — plans global).
+- [x] 4.4.6 `postgres/invoice_repo.go` (InvoiceRepo [T] upsert-by-stripe_invoice_id + ListByOrg; ProcessedEventRepo plain pool — `InsertProcessedEvent` ON CONFLICT DO NOTHING, rowsAffected⇒inserted), `usage_repo.go` (UpsertUsage on conflict, ListForPush, MarkPushed).
+- [x] 4.4.7 `postgres/outbox_repo.go`: `insertOutbox(tx)` helper within a caller tx + `ClaimBatch` (`UPDATE … WHERE drained_at IS NULL RETURNING`, FOR UPDATE SKIP LOCKED). 09 §2.
+- [x] 4.4.8 `internal/infrastructure/redis/entitlement_cache.go`: `ent:{orgID}` JSON, TTL from usecase (60s), write-through `Bust`, corrupt-entry⇒miss. 06 §7.
+- [x] 4.4.9 `postgres/webhook_repo.go` (WebhookRepo.Apply — dedup + staleness guard + sub/invoice/outbox side effects in ONE tenant tx). Queries in `queries/{billing,usage,outbox}.sql`; `sqlc generate` clean (added `date→time.Time` override). `go test ./...` 96 pass.
 
 ## Section 5 — HTTP
 
