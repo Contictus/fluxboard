@@ -9,10 +9,13 @@ Full spec lives in [`docs/`](docs/); start with
 
 ## Status
 
-**Phase 0 — Scaffolding** (complete). The stack stands up healthy with no
-business logic yet: repo layout, Docker Compose reference environment,
-migrations tooling, build tooling, and CI. Build order and per-phase scope are
-in `docs/CLAUDE.md` §Build Order.
+**Phase 3a — Core domain** (in progress). Phases 0–2 (scaffolding, auth,
+tenancy + RBAC/RLS, audit) are complete. Phase 3a adds the project-management
+core: projects, project membership/roles, boards + columns (LexoRank ordering),
+tasks with per-project numbering, subtasks, org labels, comments (15-minute edit
+window), and the per-task activity log. Deferred to **3b**: attachments (MinIO
+presigned), full-text search, bulk board actions, and soft-delete/Trash. Build
+order and per-phase scope are in `docs/CLAUDE.md` §Build Order.
 
 ## Tech stack (fixed)
 

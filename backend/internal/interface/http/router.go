@@ -21,6 +21,8 @@ type Deps struct {
 	MetricsHTTP   http.Handler
 	Auth          *handlers.AuthHandlers
 	Orgs          *handlers.OrgHandlers
+	Projects      *handlers.ProjectHandlers
+	Tasks         *handlers.TaskHandlers
 	Authenticator *mw.Authenticator
 	Tenant        *mw.TenantGuard
 }
@@ -114,6 +116,54 @@ func NewRouter(d Deps) http.Handler {
 				o.With(write(tenant.ObjInvitations)).Post("/invitations", d.Orgs.CreateInvitation)
 				o.With(write(tenant.ObjInvitations)).Delete("/invitations/{id}", d.Orgs.RevokeInvitation)
 				o.With(write(tenant.ObjInvitations)).Post("/invitations/{id}/resend", d.Orgs.ResendInvitation)
+
+				// Phase 3a — projects & boards (docs/01 §PROJ). Create needs the
+				// org write:projects gate (MEMBER+); everything else runs under
+				// read:org and defers to the project-role gate in projectuc.
+				o.With(read(tenant.ObjOrg)).Get("/projects", d.Projects.ListProjects)
+				o.With(write(tenant.ObjProjects)).Post("/projects", d.Projects.CreateProject)
+				o.Route("/projects/{projectId}", func(p chi.Router) {
+					p.With(read(tenant.ObjOrg)).Get("/", d.Projects.GetProject)
+					p.With(read(tenant.ObjOrg)).Patch("/", d.Projects.UpdateProject)
+					p.With(read(tenant.ObjOrg)).Post("/archive", d.Projects.ArchiveProject)
+					p.With(read(tenant.ObjOrg)).Post("/unarchive", d.Projects.UnarchiveProject)
+					p.With(read(tenant.ObjOrg)).Get("/members", d.Projects.ListMembers)
+					p.With(read(tenant.ObjOrg)).Post("/members", d.Projects.AddMember)
+					p.With(read(tenant.ObjOrg)).Delete("/members/{userId}", d.Projects.RemoveMember)
+					p.With(read(tenant.ObjOrg)).Get("/board", d.Projects.GetBoard)
+					p.With(read(tenant.ObjOrg)).Post("/columns", d.Projects.AddColumn)
+					p.With(read(tenant.ObjOrg)).Patch("/columns/{columnId}", d.Projects.RenameColumn)
+					p.With(read(tenant.ObjOrg)).Patch("/columns/{columnId}/position", d.Projects.ReorderColumn)
+					p.With(read(tenant.ObjOrg)).Delete("/columns/{columnId}", d.Projects.DeleteColumn)
+					p.With(read(tenant.ObjOrg)).Post("/tasks", d.Tasks.CreateTask)
+					p.With(read(tenant.ObjOrg)).Get("/tasks", d.Tasks.ListTasks)
+				})
+
+				// Tasks by id (flat; access derives the project). docs/01 §TASK.
+				o.Route("/tasks/{taskId}", func(t chi.Router) {
+					t.With(read(tenant.ObjOrg)).Get("/", d.Tasks.GetTask)
+					t.With(read(tenant.ObjOrg)).Patch("/", d.Tasks.UpdateTask)
+					t.With(read(tenant.ObjOrg)).Patch("/position", d.Projects.MoveTask)
+					t.With(read(tenant.ObjOrg)).Get("/activity", d.Tasks.ListActivity)
+					t.With(read(tenant.ObjOrg)).Get("/subtasks", d.Tasks.ListSubtasks)
+					t.With(read(tenant.ObjOrg)).Post("/subtasks", d.Tasks.AddSubtask)
+					t.With(read(tenant.ObjOrg)).Patch("/subtasks/{subtaskId}", d.Tasks.UpdateSubtask)
+					t.With(read(tenant.ObjOrg)).Delete("/subtasks/{subtaskId}", d.Tasks.DeleteSubtask)
+					t.With(read(tenant.ObjOrg)).Get("/comments", d.Tasks.ListComments)
+					t.With(read(tenant.ObjOrg)).Post("/comments", d.Tasks.AddComment)
+					t.With(read(tenant.ObjOrg)).Patch("/comments/{commentId}", d.Tasks.EditComment)
+					t.With(read(tenant.ObjOrg)).Delete("/comments/{commentId}", d.Tasks.DeleteComment)
+					t.With(read(tenant.ObjOrg)).Get("/labels", d.Tasks.ListTaskLabels)
+					t.With(read(tenant.ObjOrg)).Post("/labels", d.Tasks.AttachLabel)
+					t.With(read(tenant.ObjOrg)).Delete("/labels/{labelId}", d.Tasks.DetachLabel)
+				})
+
+				// Org-scoped labels (docs/01 §TASK FR-TASK-004). Writes need the
+				// write:labels gate (MEMBER+); reads under read:org.
+				o.With(read(tenant.ObjOrg)).Get("/labels", d.Tasks.ListLabels)
+				o.With(write(tenant.ObjLabels)).Post("/labels", d.Tasks.CreateLabel)
+				o.With(write(tenant.ObjLabels)).Patch("/labels/{labelId}", d.Tasks.UpdateLabel)
+				o.With(write(tenant.ObjLabels)).Delete("/labels/{labelId}", d.Tasks.DeleteLabel)
 			})
 		})
 	})

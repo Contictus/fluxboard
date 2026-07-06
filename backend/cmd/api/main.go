@@ -35,6 +35,8 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/aesgcm"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/projectuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/tenantuc"
 )
 
@@ -177,6 +179,30 @@ func run(logger *slog.Logger) error {
 		Logger:  logger,
 	}
 
+	// Phase 3a — projects/boards/tasks wiring. All repos are tenant-scoped [T]
+	// over the RLS-enforcing TenantPool (docs/01 §PROJ/§TASK).
+	projectRepo := postgres.NewProjectRepo(tenantPool)
+	projectMemberRepo := postgres.NewProjectMemberRepo(tenantPool)
+	boardRepo := postgres.NewBoardRepo(tenantPool)
+	columnRepo := postgres.NewColumnRepo(tenantPool)
+	taskRepo := postgres.NewTaskRepo(tenantPool)
+	subtaskRepo := postgres.NewSubtaskRepo(tenantPool)
+	labelRepo := postgres.NewLabelRepo(tenantPool)
+	commentRepo := postgres.NewCommentRepo(tenantPool)
+	activityRepo := postgres.NewActivityRepo(tenantPool)
+
+	projectSvc := projectuc.New(projectuc.Deps{
+		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
+		Columns: columnRepo, Tasks: taskRepo, Logger: logger,
+	})
+	taskSvc := taskuc.New(taskuc.Deps{
+		Tasks: taskRepo, Subtasks: subtaskRepo, Labels: labelRepo, Comments: commentRepo,
+		Activity: activityRepo, Projects: projectRepo, Members: projectMemberRepo,
+		Boards: boardRepo, Columns: columnRepo, Logger: logger,
+	})
+	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
+	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
+
 	router := httpx.NewRouter(httpx.Deps{
 		Logger:        logger,
 		WebOrigin:     cfg.WebOrigin,
@@ -184,6 +210,8 @@ func run(logger *slog.Logger) error {
 		MetricsHTTP:   promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
 		Auth:          authHandlers,
 		Orgs:          orgHandlers,
+		Projects:      projectHandlers,
+		Tasks:         taskHandlers,
 		Authenticator: authenticator,
 		Tenant:        tenantGuard,
 	})

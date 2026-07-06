@@ -14,13 +14,23 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres/gen"
 )
 
-// uniqueViolation is Postgres SQLSTATE 23505.
-const uniqueViolation = "23505"
+// uniqueViolation is Postgres SQLSTATE 23505; foreignKeyViolation is 23503.
+const (
+	uniqueViolation     = "23505"
+	foreignKeyViolation = "23503"
+)
 
 // isUnique reports whether err is a unique-constraint violation.
 func isUnique(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolation
+}
+
+// isForeignKey reports whether err is a foreign-key violation (a referenced row
+// — e.g. the parent project or user — does not exist).
+func isForeignKey(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation
 }
 
 // UserRepo is the Postgres-backed auth.UserRepository. Users are global (no RLS),

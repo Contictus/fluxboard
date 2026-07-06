@@ -11,13 +11,26 @@ import (
 )
 
 type Querier interface {
+	// Project members ([T], tenant-scoped, FR-PROJ-003) ------------------------
+	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) error
+	// Task activity log ([T], tenant-scoped, FR-TASK-002) -----------------------
+	AppendActivity(ctx context.Context, arg AppendActivityParams) error
+	AttachLabel(ctx context.Context, arg AttachLabelParams) error
 	ConsumeOneTimeToken(ctx context.Context, arg ConsumeOneTimeTokenParams) (OneTimeToken, error)
 	// Single-use consume: marks a matching unused code used. Rows affected = 1 means
 	// the code was valid and is now spent; 0 means invalid/already-used.
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (int64, error)
+	CountColumnTasks(ctx context.Context, arg CountColumnTasksParams) (int64, error)
 	CountMembersByRole(ctx context.Context, arg CountMembersByRoleParams) (int64, error)
+	// Boards + columns ([T], tenant-scoped, FR-PROJ-004) -----------------------
+	CreateBoard(ctx context.Context, arg CreateBoardParams) error
+	CreateColumn(ctx context.Context, arg CreateColumnParams) error
+	// Comments ([T], tenant-scoped, FR-TASK-005) --------------------------------
+	CreateComment(ctx context.Context, arg CreateCommentParams) error
 	// Invitations ([T], tenant-scoped) ------------------------------------------
 	CreateInvitation(ctx context.Context, arg CreateInvitationParams) error
+	// Labels + task attachments ([T], tenant-scoped, FR-TASK-004) ---------------
+	CreateLabel(ctx context.Context, arg CreateLabelParams) error
 	// ListUserOrgs and ResolveInvitationByToken call SECURITY DEFINER set-returning
 	// functions (app_current_user_orgs / app_invitation_by_token). sqlc's parser
 	// can't infer their RETURNS TABLE columns, so they are hand-written pgx in the
@@ -28,38 +41,76 @@ type Querier interface {
 	CreateOneTimeToken(ctx context.Context, arg CreateOneTimeTokenParams) error
 	// Organizations (global pool, no RLS) ---------------------------------------
 	CreateOrg(ctx context.Context, arg CreateOrgParams) error
+	// Projects ([T], tenant-scoped) ---------------------------------------------
+	CreateProject(ctx context.Context, arg CreateProjectParams) error
 	CreateRecoveryCode(ctx context.Context, arg CreateRecoveryCodeParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
+	// Subtasks ([T], tenant-scoped, FR-TASK-003) --------------------------------
+	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) error
+	// Tasks ([T], tenant-scoped) ------------------------------------------------
+	CreateTask(ctx context.Context, arg CreateTaskParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) error
+	DeleteColumn(ctx context.Context, arg DeleteColumnParams) (int64, error)
+	// The FK cascade on task_labels detaches this label from every task.
+	DeleteLabel(ctx context.Context, arg DeleteLabelParams) (int64, error)
 	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error)
+	DeleteSubtask(ctx context.Context, arg DeleteSubtaskParams) (int64, error)
 	// Clears any prior codes before a fresh batch is issued (activate / regenerate).
 	DeleteUserRecoveryCodes(ctx context.Context, userID uuid.UUID) error
+	DetachLabel(ctx context.Context, arg DetachLabelParams) (int64, error)
+	GetBoardByProject(ctx context.Context, arg GetBoardByProjectParams) (Board, error)
+	GetColumn(ctx context.Context, arg GetColumnParams) (BoardColumn, error)
+	GetComment(ctx context.Context, arg GetCommentParams) (Comment, error)
 	GetInvitation(ctx context.Context, arg GetInvitationParams) (Invitation, error)
 	GetInvitationByEmail(ctx context.Context, arg GetInvitationByEmailParams) (Invitation, error)
+	GetLabel(ctx context.Context, arg GetLabelParams) (Label, error)
 	GetMembership(ctx context.Context, arg GetMembershipParams) (Membership, error)
 	// Looks up an external identity by (provider, subject). domain.ErrNotFound when
 	// absent drives the link-or-create branch in the OAuth callback (04 §4).
 	GetOAuthIdentity(ctx context.Context, arg GetOAuthIdentityParams) (OauthIdentity, error)
 	GetOrgByID(ctx context.Context, id uuid.UUID) (GetOrgByIDRow, error)
 	GetOrgBySlug(ctx context.Context, slug string) (GetOrgBySlugRow, error)
+	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
+	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (GetProjectMemberRow, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error)
 	GetSessionByTokenHashForUpdate(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashForUpdateRow, error)
 	// Resolve a stale slug to its org within the 30-day 301 window (FR-TEN-007).
 	GetSlugRedirect(ctx context.Context, oldSlug string) (uuid.UUID, error)
+	GetSubtask(ctx context.Context, arg GetSubtaskParams) (Subtask, error)
+	GetTask(ctx context.Context, arg GetTaskParams) (Task, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
 	InsertSlugHistory(ctx context.Context, arg InsertSlugHistoryParams) error
 	// Live sessions the user can manage: not revoked, not rotated (i.e. the current
 	// head of each refresh family), not expired. Newest first (docs/04-AUTH.md §5).
 	ListActiveUserSessions(ctx context.Context, userID uuid.UUID) ([]ListActiveUserSessionsRow, error)
+	ListActivityByTask(ctx context.Context, arg ListActivityByTaskParams) ([]TaskActivity, error)
+	ListColumnsByBoard(ctx context.Context, arg ListColumnsByBoardParams) ([]BoardColumn, error)
+	ListCommentsByTask(ctx context.Context, arg ListCommentsByTaskParams) ([]Comment, error)
+	ListLabels(ctx context.Context, orgID uuid.UUID) ([]Label, error)
+	ListLabelsForTask(ctx context.Context, arg ListLabelsForTaskParams) ([]Label, error)
 	ListMembers(ctx context.Context, orgID uuid.UUID) ([]ListMembersRow, error)
 	// Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role
 	// and text (name/email) filters; the (created_at,user_id) cursor is exclusive.
 	ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]ListMembersFilteredRow, error)
 	ListPendingInvitations(ctx context.Context, orgID uuid.UUID) ([]Invitation, error)
+	ListProjectMembers(ctx context.Context, arg ListProjectMembersParams) ([]ListProjectMembersRow, error)
+	// Visibility filter (FR-PROJ-002/003): see_all (org ADMIN+) returns every
+	// project; otherwise 'org'-visible plus 'private' ones the user is a member of.
+	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
+	ListSubtasksByTask(ctx context.Context, arg ListSubtasksByTaskParams) ([]Subtask, error)
+	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]Task, error)
+	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]Task, error)
 	MarkInvitationAccepted(ctx context.Context, arg MarkInvitationAcceptedParams) (int64, error)
 	MarkSessionRotated(ctx context.Context, id uuid.UUID) error
 	MarkUserEmailVerified(ctx context.Context, id uuid.UUID) error
+	// Relocate a task. The (column_id, rank) unique index makes a concurrent
+	// identical move raise a unique violation → domain.ErrConflict → 409 (FR-PROJ-005).
+	MoveTask(ctx context.Context, arg MoveTaskParams) (int64, error)
+	// Atomically bump and return the per-project task counter (FR-TASK-001). The
+	// row lock serializes concurrent creates; gaps are acceptable.
+	NextTaskNumber(ctx context.Context, arg NextTaskNumberParams) (int32, error)
+	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) (int64, error)
 	RestoreOrg(ctx context.Context, id uuid.UUID) error
 	RevokeAllUserSessions(ctx context.Context, arg RevokeAllUserSessionsParams) error
 	RevokeInvitation(ctx context.Context, arg RevokeInvitationParams) (int64, error)
@@ -68,17 +119,26 @@ type Querier interface {
 	// Ownership-scoped single-session revoke: only affects a row owned by the
 	// caller, so one user cannot revoke another's session. Returns rows affected.
 	RevokeUserSessionByID(ctx context.Context, arg RevokeUserSessionByIDParams) (int64, error)
+	SetColumnRank(ctx context.Context, arg SetColumnRankParams) (int64, error)
+	SetProjectArchived(ctx context.Context, arg SetProjectArchivedParams) (int64, error)
 	// Sets (or clears, via empty secret) the encrypted TOTP secret and its enabled
 	// flag together (docs/04-AUTH.md §4 TOTP step).
 	SetUserTOTP(ctx context.Context, arg SetUserTOTPParams) error
+	SoftDeleteComment(ctx context.Context, arg SoftDeleteCommentParams) (int64, error)
 	SoftDeleteOrg(ctx context.Context, arg SoftDeleteOrgParams) error
 	// Advance last_used_at for a live session head. Called by the auth middleware on
 	// the cache-miss backfill path (≤ once per cache TTL), not per request.
 	TouchSessionLastUsed(ctx context.Context, id uuid.UUID) error
+	UpdateColumn(ctx context.Context, arg UpdateColumnParams) (int64, error)
+	UpdateComment(ctx context.Context, arg UpdateCommentParams) (int64, error)
 	UpdateInvitationToken(ctx context.Context, arg UpdateInvitationTokenParams) (int64, error)
+	UpdateLabel(ctx context.Context, arg UpdateLabelParams) (int64, error)
 	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
 	UpdateOrgProfile(ctx context.Context, arg UpdateOrgProfileParams) error
 	UpdateOrgSlug(ctx context.Context, arg UpdateOrgSlugParams) error
+	UpdateProject(ctx context.Context, arg UpdateProjectParams) (int64, error)
+	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (int64, error)
+	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
 }
 

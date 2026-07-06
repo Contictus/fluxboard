@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS task_activity;
+DROP TABLE IF EXISTS comments;
+DROP TABLE IF EXISTS task_labels;
+DROP TABLE IF EXISTS labels;
+DROP TABLE IF EXISTS subtasks;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS board_columns;
+DROP TABLE IF EXISTS boards;
+DROP TABLE IF EXISTS project_members;
+DROP TABLE IF EXISTS projects;

@@ -27,6 +27,38 @@ type AuditLog struct {
 	CreatedAt          time.Time   `json:"created_at"`
 }
 
+type Board struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type BoardColumn struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	BoardID   uuid.UUID `json:"board_id"`
+	Name      string    `json:"name"`
+	Rank      string    `json:"rank"`
+	WipLimit  *int32    `json:"wip_limit"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Comment struct {
+	ID        uuid.UUID          `json:"id"`
+	OrgID     uuid.UUID          `json:"org_id"`
+	TaskID    uuid.UUID          `json:"task_id"`
+	AuthorID  uuid.UUID          `json:"author_id"`
+	Body      string             `json:"body"`
+	Edited    bool               `json:"edited"`
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt time.Time          `json:"created_at"`
+	UpdatedAt time.Time          `json:"updated_at"`
+}
+
 type Invitation struct {
 	ID         uuid.UUID          `json:"id"`
 	OrgID      uuid.UUID          `json:"org_id"`
@@ -38,6 +70,15 @@ type Invitation struct {
 	AcceptedAt pgtype.Timestamptz `json:"accepted_at"`
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt  time.Time          `json:"created_at"`
+}
+
+type Label struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	Name      string    `json:"name"`
+	Color     string    `json:"color"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Membership struct {
@@ -78,6 +119,29 @@ type Organization struct {
 	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
+type Project struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	Key         string             `json:"key"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Color       string             `json:"color"`
+	Visibility  string             `json:"visibility"`
+	ArchivedAt  pgtype.Timestamptz `json:"archived_at"`
+	TaskCounter int32              `json:"task_counter"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+type ProjectMember struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type RecoveryCode struct {
 	UserID   uuid.UUID          `json:"user_id"`
 	CodeHash []byte             `json:"code_hash"`
@@ -103,6 +167,51 @@ type SlugHistory struct {
 	OldSlug   string    `json:"old_slug"`
 	OrgID     uuid.UUID `json:"org_id"`
 	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type Subtask struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	TaskID    uuid.UUID `json:"task_id"`
+	Title     string    `json:"title"`
+	Done      bool      `json:"done"`
+	Rank      string    `json:"rank"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Task struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	ColumnID    uuid.UUID          `json:"column_id"`
+	Number      int32              `json:"number"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	AssigneeID  pgtype.UUID        `json:"assignee_id"`
+	Priority    string             `json:"priority"`
+	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Rank        string             `json:"rank"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+type TaskActivity struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	TaskID    uuid.UUID `json:"task_id"`
+	ActorID   uuid.UUID `json:"actor_id"`
+	Field     string    `json:"field"`
+	OldValue  *string   `json:"old_value"`
+	NewValue  *string   `json:"new_value"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type TaskLabel struct {
+	TaskID  uuid.UUID `json:"task_id"`
+	LabelID uuid.UUID `json:"label_id"`
+	OrgID   uuid.UUID `json:"org_id"`
 }
 
 type User struct {

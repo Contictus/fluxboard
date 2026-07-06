@@ -1,0 +1,420 @@
+// Package projectuc holds the application services for projects and their boards
+// (docs/01 §PROJ). It depends only on domain ports; ordering keys come from
+// internal/pkg/rank and tenant isolation is enforced one layer down by RLS.
+//
+// Authorization is two-tier: the org-role Casbin gate (write:projects to create,
+// read:org to view) runs in the HTTP middleware; the fine-grained project-role
+// gate (LEAD/CONTRIBUTOR/VIEWER, with org ADMIN+ as implicit LEAD) lives here
+// (ADR-013).
+package projectuc
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"strings"
+	"time"
+
+	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
+	"github.com/mesutokul/fluxboard/backend/internal/pkg/rank"
+	"github.com/mesutokul/fluxboard/backend/internal/pkg/uuidv7"
+)
+
+// Deps are the collaborators the service needs.
+type Deps struct {
+	Projects project.ProjectRepository
+	Members  project.ProjectMemberRepository
+	Boards   project.BoardRepository
+	Columns  project.ColumnRepository
+	Tasks    project.TaskRepository
+	Logger   *slog.Logger
+	Now      func() time.Time // injectable for tests; defaults to time.Now
+}
+
+// Service implements the project/board application logic.
+type Service struct {
+	projects project.ProjectRepository
+	members  project.ProjectMemberRepository
+	boards   project.BoardRepository
+	columns  project.ColumnRepository
+	tasks    project.TaskRepository
+	logger   *slog.Logger
+	now      func() time.Time
+}
+
+// New builds a Service from Deps.
+func New(d Deps) *Service {
+	now := d.Now
+	if now == nil {
+		now = time.Now
+	}
+	logger := d.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Service{
+		projects: d.Projects, members: d.Members, boards: d.Boards,
+		columns: d.Columns, tasks: d.Tasks, logger: logger, now: now,
+	}
+}
+
+func newID() string { return uuidv7.New().String() }
+
+// ---- Inputs ---------------------------------------------------------------
+
+// CreateProjectInput is the payload for CreateProject.
+type CreateProjectInput struct {
+	Key         string
+	Name        string
+	Description string
+	Color       string
+	Visibility  project.Visibility
+}
+
+// UpdateProjectInput is the payload for UpdateProject.
+type UpdateProjectInput struct {
+	Name        string
+	Description string
+	Color       string
+	Visibility  project.Visibility
+}
+
+// ColumnView is a board column together with its ordered tasks.
+type ColumnView struct {
+	Column project.Column
+	Tasks  []project.Task
+}
+
+// BoardView is the kanban projection: the default board and its columns+tasks.
+type BoardView struct {
+	Board   project.Board
+	Columns []ColumnView
+}
+
+// ---- Authorization --------------------------------------------------------
+
+// effectiveRole resolves the caller's project role. Org ADMIN+ are implicit
+// LEAD (FR-PROJ-003). A non-member sees an 'org'-visible project as VIEWER
+// (unless GUEST); a non-member of a 'private' project gets ErrNotFound so the
+// project stays opaque (FR-PROJ-002).
+func (s *Service) effectiveRole(ctx context.Context, orgID string, p *project.Project, userID string, orgRole tenant.OrgRole) (project.ProjectRole, error) {
+	if orgRole.AtLeast(tenant.RoleAdmin) {
+		return project.RoleLead, nil
+	}
+	m, err := s.members.Get(ctx, orgID, p.ID, userID)
+	if err == nil {
+		return m.Role, nil
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return "", err
+	}
+	if p.Visibility == project.VisibilityOrg && orgRole.AtLeast(tenant.RoleMember) {
+		return project.RoleViewer, nil
+	}
+	return "", domain.ErrNotFound
+}
+
+// access loads a project and the caller's effective role, requiring at least
+// min. Below min → ErrForbidden; not visible → ErrNotFound.
+func (s *Service) access(ctx context.Context, orgID, projectID, userID string, orgRole tenant.OrgRole, min project.ProjectRole) (*project.Project, project.ProjectRole, error) {
+	p, err := s.projects.Get(ctx, orgID, projectID)
+	if err != nil {
+		return nil, "", err
+	}
+	role, err := s.effectiveRole(ctx, orgID, p, userID, orgRole)
+	if err != nil {
+		return nil, "", err
+	}
+	if !role.AtLeast(min) {
+		return nil, "", domain.ErrForbidden
+	}
+	return p, role, nil
+}
+
+// ---- Projects -------------------------------------------------------------
+
+// CreateProject creates a project, its default board and the four seeded columns,
+// and makes the creator a project LEAD (FR-PROJ-001/003/004). The org-role gate
+// (MEMBER+ write:projects) is enforced by the caller's middleware.
+func (s *Service) CreateProject(ctx context.Context, orgID, userID string, in CreateProjectInput) (*project.Project, error) {
+	in.Key = strings.ToUpper(strings.TrimSpace(in.Key))
+	in.Name = strings.TrimSpace(in.Name)
+	if !project.ValidKey(in.Key) {
+		return nil, domain.ErrValidation
+	}
+	if in.Name == "" {
+		return nil, domain.ErrValidation
+	}
+	if in.Visibility == "" {
+		in.Visibility = project.VisibilityOrg
+	}
+	if !in.Visibility.Valid() {
+		return nil, domain.ErrValidation
+	}
+
+	// TODO(phase4): enforce the plan project-limit (FR-PROJ-001) via the billing
+	// entitlement service before creating; billing lands in Phase 4.
+
+	p := &project.Project{
+		ID: newID(), OrgID: orgID, Key: in.Key, Name: in.Name,
+		Description: in.Description, Color: in.Color, Visibility: in.Visibility,
+		CreatedBy: userID,
+	}
+	if err := s.projects.Create(ctx, orgID, p); err != nil {
+		return nil, err // ErrConflict on duplicate key
+	}
+	if err := s.members.Add(ctx, orgID, p.ID, userID, project.RoleLead); err != nil {
+		return nil, err
+	}
+	board := &project.Board{ID: newID(), ProjectID: p.ID, Name: "Board"}
+	if err := s.boards.Create(ctx, orgID, board); err != nil {
+		return nil, err
+	}
+	ranks := rank.Initial(len(project.DefaultColumns))
+	for i, name := range project.DefaultColumns {
+		col := &project.Column{ID: newID(), BoardID: board.ID, Name: name, Rank: ranks[i]}
+		if err := s.columns.Create(ctx, orgID, col); err != nil {
+			return nil, err
+		}
+	}
+	return s.projects.Get(ctx, orgID, p.ID)
+}
+
+// ListProjects returns the projects visible to the caller (FR-PROJ-002).
+func (s *Service) ListProjects(ctx context.Context, orgID, userID string, orgRole tenant.OrgRole, includeArchived bool) ([]project.Project, error) {
+	seeAll := orgRole.AtLeast(tenant.RoleAdmin)
+	return s.projects.List(ctx, orgID, userID, seeAll, includeArchived)
+}
+
+// GetProject returns a single project the caller may view.
+func (s *Service) GetProject(ctx context.Context, orgID, userID, projectID string, orgRole tenant.OrgRole) (*project.Project, error) {
+	p, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleViewer)
+	return p, err
+}
+
+// UpdateProject edits project settings (LEAD only, FR-PROJ-003). Archived
+// projects are read-only (FR-PROJ-006).
+func (s *Service) UpdateProject(ctx context.Context, orgID, userID, projectID string, orgRole tenant.OrgRole, in UpdateProjectInput) (*project.Project, error) {
+	p, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleLead)
+	if err != nil {
+		return nil, err
+	}
+	if p.Archived() {
+		return nil, domain.ErrConflict
+	}
+	if strings.TrimSpace(in.Name) == "" || !in.Visibility.Valid() {
+		return nil, domain.ErrValidation
+	}
+	p.Name = strings.TrimSpace(in.Name)
+	p.Description = in.Description
+	p.Color = in.Color
+	p.Visibility = in.Visibility
+	if err := s.projects.Update(ctx, orgID, p); err != nil {
+		return nil, err
+	}
+	return s.projects.Get(ctx, orgID, projectID)
+}
+
+// SetArchived archives or unarchives a project (LEAD only, FR-PROJ-006).
+func (s *Service) SetArchived(ctx context.Context, orgID, userID, projectID string, orgRole tenant.OrgRole, archived bool) error {
+	_, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleLead)
+	if err != nil {
+		return err
+	}
+	var at *time.Time
+	if archived {
+		now := s.now().UTC()
+		at = &now
+	}
+	return s.projects.SetArchived(ctx, orgID, projectID, at)
+}
+
+// ---- Project members ------------------------------------------------------
+
+// ListMembers returns a project's members (any viewer).
+func (s *Service) ListMembers(ctx context.Context, orgID, userID, projectID string, orgRole tenant.OrgRole) ([]project.ProjectMember, error) {
+	if _, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleViewer); err != nil {
+		return nil, err
+	}
+	return s.members.List(ctx, orgID, projectID)
+}
+
+// AddMember adds or updates a project member's role (LEAD only).
+func (s *Service) AddMember(ctx context.Context, orgID, userID, projectID, targetUserID string, role project.ProjectRole, orgRole tenant.OrgRole) error {
+	if !role.Valid() {
+		return domain.ErrValidation
+	}
+	if _, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleLead); err != nil {
+		return err
+	}
+	return s.members.Add(ctx, orgID, projectID, targetUserID, role)
+}
+
+// RemoveMember removes a project member (LEAD only).
+func (s *Service) RemoveMember(ctx context.Context, orgID, userID, projectID, targetUserID string, orgRole tenant.OrgRole) error {
+	if _, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleLead); err != nil {
+		return err
+	}
+	return s.members.Remove(ctx, orgID, projectID, targetUserID)
+}
+
+// ---- Board + columns ------------------------------------------------------
+
+// GetBoard returns the kanban projection for a project (FR-PROJ-004/005).
+func (s *Service) GetBoard(ctx context.Context, orgID, userID, projectID string, orgRole tenant.OrgRole) (*BoardView, error) {
+	if _, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleViewer); err != nil {
+		return nil, err
+	}
+	board, err := s.boards.GetByProject(ctx, orgID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	cols, err := s.columns.ListByBoard(ctx, orgID, board.ID)
+	if err != nil {
+		return nil, err
+	}
+	view := &BoardView{Board: *board}
+	for _, c := range cols {
+		tasks, err := s.tasks.ListByColumn(ctx, orgID, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		view.Columns = append(view.Columns, ColumnView{Column: c, Tasks: tasks})
+	}
+	return view, nil
+}
+
+// AddColumn appends a column to a project's board (LEAD only, FR-PROJ-004).
+func (s *Service) AddColumn(ctx context.Context, orgID, userID, projectID, name string, wipLimit *int, orgRole tenant.OrgRole) (*project.Column, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, domain.ErrValidation
+	}
+	if _, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleLead); err != nil {
+		return nil, err
+	}
+	board, err := s.boards.GetByProject(ctx, orgID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	cols, err := s.columns.ListByBoard(ctx, orgID, board.ID)
+	if err != nil {
+		return nil, err
+	}
+	last := ""
+	if n := len(cols); n > 0 {
+		last = cols[n-1].Rank
+	}
+	col := &project.Column{ID: newID(), BoardID: board.ID, Name: strings.TrimSpace(name), Rank: rank.Append(last), WIPLimit: wipLimit}
+	if err := s.columns.Create(ctx, orgID, col); err != nil {
+		return nil, err
+	}
+	return s.columns.Get(ctx, orgID, col.ID)
+}
+
+// RenameColumn renames a column and sets its WIP limit (LEAD only).
+func (s *Service) RenameColumn(ctx context.Context, orgID, userID, projectID, columnID, name string, wipLimit *int, orgRole tenant.OrgRole) error {
+	if strings.TrimSpace(name) == "" {
+		return domain.ErrValidation
+	}
+	if err := s.requireColumn(ctx, orgID, userID, projectID, columnID, orgRole); err != nil {
+		return err
+	}
+	return s.columns.Update(ctx, orgID, columnID, strings.TrimSpace(name), wipLimit)
+}
+
+// ReorderColumn moves a column to the given rank (LEAD only). The client computes
+// the rank between the target neighbours (same scheme as task moves).
+func (s *Service) ReorderColumn(ctx context.Context, orgID, userID, projectID, columnID, newRank string, orgRole tenant.OrgRole) error {
+	if newRank == "" {
+		return domain.ErrValidation
+	}
+	if err := s.requireColumn(ctx, orgID, userID, projectID, columnID, orgRole); err != nil {
+		return err
+	}
+	return s.columns.SetRank(ctx, orgID, columnID, newRank)
+}
+
+// DeleteColumn removes a column, first migrating its tasks to targetColumnID
+// (LEAD only, FR-PROJ-004). A non-empty column requires a migration target.
+func (s *Service) DeleteColumn(ctx context.Context, orgID, userID, projectID, columnID, targetColumnID string, orgRole tenant.OrgRole) error {
+	if err := s.requireColumn(ctx, orgID, userID, projectID, columnID, orgRole); err != nil {
+		return err
+	}
+	tasks, err := s.tasks.ListByColumn(ctx, orgID, columnID)
+	if err != nil {
+		return err
+	}
+	if len(tasks) > 0 {
+		if targetColumnID == "" || targetColumnID == columnID {
+			return domain.ErrValidation // must migrate tasks to another column
+		}
+		if err := s.requireColumn(ctx, orgID, userID, projectID, targetColumnID, orgRole); err != nil {
+			return err
+		}
+		existing, err := s.tasks.ListByColumn(ctx, orgID, targetColumnID)
+		if err != nil {
+			return err
+		}
+		last := ""
+		if n := len(existing); n > 0 {
+			last = existing[n-1].Rank
+		}
+		for _, t := range tasks {
+			last = rank.Append(last)
+			if err := s.tasks.Move(ctx, orgID, t.ID, targetColumnID, last); err != nil {
+				return err
+			}
+		}
+	}
+	return s.columns.Delete(ctx, orgID, columnID)
+}
+
+// MoveTask relocates a task to (columnID, rank) on the board (CONTRIBUTOR+,
+// FR-PROJ-005). A rank collision (concurrent move) surfaces as ErrConflict → 409.
+func (s *Service) MoveTask(ctx context.Context, orgID, userID, taskID, columnID, newRank string, orgRole tenant.OrgRole) error {
+	if newRank == "" {
+		return domain.ErrValidation
+	}
+	t, err := s.tasks.Get(ctx, orgID, taskID)
+	if err != nil {
+		return err
+	}
+	if _, _, err := s.access(ctx, orgID, t.ProjectID, userID, orgRole, project.RoleContributor); err != nil {
+		return err
+	}
+	// The target column must belong to this project's board.
+	col, err := s.columns.Get(ctx, orgID, columnID)
+	if err != nil {
+		return err
+	}
+	board, err := s.boards.GetByProject(ctx, orgID, t.ProjectID)
+	if err != nil {
+		return err
+	}
+	if col.BoardID != board.ID {
+		return domain.ErrValidation
+	}
+	return s.tasks.Move(ctx, orgID, taskID, columnID, newRank)
+}
+
+// requireColumn checks LEAD access on the project and that the column belongs to
+// the project's board.
+func (s *Service) requireColumn(ctx context.Context, orgID, userID, projectID, columnID string, orgRole tenant.OrgRole) error {
+	if _, _, err := s.access(ctx, orgID, projectID, userID, orgRole, project.RoleLead); err != nil {
+		return err
+	}
+	col, err := s.columns.Get(ctx, orgID, columnID)
+	if err != nil {
+		return err
+	}
+	board, err := s.boards.GetByProject(ctx, orgID, projectID)
+	if err != nil {
+		return err
+	}
+	if col.BoardID != board.ID {
+		return domain.ErrNotFound
+	}
+	return nil
+}
