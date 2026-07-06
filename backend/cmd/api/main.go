@@ -24,8 +24,10 @@ import (
 
 	"github.com/mesutokul/fluxboard/backend/internal/config"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/casbinx"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/mailer"
+	miniox "github.com/mesutokul/fluxboard/backend/internal/infrastructure/minio"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/oauthgoogle"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres"
 	redisx "github.com/mesutokul/fluxboard/backend/internal/infrastructure/redis"
@@ -190,6 +192,8 @@ func run(logger *slog.Logger) error {
 	labelRepo := postgres.NewLabelRepo(tenantPool)
 	commentRepo := postgres.NewCommentRepo(tenantPool)
 	activityRepo := postgres.NewActivityRepo(tenantPool)
+	attachmentRepo := postgres.NewAttachmentRepo(tenantPool)
+	objectStore := loadObjectStore(ctx, cfg, logger) // FR-TASK-006; nil disables attachments
 
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
@@ -197,8 +201,9 @@ func run(logger *slog.Logger) error {
 	})
 	taskSvc := taskuc.New(taskuc.Deps{
 		Tasks: taskRepo, Subtasks: subtaskRepo, Labels: labelRepo, Comments: commentRepo,
-		Activity: activityRepo, Projects: projectRepo, Members: projectMemberRepo,
-		Boards: boardRepo, Columns: columnRepo, Logger: logger,
+		Activity: activityRepo, Attachments: attachmentRepo, Projects: projectRepo,
+		Members: projectMemberRepo, Boards: boardRepo, Columns: columnRepo,
+		Store: objectStore, Logger: logger,
 	})
 	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
 	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
@@ -300,6 +305,25 @@ func loadGoogleProvider(cfg *config.Config, logger *slog.Logger) auth.OAuthProvi
 		return nil
 	}
 	return oauthgoogle.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
+}
+
+// loadObjectStore builds the MinIO object store, or a nil interface when
+// MINIO_ENDPOINT is unset (attachment routes then 403). A dial/bucket error is
+// logged and treated as disabled so the API still boots (FR-TASK-006).
+func loadObjectStore(ctx context.Context, cfg *config.Config, logger *slog.Logger) project.ObjectStore {
+	if cfg.MinIOEndpoint == "" {
+		logger.Warn("MINIO_ENDPOINT not set; attachment endpoints are disabled")
+		return nil
+	}
+	store, err := miniox.New(ctx, miniox.Config{
+		Endpoint: cfg.MinIOEndpoint, AccessKey: cfg.MinIOAccessKey, SecretKey: cfg.MinIOSecretKey,
+		Bucket: cfg.MinIOBucket, UseSSL: cfg.MinIOUseSSL,
+	})
+	if err != nil {
+		logger.Error("minio init failed; attachments disabled", "err", err)
+		return nil
+	}
+	return store
 }
 
 // redisPinger adapts *redis.Client to httpx.Pinger.

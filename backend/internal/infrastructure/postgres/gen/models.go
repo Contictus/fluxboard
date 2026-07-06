@@ -12,6 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Attachment struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	TaskID      uuid.UUID          `json:"task_id"`
+	UploaderID  uuid.UUID          `json:"uploader_id"`
+	ObjectKey   string             `json:"object_key"`
+	Filename    string             `json:"filename"`
+	ContentType string             `json:"content_type"`
+	SizeBytes   int64              `json:"size_bytes"`
+	Status      string             `json:"status"`
+	CreatedAt   time.Time          `json:"created_at"`
+	ConfirmedAt pgtype.Timestamptz `json:"confirmed_at"`
+}
+
 type AuditLog struct {
 	ID                 uuid.UUID   `json:"id"`
 	OrgID              pgtype.UUID `json:"org_id"`
@@ -181,20 +195,22 @@ type Subtask struct {
 }
 
 type Task struct {
-	ID          uuid.UUID          `json:"id"`
-	OrgID       uuid.UUID          `json:"org_id"`
-	ProjectID   uuid.UUID          `json:"project_id"`
-	ColumnID    uuid.UUID          `json:"column_id"`
-	Number      int32              `json:"number"`
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	AssigneeID  pgtype.UUID        `json:"assignee_id"`
-	Priority    string             `json:"priority"`
-	DueDate     pgtype.Timestamptz `json:"due_date"`
-	Rank        string             `json:"rank"`
-	CreatedBy   uuid.UUID          `json:"created_by"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+	ID           uuid.UUID          `json:"id"`
+	OrgID        uuid.UUID          `json:"org_id"`
+	ProjectID    uuid.UUID          `json:"project_id"`
+	ColumnID     uuid.UUID          `json:"column_id"`
+	Number       int32              `json:"number"`
+	Title        string             `json:"title"`
+	Description  string             `json:"description"`
+	AssigneeID   pgtype.UUID        `json:"assignee_id"`
+	Priority     string             `json:"priority"`
+	DueDate      pgtype.Timestamptz `json:"due_date"`
+	Rank         string             `json:"rank"`
+	CreatedBy    uuid.UUID          `json:"created_by"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
+	SearchVector interface{}        `json:"search_vector"`
 }
 
 type TaskActivity struct {

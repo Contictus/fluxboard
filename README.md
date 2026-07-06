@@ -9,13 +9,17 @@ Full spec lives in [`docs/`](docs/); start with
 
 ## Status
 
-**Phase 3a — Core domain** (in progress). Phases 0–2 (scaffolding, auth,
-tenancy + RBAC/RLS, audit) are complete. Phase 3a adds the project-management
-core: projects, project membership/roles, boards + columns (LexoRank ordering),
-tasks with per-project numbering, subtasks, org labels, comments (15-minute edit
-window), and the per-task activity log. Deferred to **3b**: attachments (MinIO
-presigned), full-text search, bulk board actions, and soft-delete/Trash. Build
-order and per-phase scope are in `docs/CLAUDE.md` §Build Order.
+**Phase 3 — Core domain** (complete). Phases 0–2 (scaffolding, auth,
+tenancy + RBAC/RLS, audit) are complete. Phase 3 delivers the full
+project-management core in two stages. **3a**: projects, project
+membership/roles, boards + columns (LexoRank ordering), tasks with per-project
+numbering, subtasks, org labels, comments (15-minute edit window), and the
+per-task activity log. **3b**: MinIO-backed attachments (presigned PUT/GET,
+25 MiB + MIME allowlist, nightly orphan GC), PostgreSQL full-text search
+(generated `tsvector` + GIN, faceted + paginated), single-transaction bulk board
+actions (move/assign/label), and soft-delete → Trash → restore with a nightly
+30-day purge job (Asynq scheduler). Build order and per-phase scope are in
+`docs/CLAUDE.md` §Build Order. **Next: Phase 4 — Billing** (Stripe).
 
 ## Tech stack (fixed)
 

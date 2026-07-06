@@ -305,6 +305,32 @@ func (q *Queries) InsertSlugHistory(ctx context.Context, arg InsertSlugHistoryPa
 	return err
 }
 
+const listActiveOrgIDs = `-- name: ListActiveOrgIDs :many
+SELECT id FROM organizations WHERE deleted_at IS NULL ORDER BY created_at
+`
+
+// All non-deleted org ids (organizations has no RLS). Drives per-tenant
+// maintenance jobs (trash purge, attachment GC) which then run under WithTenant.
+func (q *Queries) ListActiveOrgIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listActiveOrgIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMembers = `-- name: ListMembers :many
 SELECT m.user_id, u.email, u.name,
        coalesce(u.avatar_key, '')::text AS avatar_key,

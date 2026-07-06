@@ -84,7 +84,50 @@ const (
 	// CommentEditWindow is how long after posting a comment may still be edited
 	// (FR-TASK-005).
 	CommentEditWindow = 15 * time.Minute
+
+	// MaxAttachmentBytes caps a single upload at 25 MiB (FR-TASK-006).
+	MaxAttachmentBytes int64 = 25 << 20
+	// OrgStorageQuotaBytes caps total committed attachment storage per org. Plan
+	// tiers refine this in Phase 4; this is the free-tier default (2 GiB).
+	OrgStorageQuotaBytes int64 = 2 << 30
+	// UploadURLTTL bounds a presigned PUT (client has this long to upload).
+	UploadURLTTL = 15 * time.Minute
+	// DownloadURLTTL bounds a presigned GET (FR-TASK-006: 5 min).
+	DownloadURLTTL = 5 * time.Minute
+	// OrphanGCAge is how long a 'pending' attachment survives before the nightly
+	// GC reclaims it (client requested but never confirmed the upload).
+	OrphanGCAge = 24 * time.Hour
+	// TrashRetention is how long a soft-deleted task stays restorable before the
+	// purge job hard-deletes it (FR-TASK-009: 30 days).
+	TrashRetention = 30 * 24 * time.Hour
+
+	// MaxBulkTasks caps a single bulk action's target set (FR-TASK-008).
+	MaxBulkTasks = 100
+	// DefaultSearchLimit / MaxSearchLimit bound a search page (FR-TASK-007).
+	DefaultSearchLimit = 25
+	// MaxSearchLimit is the page-size ceiling for search.
+	MaxSearchLimit = 100
 )
+
+// AllowedAttachmentMIME is the upload MIME allowlist (FR-TASK-006). Anything not
+// listed is rejected at request-upload time.
+var AllowedAttachmentMIME = map[string]bool{
+	"image/png":          true,
+	"image/jpeg":         true,
+	"image/gif":          true,
+	"image/webp":         true,
+	"application/pdf":     true,
+	"text/plain":          true,
+	"text/csv":            true,
+	"application/zip":     true,
+	"application/msword":  true,
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+	"application/vnd.ms-excel":                                                true,
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true,
+}
+
+// AllowedMIME reports whether ct is an accepted attachment content type.
+func AllowedMIME(ct string) bool { return AllowedAttachmentMIME[ct] }
 
 // keyRe validates a project key: 2–6 uppercase ASCII letters (FR-PROJ-001).
 var keyRe = regexp.MustCompile(`^[A-Z]{2,6}$`)
@@ -214,4 +257,51 @@ type Activity struct {
 	OldValue  *string
 	NewValue  *string
 	CreatedAt time.Time
+}
+
+// AttachmentStatus is the upload lifecycle state (FR-TASK-006).
+type AttachmentStatus string
+
+const (
+	// AttachmentPending: the row + presigned PUT URL exist; the object may not.
+	AttachmentPending AttachmentStatus = "pending"
+	// AttachmentCommitted: the object is confirmed present and counts toward quota.
+	AttachmentCommitted AttachmentStatus = "committed"
+)
+
+// Attachment is a MinIO-backed file on a task (FR-TASK-006). Its object lives in
+// object storage; this row tracks the two-phase (pending → committed) lifecycle.
+type Attachment struct {
+	ID          string
+	OrgID       string
+	TaskID      string
+	UploaderID  string
+	ObjectKey   string
+	Filename    string
+	ContentType string
+	SizeBytes   int64
+	Status      AttachmentStatus
+	CreatedAt   time.Time
+	ConfirmedAt *time.Time
+}
+
+// SearchFilter carries the optional facets for a task search (FR-TASK-007). A
+// zero-value field means "no filter on that facet".
+type SearchFilter struct {
+	Query      string
+	UserID     string // the caller (for private-project visibility)
+	SeeAll     bool   // caller is org ADMIN+ (sees every project)
+	ProjectID  string
+	AssigneeID string
+	ColumnID   string
+	Priority   string
+	LabelID    string
+	Limit      int
+	Offset     int
+}
+
+// SearchResult is one page of task search hits plus the unpaged total.
+type SearchResult struct {
+	Tasks []Task
+	Total int
 }

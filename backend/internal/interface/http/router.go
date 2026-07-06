@@ -137,14 +137,28 @@ func NewRouter(d Deps) http.Handler {
 					p.With(read(tenant.ObjOrg)).Delete("/columns/{columnId}", d.Projects.DeleteColumn)
 					p.With(read(tenant.ObjOrg)).Post("/tasks", d.Tasks.CreateTask)
 					p.With(read(tenant.ObjOrg)).Get("/tasks", d.Tasks.ListTasks)
+					p.With(read(tenant.ObjOrg)).Get("/trash", d.Tasks.ListTrash) // FR-TASK-009
 				})
+
+				// Org-wide task search + bulk actions (FR-TASK-007/008). Static
+				// segments; chi matches them ahead of the {taskId} subrouter.
+				o.With(read(tenant.ObjOrg)).Get("/tasks/search", d.Tasks.Search)
+				o.With(read(tenant.ObjOrg)).Post("/tasks/bulk", d.Tasks.BulkAction)
 
 				// Tasks by id (flat; access derives the project). docs/01 §TASK.
 				o.Route("/tasks/{taskId}", func(t chi.Router) {
 					t.With(read(tenant.ObjOrg)).Get("/", d.Tasks.GetTask)
 					t.With(read(tenant.ObjOrg)).Patch("/", d.Tasks.UpdateTask)
+					t.With(read(tenant.ObjOrg)).Delete("/", d.Tasks.TrashTask)          // FR-TASK-009
+					t.With(read(tenant.ObjOrg)).Post("/restore", d.Tasks.RestoreTask)   // FR-TASK-009
 					t.With(read(tenant.ObjOrg)).Patch("/position", d.Projects.MoveTask)
 					t.With(read(tenant.ObjOrg)).Get("/activity", d.Tasks.ListActivity)
+					// Attachments (FR-TASK-006). Presigned PUT/GET; API proxies no bytes.
+					t.With(read(tenant.ObjOrg)).Get("/attachments", d.Tasks.ListAttachments)
+					t.With(read(tenant.ObjOrg)).Post("/attachments", d.Tasks.RequestUpload)
+					t.With(read(tenant.ObjOrg)).Post("/attachments/{attachmentId}/confirm", d.Tasks.ConfirmUpload)
+					t.With(read(tenant.ObjOrg)).Get("/attachments/{attachmentId}/download", d.Tasks.DownloadAttachment)
+					t.With(read(tenant.ObjOrg)).Delete("/attachments/{attachmentId}", d.Tasks.DeleteAttachment)
 					t.With(read(tenant.ObjOrg)).Get("/subtasks", d.Tasks.ListSubtasks)
 					t.With(read(tenant.ObjOrg)).Post("/subtasks", d.Tasks.AddSubtask)
 					t.With(read(tenant.ObjOrg)).Patch("/subtasks/{subtaskId}", d.Tasks.UpdateSubtask)

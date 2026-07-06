@@ -142,3 +142,8 @@ WHERE org_id = @org_id AND id = @id AND accepted_at IS NULL AND revoked_at IS NU
 -- name: MarkInvitationAccepted :execrows
 UPDATE invitations SET accepted_at = now()
 WHERE org_id = @org_id AND id = @id AND accepted_at IS NULL AND revoked_at IS NULL;
+
+-- name: ListActiveOrgIDs :many
+-- All non-deleted org ids (organizations has no RLS). Drives per-tenant
+-- maintenance jobs (trash purge, attachment GC) which then run under WithTenant.
+SELECT id FROM organizations WHERE deleted_at IS NULL ORDER BY created_at;

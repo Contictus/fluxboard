@@ -15,11 +15,17 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/mesutokul/fluxboard/backend/internal/config"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
+	miniox "github.com/mesutokul/fluxboard/backend/internal/infrastructure/minio"
+	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres"
+	"github.com/mesutokul/fluxboard/backend/internal/interface/jobs"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 )
 
 var version = "dev"
@@ -44,29 +50,66 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
+	// Data clients + the task service the maintenance jobs run against.
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	tenantPool := postgres.NewTenantPool(pool)
+	taskSvc := taskuc.New(taskuc.Deps{
+		Tasks:       postgres.NewTaskRepo(tenantPool),
+		Subtasks:    postgres.NewSubtaskRepo(tenantPool),
+		Labels:      postgres.NewLabelRepo(tenantPool),
+		Comments:    postgres.NewCommentRepo(tenantPool),
+		Activity:    postgres.NewActivityRepo(tenantPool),
+		Attachments: postgres.NewAttachmentRepo(tenantPool),
+		Projects:    postgres.NewProjectRepo(tenantPool),
+		Members:     postgres.NewProjectMemberRepo(tenantPool),
+		Boards:      postgres.NewBoardRepo(tenantPool),
+		Columns:     postgres.NewColumnRepo(tenantPool),
+		Store:       loadObjectStore(ctx, cfg, logger),
+		Logger:      logger,
+	})
+	maintenanceRepo := postgres.NewMaintenanceRepo(pool)
+	maintenance := jobs.NewMaintenance(taskSvc, maintenanceRepo, logger)
+
 	// Metrics endpoint on its own port (scraped separately from the api).
 	metricsSrv := startMetrics(logger, cfg.WorkerMetricsAddr)
 
-	srv := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: cfg.RedisAddr},
-		asynq.Config{
-			Concurrency: 10,
-			Logger:      asynqLogger{logger},
-		},
-	)
+	redisOpt := asynq.RedisClientOpt{Addr: cfg.RedisAddr}
+	srv := asynq.NewServer(redisOpt, asynq.Config{
+		Concurrency: 10,
+		Logger:      asynqLogger{logger},
+	})
 
-	// TODO(phase5): register task handlers (email, usage aggregation,
-	// stats rollup, webhook retry, GC, org hard-delete, audit purge).
+	// TODO(phase4/5): register the remaining handlers (email, usage aggregation,
+	// stats rollup, webhook retry, org hard-delete, audit purge).
 	mux := asynq.NewServeMux()
+	maintenance.Register(mux)
 
 	if err := srv.Start(mux); err != nil {
 		return err
 	}
 	logger.Info("worker running")
 
+	// Scheduler enqueues the periodic maintenance tasks (docs/01 §TASK).
+	scheduler := asynq.NewScheduler(redisOpt, &asynq.SchedulerOpts{Logger: asynqLogger{logger}})
+	for _, e := range jobs.Schedule() {
+		if _, err := scheduler.Register(e.Cron, e.Task); err != nil {
+			return err
+		}
+	}
+	if err := scheduler.Start(); err != nil {
+		return err
+	}
+	logger.Info("scheduler running", "jobs", len(jobs.Schedule()))
+
 	<-ctx.Done()
 	logger.Info("shutdown signal received")
-	srv.Shutdown() // stops claiming new tasks, finishes in-flight
+	scheduler.Shutdown() // stop enqueuing periodic tasks
+	srv.Shutdown()       // stops claiming new tasks, finishes in-flight
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -75,6 +118,24 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info("shutdown complete")
 	return nil
+}
+
+// loadObjectStore builds the MinIO store, or a nil interface when MINIO_ENDPOINT
+// is unset (attachment GC then no-ops). A dial error is logged, not fatal.
+func loadObjectStore(ctx context.Context, cfg *config.Config, logger *slog.Logger) project.ObjectStore {
+	if cfg.MinIOEndpoint == "" {
+		logger.Warn("MINIO_ENDPOINT not set; attachment GC disabled")
+		return nil
+	}
+	store, err := miniox.New(ctx, miniox.Config{
+		Endpoint: cfg.MinIOEndpoint, AccessKey: cfg.MinIOAccessKey, SecretKey: cfg.MinIOSecretKey,
+		Bucket: cfg.MinIOBucket, UseSSL: cfg.MinIOUseSSL,
+	})
+	if err != nil {
+		logger.Error("minio init failed; attachment GC disabled", "err", err)
+		return nil
+	}
+	return store
 }
 
 func startMetrics(logger *slog.Logger, addr string) *http.Server {

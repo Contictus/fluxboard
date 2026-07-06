@@ -16,12 +16,24 @@ type Querier interface {
 	// Task activity log ([T], tenant-scoped, FR-TASK-002) -----------------------
 	AppendActivity(ctx context.Context, arg AppendActivityParams) error
 	AttachLabel(ctx context.Context, arg AttachLabelParams) error
+	// Bulk actions (FR-TASK-008) ------------------------------------------------
+	// Each runs inside one repo transaction over a task-id array; RLS + org_id scope
+	// every row. Bulk move relocates to a single column but must give each task a
+	// distinct rank, so the repo issues per-task MoveTask calls instead of a set-based
+	// UPDATE (the (column_id, rank) unique index forbids sharing a rank).
+	BulkAssignTasks(ctx context.Context, arg BulkAssignTasksParams) (int64, error)
+	// Flip a pending row to committed (idempotency: no-op if already committed via
+	// the WHERE status filter). size_bytes is corrected to the HEAD-verified size.
+	CommitAttachment(ctx context.Context, arg CommitAttachmentParams) (int64, error)
 	ConsumeOneTimeToken(ctx context.Context, arg ConsumeOneTimeTokenParams) (OneTimeToken, error)
 	// Single-use consume: marks a matching unused code used. Rows affected = 1 means
 	// the code was valid and is now spent; 0 means invalid/already-used.
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (int64, error)
 	CountColumnTasks(ctx context.Context, arg CountColumnTasksParams) (int64, error)
 	CountMembersByRole(ctx context.Context, arg CountMembersByRoleParams) (int64, error)
+	// Attachments ([T], tenant-scoped) — FR-TASK-006 -----------------------------
+	// Insert the 'pending' row alongside minting a presigned PUT URL.
+	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) error
 	// Boards + columns ([T], tenant-scoped, FR-PROJ-004) -----------------------
 	CreateBoard(ctx context.Context, arg CreateBoardParams) error
 	CreateColumn(ctx context.Context, arg CreateColumnParams) error
@@ -50,6 +62,7 @@ type Querier interface {
 	// Tasks ([T], tenant-scoped) ------------------------------------------------
 	CreateTask(ctx context.Context, arg CreateTaskParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) error
+	DeleteAttachment(ctx context.Context, arg DeleteAttachmentParams) (int64, error)
 	DeleteColumn(ctx context.Context, arg DeleteColumnParams) (int64, error)
 	// The FK cascade on task_labels detaches this label from every task.
 	DeleteLabel(ctx context.Context, arg DeleteLabelParams) (int64, error)
@@ -58,6 +71,7 @@ type Querier interface {
 	// Clears any prior codes before a fresh batch is issued (activate / regenerate).
 	DeleteUserRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DetachLabel(ctx context.Context, arg DetachLabelParams) (int64, error)
+	GetAttachment(ctx context.Context, arg GetAttachmentParams) (Attachment, error)
 	GetBoardByProject(ctx context.Context, arg GetBoardByProjectParams) (Board, error)
 	GetColumn(ctx context.Context, arg GetColumnParams) (BoardColumn, error)
 	GetComment(ctx context.Context, arg GetCommentParams) (Comment, error)
@@ -77,14 +91,20 @@ type Querier interface {
 	// Resolve a stale slug to its org within the 30-day 301 window (FR-TEN-007).
 	GetSlugRedirect(ctx context.Context, oldSlug string) (uuid.UUID, error)
 	GetSubtask(ctx context.Context, arg GetSubtaskParams) (Subtask, error)
-	GetTask(ctx context.Context, arg GetTaskParams) (Task, error)
+	// Live tasks only; trashed tasks are addressable through the Trash queries.
+	GetTask(ctx context.Context, arg GetTaskParams) (GetTaskRow, error)
+	GetTrashedTask(ctx context.Context, arg GetTrashedTaskParams) (GetTrashedTaskRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
 	InsertSlugHistory(ctx context.Context, arg InsertSlugHistoryParams) error
+	// All non-deleted org ids (organizations has no RLS). Drives per-tenant
+	// maintenance jobs (trash purge, attachment GC) which then run under WithTenant.
+	ListActiveOrgIDs(ctx context.Context) ([]uuid.UUID, error)
 	// Live sessions the user can manage: not revoked, not rotated (i.e. the current
 	// head of each refresh family), not expired. Newest first (docs/04-AUTH.md §5).
 	ListActiveUserSessions(ctx context.Context, userID uuid.UUID) ([]ListActiveUserSessionsRow, error)
 	ListActivityByTask(ctx context.Context, arg ListActivityByTaskParams) ([]TaskActivity, error)
+	ListAttachmentsByTask(ctx context.Context, arg ListAttachmentsByTaskParams) ([]Attachment, error)
 	ListColumnsByBoard(ctx context.Context, arg ListColumnsByBoardParams) ([]BoardColumn, error)
 	ListCommentsByTask(ctx context.Context, arg ListCommentsByTaskParams) ([]Comment, error)
 	ListLabels(ctx context.Context, orgID uuid.UUID) ([]Label, error)
@@ -93,14 +113,18 @@ type Querier interface {
 	// Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role
 	// and text (name/email) filters; the (created_at,user_id) cursor is exclusive.
 	ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]ListMembersFilteredRow, error)
+	// Pending rows older than the cutoff (never PUT or never confirmed) — the nightly
+	// orphan GC removes their objects then their rows (per-tenant).
+	ListOrphanAttachments(ctx context.Context, arg ListOrphanAttachmentsParams) ([]Attachment, error)
 	ListPendingInvitations(ctx context.Context, orgID uuid.UUID) ([]Invitation, error)
 	ListProjectMembers(ctx context.Context, arg ListProjectMembersParams) ([]ListProjectMembersRow, error)
 	// Visibility filter (FR-PROJ-002/003): see_all (org ADMIN+) returns every
 	// project; otherwise 'org'-visible plus 'private' ones the user is a member of.
 	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
 	ListSubtasksByTask(ctx context.Context, arg ListSubtasksByTaskParams) ([]Subtask, error)
-	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]Task, error)
-	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]Task, error)
+	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error)
+	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error)
+	ListTrashedTasks(ctx context.Context, arg ListTrashedTasksParams) ([]ListTrashedTasksRow, error)
 	MarkInvitationAccepted(ctx context.Context, arg MarkInvitationAcceptedParams) (int64, error)
 	MarkSessionRotated(ctx context.Context, id uuid.UUID) error
 	MarkUserEmailVerified(ctx context.Context, id uuid.UUID) error
@@ -110,8 +134,13 @@ type Querier interface {
 	// Atomically bump and return the per-project task counter (FR-TASK-001). The
 	// row lock serializes concurrent creates; gaps are acceptable.
 	NextTaskNumber(ctx context.Context, arg NextTaskNumberParams) (int32, error)
+	// Hard-delete tasks trashed before the cutoff (nightly purge job, per-tenant).
+	PurgeExpiredTrash(ctx context.Context, arg PurgeExpiredTrashParams) (int64, error)
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) (int64, error)
 	RestoreOrg(ctx context.Context, id uuid.UUID) error
+	// Restore only succeeds if the original (column_id, rank) slot is still free;
+	// the unique index otherwise raises a conflict the repo maps to 409.
+	RestoreTask(ctx context.Context, arg RestoreTaskParams) (int64, error)
 	RevokeAllUserSessions(ctx context.Context, arg RevokeAllUserSessionsParams) error
 	RevokeInvitation(ctx context.Context, arg RevokeInvitationParams) (int64, error)
 	RevokeSessionByID(ctx context.Context, arg RevokeSessionByIDParams) error
@@ -119,6 +148,14 @@ type Querier interface {
 	// Ownership-scoped single-session revoke: only affects a row owned by the
 	// caller, so one user cannot revoke another's session. Returns rows affected.
 	RevokeUserSessionByID(ctx context.Context, arg RevokeUserSessionByIDParams) (int64, error)
+	// Full-text search (FR-TASK-007) --------------------------------------------
+	// Org-wide task search over title+description with optional facet filters.
+	// Visibility is enforced in-DB: a caller sees a task only if it is in an 'org'
+	// project, or the caller is an org admin (@see_all), or the caller is a member of
+	// the (private) project. Archived projects are excluded. count(*) OVER() yields
+	// the unpaged total for pagination; the label filter pins one label_id per row so
+	// DISTINCT is unnecessary.
+	SearchTasks(ctx context.Context, arg SearchTasksParams) ([]SearchTasksRow, error)
 	SetColumnRank(ctx context.Context, arg SetColumnRankParams) (int64, error)
 	SetProjectArchived(ctx context.Context, arg SetProjectArchivedParams) (int64, error)
 	// Sets (or clears, via empty secret) the encrypted TOTP secret and its enabled
@@ -126,6 +163,10 @@ type Querier interface {
 	SetUserTOTP(ctx context.Context, arg SetUserTOTPParams) error
 	SoftDeleteComment(ctx context.Context, arg SoftDeleteCommentParams) (int64, error)
 	SoftDeleteOrg(ctx context.Context, arg SoftDeleteOrgParams) error
+	// Soft-delete / Trash (FR-TASK-009) -----------------------------------------
+	SoftDeleteTask(ctx context.Context, arg SoftDeleteTaskParams) (int64, error)
+	// Total committed bytes for the org (storage-quota check, FR-TASK-006).
+	SumOrgAttachmentBytes(ctx context.Context, orgID uuid.UUID) (int64, error)
 	// Advance last_used_at for a live session head. Called by the auth middleware on
 	// the cache-miss backfill path (≤ once per cache TTL), not per request.
 	TouchSessionLastUsed(ctx context.Context, id uuid.UUID) error
@@ -140,6 +181,8 @@ type Querier interface {
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
+	// Count how many of the given ids are live tasks in this org (bulk pre-check).
+	ValidateTaskIDs(ctx context.Context, arg ValidateTaskIDsParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

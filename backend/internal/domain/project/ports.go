@@ -83,6 +83,66 @@ type TaskRepository interface {
 	// Move relocates a task to (columnID, rank). domain.ErrConflict if the rank
 	// is already taken in that column (concurrent move, FR-PROJ-005).
 	Move(ctx context.Context, orgID, id, columnID, rank string) error
+
+	// SoftDelete moves a task to Trash at deletedAt (FR-TASK-009). ErrNotFound if
+	// the task is absent or already trashed.
+	SoftDelete(ctx context.Context, orgID, id string, deletedAt time.Time) error
+	// Restore returns a trashed task to its board. ErrNotFound if not trashed;
+	// ErrConflict if its (column_id, rank) slot was reclaimed while trashed.
+	Restore(ctx context.Context, orgID, id string) error
+	// GetTrashed returns a trashed task by id, or ErrNotFound.
+	GetTrashed(ctx context.Context, orgID, id string) (*Task, error)
+	// ListTrashed returns a project's trashed tasks, newest-deleted first.
+	ListTrashed(ctx context.Context, orgID, projectID string) ([]Task, error)
+	// PurgeExpired hard-deletes tasks trashed before cutoff and returns the count
+	// (nightly purge job, per-tenant, FR-TASK-009).
+	PurgeExpired(ctx context.Context, orgID string, cutoff time.Time) (int, error)
+
+	// Search runs a paginated full-text query with optional facet filters
+	// (FR-TASK-007).
+	Search(ctx context.Context, orgID string, f SearchFilter) (*SearchResult, error)
+
+	// CountLive returns how many of ids are live tasks in the org (bulk pre-check).
+	CountLive(ctx context.Context, orgID string, ids []string) (int, error)
+	// BulkAssign sets assignee on every id in one transaction (nil clears it).
+	BulkAssign(ctx context.Context, orgID string, ids []string, assigneeID *string) error
+	// BulkMove relocates every ids[i] into columnID at ranks[i] (caller mints a
+	// distinct rank per task), all in one transaction. ErrConflict on any rank
+	// clash. len(ids) must equal len(ranks).
+	BulkMove(ctx context.Context, orgID, columnID string, ids, ranks []string) error
+}
+
+// AttachmentRepository persists task attachments (FR-TASK-006).
+type AttachmentRepository interface {
+	// Create inserts a 'pending' attachment row.
+	Create(ctx context.Context, orgID string, a *Attachment) error
+	// Get returns an attachment by id, or ErrNotFound.
+	Get(ctx context.Context, orgID, id string) (*Attachment, error)
+	// Commit flips a pending row to committed with the HEAD-verified size.
+	// ErrNotFound if absent or already committed.
+	Commit(ctx context.Context, orgID, id string, sizeBytes int64, confirmedAt time.Time) error
+	// ListByTask returns a task's committed attachments oldest-first.
+	ListByTask(ctx context.Context, orgID, taskID string) ([]Attachment, error)
+	// Delete removes an attachment row.
+	Delete(ctx context.Context, orgID, id string) error
+	// SumOrgBytes totals committed bytes for the org (quota check).
+	SumOrgBytes(ctx context.Context, orgID string) (int64, error)
+	// ListOrphans returns pending rows older than cutoff (orphan GC).
+	ListOrphans(ctx context.Context, orgID string, cutoff time.Time) ([]Attachment, error)
+}
+
+// ObjectStore is the object-storage port (MinIO/S3) for attachment bytes. The
+// API never proxies bytes: it hands clients presigned URLs (FR-TASK-006).
+type ObjectStore interface {
+	// PresignPut returns a time-limited upload URL for key.
+	PresignPut(ctx context.Context, key, contentType string, ttl time.Duration) (string, error)
+	// PresignGet returns a time-limited download URL for key, forcing a download
+	// with the given filename.
+	PresignGet(ctx context.Context, key, filename string, ttl time.Duration) (string, error)
+	// Stat returns the stored object's size, or ErrNotFound if it is absent.
+	Stat(ctx context.Context, key string) (int64, error)
+	// Remove deletes the object (idempotent; missing object is not an error).
+	Remove(ctx context.Context, key string) error
 }
 
 // SubtaskRepository persists subtasks (FR-TASK-003).

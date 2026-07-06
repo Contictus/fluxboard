@@ -21,32 +21,36 @@ import (
 
 // Deps are the collaborators the service needs.
 type Deps struct {
-	Tasks    project.TaskRepository
-	Subtasks project.SubtaskRepository
-	Labels   project.LabelRepository
-	Comments project.CommentRepository
-	Activity project.ActivityRepository
-	Projects project.ProjectRepository
-	Members  project.ProjectMemberRepository
-	Boards   project.BoardRepository
-	Columns  project.ColumnRepository
-	Logger   *slog.Logger
-	Now      func() time.Time // injectable for tests; defaults to time.Now
+	Tasks       project.TaskRepository
+	Subtasks    project.SubtaskRepository
+	Labels      project.LabelRepository
+	Comments    project.CommentRepository
+	Activity    project.ActivityRepository
+	Attachments project.AttachmentRepository
+	Projects    project.ProjectRepository
+	Members     project.ProjectMemberRepository
+	Boards      project.BoardRepository
+	Columns     project.ColumnRepository
+	Store       project.ObjectStore // MinIO; nil disables attachment endpoints
+	Logger      *slog.Logger
+	Now         func() time.Time // injectable for tests; defaults to time.Now
 }
 
 // Service implements the task application logic.
 type Service struct {
-	tasks    project.TaskRepository
-	subtasks project.SubtaskRepository
-	labels   project.LabelRepository
-	comments project.CommentRepository
-	activity project.ActivityRepository
-	projects project.ProjectRepository
-	members  project.ProjectMemberRepository
-	boards   project.BoardRepository
-	columns  project.ColumnRepository
-	logger   *slog.Logger
-	now      func() time.Time
+	tasks       project.TaskRepository
+	subtasks    project.SubtaskRepository
+	labels      project.LabelRepository
+	comments    project.CommentRepository
+	activity    project.ActivityRepository
+	attachments project.AttachmentRepository
+	projects    project.ProjectRepository
+	members     project.ProjectMemberRepository
+	boards      project.BoardRepository
+	columns     project.ColumnRepository
+	store       project.ObjectStore
+	logger      *slog.Logger
+	now         func() time.Time
 }
 
 // New builds a Service from Deps.
@@ -61,8 +65,9 @@ func New(d Deps) *Service {
 	}
 	return &Service{
 		tasks: d.Tasks, subtasks: d.Subtasks, labels: d.Labels, comments: d.Comments,
-		activity: d.Activity, projects: d.Projects, members: d.Members, boards: d.Boards,
-		columns: d.Columns, logger: logger, now: now,
+		activity: d.Activity, attachments: d.Attachments, projects: d.Projects,
+		members: d.Members, boards: d.Boards, columns: d.Columns, store: d.Store,
+		logger: logger, now: now,
 	}
 }
 

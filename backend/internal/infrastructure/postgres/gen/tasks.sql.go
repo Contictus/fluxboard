@@ -7,10 +7,36 @@ package gen
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const bulkAssignTasks = `-- name: BulkAssignTasks :execrows
+
+UPDATE tasks SET assignee_id = $1
+WHERE org_id = $2 AND deleted_at IS NULL AND id = ANY($3::uuid[])
+`
+
+type BulkAssignTasksParams struct {
+	AssigneeID pgtype.UUID `json:"assignee_id"`
+	OrgID      uuid.UUID   `json:"org_id"`
+	Ids        []uuid.UUID `json:"ids"`
+}
+
+// Bulk actions (FR-TASK-008) ------------------------------------------------
+// Each runs inside one repo transaction over a task-id array; RLS + org_id scope
+// every row. Bulk move relocates to a single column but must give each task a
+// distinct rank, so the repo issues per-task MoveTask calls instead of a set-based
+// UPDATE (the (column_id, rank) unique index forbids sharing a rank).
+func (q *Queries) BulkAssignTasks(ctx context.Context, arg BulkAssignTasksParams) (int64, error) {
+	result, err := q.db.Exec(ctx, bulkAssignTasks, arg.AssigneeID, arg.OrgID, arg.Ids)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
 
 const createTask = `-- name: CreateTask :exec
 
@@ -58,7 +84,7 @@ const getTask = `-- name: GetTask :one
 SELECT id, org_id, project_id, column_id, number, title, description,
        assignee_id, priority, due_date, rank, created_by, created_at, updated_at
 FROM tasks
-WHERE org_id = $1 AND id = $2
+WHERE org_id = $1 AND id = $2 AND deleted_at IS NULL
 `
 
 type GetTaskParams struct {
@@ -66,9 +92,78 @@ type GetTaskParams struct {
 	ID    uuid.UUID `json:"id"`
 }
 
-func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (Task, error) {
+type GetTaskRow struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	ColumnID    uuid.UUID          `json:"column_id"`
+	Number      int32              `json:"number"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	AssigneeID  pgtype.UUID        `json:"assignee_id"`
+	Priority    string             `json:"priority"`
+	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Rank        string             `json:"rank"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+// Live tasks only; trashed tasks are addressable through the Trash queries.
+func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (GetTaskRow, error) {
 	row := q.db.QueryRow(ctx, getTask, arg.OrgID, arg.ID)
-	var i Task
+	var i GetTaskRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.ProjectID,
+		&i.ColumnID,
+		&i.Number,
+		&i.Title,
+		&i.Description,
+		&i.AssigneeID,
+		&i.Priority,
+		&i.DueDate,
+		&i.Rank,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTrashedTask = `-- name: GetTrashedTask :one
+SELECT id, org_id, project_id, column_id, number, title, description,
+       assignee_id, priority, due_date, rank, created_by, created_at, updated_at
+FROM tasks
+WHERE org_id = $1 AND id = $2 AND deleted_at IS NOT NULL
+`
+
+type GetTrashedTaskParams struct {
+	OrgID uuid.UUID `json:"org_id"`
+	ID    uuid.UUID `json:"id"`
+}
+
+type GetTrashedTaskRow struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	ColumnID    uuid.UUID          `json:"column_id"`
+	Number      int32              `json:"number"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	AssigneeID  pgtype.UUID        `json:"assignee_id"`
+	Priority    string             `json:"priority"`
+	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Rank        string             `json:"rank"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+func (q *Queries) GetTrashedTask(ctx context.Context, arg GetTrashedTaskParams) (GetTrashedTaskRow, error) {
+	row := q.db.QueryRow(ctx, getTrashedTask, arg.OrgID, arg.ID)
+	var i GetTrashedTaskRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrgID,
@@ -92,7 +187,7 @@ const listTasksByColumn = `-- name: ListTasksByColumn :many
 SELECT id, org_id, project_id, column_id, number, title, description,
        assignee_id, priority, due_date, rank, created_by, created_at, updated_at
 FROM tasks
-WHERE org_id = $1 AND column_id = $2
+WHERE org_id = $1 AND column_id = $2 AND deleted_at IS NULL
 ORDER BY rank
 `
 
@@ -101,15 +196,32 @@ type ListTasksByColumnParams struct {
 	ColumnID uuid.UUID `json:"column_id"`
 }
 
-func (q *Queries) ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]Task, error) {
+type ListTasksByColumnRow struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	ColumnID    uuid.UUID          `json:"column_id"`
+	Number      int32              `json:"number"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	AssigneeID  pgtype.UUID        `json:"assignee_id"`
+	Priority    string             `json:"priority"`
+	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Rank        string             `json:"rank"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+func (q *Queries) ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error) {
 	rows, err := q.db.Query(ctx, listTasksByColumn, arg.OrgID, arg.ColumnID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Task
+	var items []ListTasksByColumnRow
 	for rows.Next() {
-		var i Task
+		var i ListTasksByColumnRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
@@ -141,7 +253,7 @@ SELECT t.id, t.org_id, t.project_id, t.column_id, t.number, t.title, t.descripti
        t.assignee_id, t.priority, t.due_date, t.rank, t.created_by, t.created_at, t.updated_at
 FROM tasks t
 JOIN board_columns c ON c.id = t.column_id
-WHERE t.org_id = $1 AND t.project_id = $2
+WHERE t.org_id = $1 AND t.project_id = $2 AND t.deleted_at IS NULL
 ORDER BY c.rank, t.rank
 `
 
@@ -150,15 +262,97 @@ type ListTasksByProjectParams struct {
 	ProjectID uuid.UUID `json:"project_id"`
 }
 
-func (q *Queries) ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]Task, error) {
+type ListTasksByProjectRow struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	ColumnID    uuid.UUID          `json:"column_id"`
+	Number      int32              `json:"number"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	AssigneeID  pgtype.UUID        `json:"assignee_id"`
+	Priority    string             `json:"priority"`
+	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Rank        string             `json:"rank"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+func (q *Queries) ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error) {
 	rows, err := q.db.Query(ctx, listTasksByProject, arg.OrgID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Task
+	var items []ListTasksByProjectRow
 	for rows.Next() {
-		var i Task
+		var i ListTasksByProjectRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.ProjectID,
+			&i.ColumnID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.AssigneeID,
+			&i.Priority,
+			&i.DueDate,
+			&i.Rank,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrashedTasks = `-- name: ListTrashedTasks :many
+SELECT id, org_id, project_id, column_id, number, title, description,
+       assignee_id, priority, due_date, rank, created_by, created_at, updated_at
+FROM tasks
+WHERE org_id = $1 AND project_id = $2 AND deleted_at IS NOT NULL
+ORDER BY deleted_at DESC
+`
+
+type ListTrashedTasksParams struct {
+	OrgID     uuid.UUID `json:"org_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+}
+
+type ListTrashedTasksRow struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	ColumnID    uuid.UUID          `json:"column_id"`
+	Number      int32              `json:"number"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	AssigneeID  pgtype.UUID        `json:"assignee_id"`
+	Priority    string             `json:"priority"`
+	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Rank        string             `json:"rank"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+func (q *Queries) ListTrashedTasks(ctx context.Context, arg ListTrashedTasksParams) ([]ListTrashedTasksRow, error) {
+	rows, err := q.db.Query(ctx, listTrashedTasks, arg.OrgID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTrashedTasksRow
+	for rows.Next() {
+		var i ListTrashedTasksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrgID,
@@ -187,7 +381,7 @@ func (q *Queries) ListTasksByProject(ctx context.Context, arg ListTasksByProject
 
 const moveTask = `-- name: MoveTask :execrows
 UPDATE tasks SET column_id = $1, rank = $2
-WHERE org_id = $3 AND id = $4
+WHERE org_id = $3 AND id = $4 AND deleted_at IS NULL
 `
 
 type MoveTaskParams struct {
@@ -212,12 +406,185 @@ func (q *Queries) MoveTask(ctx context.Context, arg MoveTaskParams) (int64, erro
 	return result.RowsAffected(), nil
 }
 
+const purgeExpiredTrash = `-- name: PurgeExpiredTrash :execrows
+DELETE FROM tasks
+WHERE org_id = $1 AND deleted_at IS NOT NULL AND deleted_at < $2
+`
+
+type PurgeExpiredTrashParams struct {
+	OrgID  uuid.UUID          `json:"org_id"`
+	Cutoff pgtype.Timestamptz `json:"cutoff"`
+}
+
+// Hard-delete tasks trashed before the cutoff (nightly purge job, per-tenant).
+func (q *Queries) PurgeExpiredTrash(ctx context.Context, arg PurgeExpiredTrashParams) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeExpiredTrash, arg.OrgID, arg.Cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const restoreTask = `-- name: RestoreTask :execrows
+UPDATE tasks SET deleted_at = NULL
+WHERE org_id = $1 AND id = $2 AND deleted_at IS NOT NULL
+`
+
+type RestoreTaskParams struct {
+	OrgID uuid.UUID `json:"org_id"`
+	ID    uuid.UUID `json:"id"`
+}
+
+// Restore only succeeds if the original (column_id, rank) slot is still free;
+// the unique index otherwise raises a conflict the repo maps to 409.
+func (q *Queries) RestoreTask(ctx context.Context, arg RestoreTaskParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restoreTask, arg.OrgID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const searchTasks = `-- name: SearchTasks :many
+
+SELECT t.id, t.org_id, t.project_id, t.column_id, t.number, t.title, t.description,
+       t.assignee_id, t.priority, t.due_date, t.rank, t.created_by,
+       t.created_at, t.updated_at,
+       count(*) OVER() AS total_count
+FROM tasks t
+JOIN projects p ON p.id = t.project_id
+LEFT JOIN task_labels tl ON tl.task_id = t.id AND tl.org_id = t.org_id
+WHERE t.org_id = $1
+  AND t.deleted_at IS NULL
+  AND p.archived_at IS NULL
+  AND t.search_vector @@ websearch_to_tsquery('simple', $2)
+  AND ($3::bool OR p.visibility = 'org' OR EXISTS (
+        SELECT 1 FROM project_members pm
+        WHERE pm.project_id = p.id AND pm.user_id = $4))
+  AND ($5::uuid IS NULL OR t.project_id = $5)
+  AND ($6::uuid IS NULL OR t.assignee_id = $6)
+  AND ($7::uuid IS NULL OR t.column_id = $7)
+  AND ($8::text IS NULL OR t.priority = $8)
+  AND ($9::uuid IS NULL OR tl.label_id = $9)
+ORDER BY ts_rank(t.search_vector, websearch_to_tsquery('simple', $2)) DESC,
+         t.created_at DESC
+LIMIT $11 OFFSET $10
+`
+
+type SearchTasksParams struct {
+	OrgID      uuid.UUID   `json:"org_id"`
+	Query      string      `json:"query"`
+	SeeAll     bool        `json:"see_all"`
+	UserID     uuid.UUID   `json:"user_id"`
+	ProjectID  pgtype.UUID `json:"project_id"`
+	AssigneeID pgtype.UUID `json:"assignee_id"`
+	ColumnID   pgtype.UUID `json:"column_id"`
+	Priority   *string     `json:"priority"`
+	LabelID    pgtype.UUID `json:"label_id"`
+	Off        int32       `json:"off"`
+	Lim        int32       `json:"lim"`
+}
+
+type SearchTasksRow struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	ColumnID    uuid.UUID          `json:"column_id"`
+	Number      int32              `json:"number"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	AssigneeID  pgtype.UUID        `json:"assignee_id"`
+	Priority    string             `json:"priority"`
+	DueDate     pgtype.Timestamptz `json:"due_date"`
+	Rank        string             `json:"rank"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+	TotalCount  int64              `json:"total_count"`
+}
+
+// Full-text search (FR-TASK-007) --------------------------------------------
+// Org-wide task search over title+description with optional facet filters.
+// Visibility is enforced in-DB: a caller sees a task only if it is in an 'org'
+// project, or the caller is an org admin (@see_all), or the caller is a member of
+// the (private) project. Archived projects are excluded. count(*) OVER() yields
+// the unpaged total for pagination; the label filter pins one label_id per row so
+// DISTINCT is unnecessary.
+func (q *Queries) SearchTasks(ctx context.Context, arg SearchTasksParams) ([]SearchTasksRow, error) {
+	rows, err := q.db.Query(ctx, searchTasks,
+		arg.OrgID,
+		arg.Query,
+		arg.SeeAll,
+		arg.UserID,
+		arg.ProjectID,
+		arg.AssigneeID,
+		arg.ColumnID,
+		arg.Priority,
+		arg.LabelID,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchTasksRow
+	for rows.Next() {
+		var i SearchTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.ProjectID,
+			&i.ColumnID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.AssigneeID,
+			&i.Priority,
+			&i.DueDate,
+			&i.Rank,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TotalCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const softDeleteTask = `-- name: SoftDeleteTask :execrows
+
+UPDATE tasks SET deleted_at = $1
+WHERE org_id = $2 AND id = $3 AND deleted_at IS NULL
+`
+
+type SoftDeleteTaskParams struct {
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+	OrgID     uuid.UUID          `json:"org_id"`
+	ID        uuid.UUID          `json:"id"`
+}
+
+// Soft-delete / Trash (FR-TASK-009) -----------------------------------------
+func (q *Queries) SoftDeleteTask(ctx context.Context, arg SoftDeleteTaskParams) (int64, error) {
+	result, err := q.db.Exec(ctx, softDeleteTask, arg.DeletedAt, arg.OrgID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateTask = `-- name: UpdateTask :execrows
 UPDATE tasks
 SET title = $1, description = $2,
     assignee_id = $3, priority = $4,
     due_date = $5
-WHERE org_id = $6 AND id = $7
+WHERE org_id = $6 AND id = $7 AND deleted_at IS NULL
 `
 
 type UpdateTaskParams struct {
@@ -244,4 +611,22 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const validateTaskIDs = `-- name: ValidateTaskIDs :one
+SELECT count(*) FROM tasks
+WHERE org_id = $1 AND deleted_at IS NULL AND id = ANY($2::uuid[])
+`
+
+type ValidateTaskIDsParams struct {
+	OrgID uuid.UUID   `json:"org_id"`
+	Ids   []uuid.UUID `json:"ids"`
+}
+
+// Count how many of the given ids are live tasks in this org (bulk pre-check).
+func (q *Queries) ValidateTaskIDs(ctx context.Context, arg ValidateTaskIDsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, validateTaskIDs, arg.OrgID, arg.Ids)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
