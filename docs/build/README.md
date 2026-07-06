@@ -14,7 +14,7 @@ new session resumes with zero re-derivation.
 
 - **Phase:** 4 — Billing
 - **Next check:** `4.6.1` (Wiring: main.go builds gateway/repos/cache/billinguc)
-- **Last verified commit:** `<pending §5 commit>` (Phase 4 §5 HTTP)
+- **Last verified commit:** `690fdf2` (Phase 4 §5 HTTP)
 - **Stack state:** migrations at `0012`; plans seeded (3 rows); MODE=stub.
   Sections 0–5 DONE (decisions, migrations, domain, usecase, infra, HTTP). §5
   added: unauthenticated `POST /api/v1/webhooks/stripe` (signature-verified in
