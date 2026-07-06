@@ -9,7 +9,11 @@
 > faithful; needed for `stripe trigger` e2e.
 > (b) **Stub port** — implement `billing.StripeGateway` with a dev fake; wire real
 > `stripe-go` behind it later. No keys now; webhook e2e uses crafted payloads.
-> Record the choice here when made: `MODE = ____`.
+> Record the choice here when made: **`MODE = stub`** (resolved 2026-07-06).
+> Dev-fake `StripeGateway`; no keys; real `stripe-go/v78` wired behind the same
+> interface later. Webhook e2e uses crafted signed payloads (stub `ConstructEvent`
+> accepts an `X-Stub-Signature` shared secret). `stripe trigger` / compose
+> `stripe` profile skipped (4.0.5 N/A).
 
 Invariants in play: money = integer minor units; webhook idempotency
 (processed_stripe_events UNIQUE, same tx as side effects); Stripe is source of
@@ -20,25 +24,37 @@ Portal only).
 
 ## Section 0 — Prereqs & decisions
 
-- [ ] 4.0.1 [DECISION] Resolve Stripe mode (banner above); record `MODE`.
-- [ ] 4.0.2 Add `github.com/stripe/stripe-go/v78` to `backend/go.mod` (`go get`); `go mod tidy`.
-- [ ] 4.0.3 [DECISION] Freeze plan tiers + limits table (Free/Pro/Business): max_members, max_projects, max_storage_bytes, api_rate_per_min, audit_retention_days, metered flag — mirror `docs/06-BILLING.md` §7 `Entitlements`. Write into this file.
-- [ ] 4.0.4 Add billing env to `backend/internal/config/config.go` if missing (webhook secret, price-seed toggle); confirm `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` already present.
-- [ ] 4.0.5 [VERIFY] Bring up `stripe-cli` profile; confirm `stripe listen --forward-to api:8080/api/v1/webhooks/stripe` connects (skip if MODE=stub).
+- [x] 4.0.1 [DECISION] Resolve Stripe mode (banner above); record `MODE`. → **MODE=stub** (banner).
+- [~] 4.0.2 `stripe-go/v78` — **deferred to §4.4** (stub gateway needs no external SDK; real adapter pulls the dep). Keeps `go.mod` clean under MODE=stub.
+- [x] 4.0.3 [DECISION] Freeze plan tiers + limits table (Free/Pro/Business). **Frozen** (table below).
+- [x] 4.0.4 Billing env in `config.go` — added `STRIPE_MODE`(default stub) + `STRIPE_PRICE_SEED`; `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` already present + masked in `String()`.
+- [x] 4.0.5 [VERIFY] ~~stripe-cli profile~~ — **N/A (MODE=stub)**.
+
+> **Frozen plan tiers (4.0.3)** — money-independent limits; `-1` = unlimited.
+> Seeded into `plans` by 4.1.11 (static rows, no live Stripe call in stub mode).
+>
+> | code | max_members | max_projects | max_storage_bytes | api_rate_per_min | audit_retention_days | metered |
+> |---|---|---|---|---|---|---|
+> | free | 5 | 3 | 2147483648 (2 GiB) | 60 | 7 | false |
+> | pro | 25 | 50 | 53687091200 (50 GiB) | 300 | 30 | false |
+> | business | -1 | -1 | 536870912000 (500 GiB) | 1200 | 365 | true |
+>
+> Free storage = 2 GiB matches existing app const `OrgStorageQuotaBytes` (2<<30);
+> 4.6.2 aligns the attachment quota to plan `max_storage_bytes`.
 
 ## Section 1 — Migrations (0011 DDL, 0012 RLS)
 
-- [ ] 4.1.1 `0011_billing.up.sql`: `plans` (code PK, name, stripe_product_id, seat_price_id, metered_storage_price_id, metered_api_price_id, max_members, max_projects, max_storage_bytes, api_rate_per_min, audit_retention_days, metered bool). FR-BILL-002.
-- [ ] 4.1.2 `0011`: `subscriptions` [T] (id, org_id UNIQUE, plan_code, stripe_subscription_id, stripe_customer_id, status, current_period_end, cancel_at_period_end, last_stripe_event_at, created/updated_at). FR-BILL-005, 06 §2.
-- [ ] 4.1.3 `0011`: `invoices` [T] mirror (id, org_id, stripe_invoice_id UNIQUE, number, status, amount_due, amount_paid, currency, hosted_pdf_url, period_start/end, created_at). FR-BILL-008.
-- [ ] 4.1.4 `0011`: `processed_stripe_events` (event_id text PK/UNIQUE, type, payload jsonb, handled bool, error text, created_at). Global (no org_id) — webhook dedup core. FR-BILL-005.
-- [ ] 4.1.5 `0011`: `usage_records` [T] (org_id, metric, period_date, value bigint, pushed_at, `UNIQUE(org_id,metric,period_date)`). FR-BILL-007.
-- [ ] 4.1.6 `0011`: `outbox` [T] (id, org_id, kind, payload jsonb, created_at, drained_at) + partial index `WHERE drained_at IS NULL`. 09 §2 transactional outbox.
-- [ ] 4.1.7 `0011`: add `plan_code` FK / `stripe_customer_id` usage on `organizations` (customer id column exists since 0003 — wire it; add default `plan_code='free'` pointer if modeling plan on org).
-- [ ] 4.1.8 `0011.down.sql`: reverse-order drops.
-- [ ] 4.1.9 `0012_billing_rls.up/.down.sql`: ENABLE RLS + `tenant_isolation` on `subscriptions`, `invoices`, `usage_records`, `outbox` (org_id GUC predicate, copy 0008 pattern). `plans` + `processed_stripe_events` stay global (no RLS).
-- [ ] 4.1.10 [VERIFY] `migrate up` then `down 2` then `up` clean on 0011/0012.
-- [ ] 4.1.11 `make stripe-seed` script (`backend/cmd/stripeseed` or Makefile target): idempotent create of products + licensed seat prices + metered prices → upsert `plans` rows with returned price IDs. FR-BILL-002, 06 §1. (skip live call if MODE=stub — seed static plan rows.)
+- [x] 4.1.1 `0011_billing.up.sql`: `plans` (code PK, name, stripe_product_id, seat_price_id, metered_storage_price_id, metered_api_price_id, max_members, max_projects, max_storage_bytes, api_rate_per_min, audit_retention_days, metered bool). FR-BILL-002.
+- [x] 4.1.2 `0011`: `subscriptions` [T] (id PK, org_id UNIQUE, plan_code FK, stripe_subscription_id UNIQUE, stripe_customer_id, status CHECK, current_period_end, cancel_at_period_end, last_stripe_event_at, created/updated_at + set_updated_at trigger). FR-BILL-005, 06 §2.
+- [x] 4.1.3 `0011`: `invoices` [T] mirror (id, org_id, stripe_invoice_id UNIQUE, number, status, amount_due, amount_paid, currency, hosted_pdf_url, period_start/end, created_at) + `invoices_org_idx`. FR-BILL-008.
+- [x] 4.1.4 `0011`: `processed_stripe_events` (event_id PK, type, payload jsonb, handled bool, error text, processed_at). Global (no org_id) — webhook dedup core. FR-BILL-005.
+- [x] 4.1.5 `0011`: `usage_records` [T] (org_id, metric, period_date, value bigint, pushed_at, `PK(org_id,metric,period_date)`). FR-BILL-007.
+- [x] 4.1.6 `0011`: `outbox` [T] (id, org_id, kind, payload jsonb, created_at, drained_at) + partial index `outbox_undrained_idx WHERE drained_at IS NULL`. 09 §2.
+- [x] 4.1.7 `0011`: plan pointer modeled on `subscriptions.plan_code` (org with no row ⇒ Free); `organizations.stripe_customer_id` already exists since 0003 (no DDL) — documented in the 0011 header. No org-table change.
+- [x] 4.1.8 `0011.down.sql`: reverse-order drops.
+- [x] 4.1.9 `0012_billing_rls.up/.down.sql`: ENABLE RLS + `tenant_isolation` on `subscriptions`, `invoices`, `usage_records`, `outbox`; `plans` + `processed_stripe_events` stay global.
+- [x] 4.1.10 [VERIFY] `migrate up` → `down 2` → `up` clean on 0011/0012 (live docker). App grants auto-applied via `ALTER DEFAULT PRIVILEGES` (init 01-roles.sql) — confirmed app role has I/S/U on `subscriptions`.
+- [x] 4.1.11 `cmd/stripeseed/main.go`: idempotent `ON CONFLICT (code) DO UPDATE` upsert of the 3 static plan rows (MODE=stub; live branch errors as not-yet-impl). Ran → 3 rows verified. FR-BILL-002.
 
 ## Section 2 — Domain (`internal/domain/billing/`)
 

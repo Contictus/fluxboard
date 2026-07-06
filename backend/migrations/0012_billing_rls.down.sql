@@ -1,0 +1,8 @@
+DROP POLICY IF EXISTS tenant_isolation ON outbox;
+ALTER TABLE outbox DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON usage_records;
+ALTER TABLE usage_records DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON invoices;
+ALTER TABLE invoices DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON subscriptions;
+ALTER TABLE subscriptions DISABLE ROW LEVEL SECURITY;

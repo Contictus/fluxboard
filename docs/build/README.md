@@ -13,9 +13,10 @@ new session resumes with zero re-derivation.
 ## ▶ Current Position
 
 - **Phase:** 4 — Billing
-- **Next check:** `4.0.1`
-- **Last verified commit:** `f305d82` (Phase 3b complete, 78 tests + 19/19 e2e)
-- **Stack state:** migrations at `0010`; api/worker build green.
+- **Next check:** `4.2.1` (domain/billing models)
+- **Last verified commit:** _(pending Section 0–1 commit)_
+- **Stack state:** migrations at `0012` (billing DDL+RLS); plans seeded (3 rows);
+  MODE=stub; build green. Section 0 (decisions) + Section 1 (migrations) DONE.
 
 Update these four lines whenever a section closes.
 

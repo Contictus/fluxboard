@@ -32,9 +32,14 @@ type Config struct {
 	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET" secret:"true"`
 	GoogleRedirectURL  string `envconfig:"GOOGLE_REDIRECT_URL" default:"http://localhost:8080/api/v1/auth/oauth/google/callback"`
 
-	// Billing (Phase 4).
+	// Billing (Phase 4). StripeMode selects the gateway: "stub" (dev fake, no
+	// external calls; webhook signatures are a shared-secret HMAC of the body)
+	// or "live" (real stripe-go against the test/prod API). In stub mode
+	// StripeWebhookSecret doubles as the HMAC key.
+	StripeMode          string `envconfig:"STRIPE_MODE" default:"stub"`
 	StripeSecretKey     string `envconfig:"STRIPE_SECRET_KEY" secret:"true"`
 	StripeWebhookSecret string `envconfig:"STRIPE_WEBHOOK_SECRET" secret:"true"`
+	StripePriceSeed     bool   `envconfig:"STRIPE_PRICE_SEED" default:"false"`
 
 	// Object storage.
 	MinIOEndpoint  string `envconfig:"MINIO_ENDPOINT"`
@@ -76,7 +81,8 @@ func (c *Config) String() string {
 	fmt.Fprintf(&b, "JWTPrivateKeyPEM=%s TOTPEncKey=%s ", mask(c.JWTPrivateKeyPEM), mask(c.TOTPEncKey))
 	fmt.Fprintf(&b, "GoogleClientID=%s GoogleClientSecret=%s GoogleRedirectURL=%s ",
 		c.GoogleClientID, mask(c.GoogleClientSecret), c.GoogleRedirectURL)
-	fmt.Fprintf(&b, "StripeSecretKey=%s StripeWebhookSecret=%s ", mask(c.StripeSecretKey), mask(c.StripeWebhookSecret))
+	fmt.Fprintf(&b, "StripeMode=%s StripeSecretKey=%s StripeWebhookSecret=%s StripePriceSeed=%t ",
+		c.StripeMode, mask(c.StripeSecretKey), mask(c.StripeWebhookSecret), c.StripePriceSeed)
 	fmt.Fprintf(&b, "MinIOEndpoint=%s MinIOAccessKey=%s MinIOSecretKey=%s MinIOBucket=%s MinIOUseSSL=%t ",
 		c.MinIOEndpoint, mask(c.MinIOAccessKey), mask(c.MinIOSecretKey), c.MinIOBucket, c.MinIOUseSSL)
 	fmt.Fprintf(&b, "SMTPHost=%s SMTPPort=%d SMTPUser=%s SMTPPassword=%s SMTPFrom=%s ",
