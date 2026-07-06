@@ -23,8 +23,11 @@ type Deps struct {
 	Orgs          *handlers.OrgHandlers
 	Projects      *handlers.ProjectHandlers
 	Tasks         *handlers.TaskHandlers
+	Billing       *handlers.BillingHandlers
+	Webhooks      *handlers.WebhookHandlers
 	Authenticator *mw.Authenticator
 	Tenant        *mw.TenantGuard
+	Entitlement   *mw.EntitlementGuard
 }
 
 // NewRouter assembles the router. Infrastructure middleware wrap every route;
@@ -46,6 +49,11 @@ func NewRouter(d Deps) http.Handler {
 	r.Handle("/metrics", d.MetricsHTTP)
 
 	r.Route("/api/v1", func(api chi.Router) {
+		// Stripe webhook (FR-BILL-005). Mounted OUTSIDE session auth — Stripe
+		// carries no bearer token; the handler authenticates the request by
+		// verifying the payload signature through the gateway. docs/06 §4.
+		api.Post("/webhooks/stripe", d.Webhooks.Stripe)
+
 		// Auth surface (docs/04-AUTH.md §5) — no org context.
 		api.Route("/auth", func(a chi.Router) {
 			// Public (no access token).
@@ -178,6 +186,19 @@ func NewRouter(d Deps) http.Handler {
 				o.With(write(tenant.ObjLabels)).Post("/labels", d.Tasks.CreateLabel)
 				o.With(write(tenant.ObjLabels)).Patch("/labels/{labelId}", d.Tasks.UpdateLabel)
 				o.With(write(tenant.ObjLabels)).Delete("/labels/{labelId}", d.Tasks.DeleteLabel)
+
+				// Phase 4 — billing (docs/06). The billing object gate resolves to
+				// ADMIN+ (docs/05 §2); reads and writes are both admin-only, so a
+				// MEMBER/GUEST gets 403. Card data never transits the API — Checkout
+				// and Portal hand the browser to Stripe-hosted pages.
+				o.With(read(tenant.ObjBilling)).Get("/billing/summary", d.Billing.Summary)
+				o.With(read(tenant.ObjBilling)).Get("/billing/invoices", d.Billing.ListInvoices)
+				o.With(write(tenant.ObjBilling)).Post("/billing/checkout", d.Billing.Checkout)
+				o.With(write(tenant.ObjBilling)).Post("/billing/preview-change", d.Billing.PreviewChange)
+				o.With(write(tenant.ObjBilling)).Post("/billing/change", d.Billing.ApplyChange)
+				o.With(write(tenant.ObjBilling)).Post("/billing/cancel", d.Billing.Cancel)
+				o.With(write(tenant.ObjBilling)).Post("/billing/resume", d.Billing.Resume)
+				o.With(write(tenant.ObjBilling)).Post("/billing/portal", d.Billing.Portal)
 			})
 		})
 	})

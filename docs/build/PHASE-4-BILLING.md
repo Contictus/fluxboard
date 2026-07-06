@@ -90,12 +90,12 @@ Portal only).
 
 ## Section 5 — HTTP
 
-- [ ] 4.5.1 `handlers/webhooks.go`: `POST /api/v1/webhooks/stripe` — read raw body, ConstructEvent (signature), call `ProcessEvent`; 200 on commit/dup, 400 bad sig, 500 on error (Stripe retries). Mounted OUTSIDE session auth. FR-BILL-005.
-- [ ] 4.5.2 `handlers/billing.go`: `GET /billing/summary`. FR-BILL-001.
-- [ ] 4.5.3 `handlers/billing.go`: checkout, preview-change, change, cancel, resume, portal endpoints. FR-BILL-002/003/004/006.
-- [ ] 4.5.4 `handlers/billing.go`: `GET /billing/invoices`. FR-BILL-008.
-- [ ] 4.5.5 `router.go`: mount `/orgs/{orgId}/billing/*` under `write(ObjBilling)`/`read` with O(ADMIN) gate; register `/webhooks/stripe` at api root (no auth).
-- [ ] 4.5.6 `middleware/entitlement.go`: `RequireEntitlement(check)` → resolve via cache, `402 {"error":{"code":"plan_limit_exceeded","limit":…,"current":…,"max":…}}`. FR-BILL-009, 06 §7.
+- [x] 4.5.1 `handlers/webhooks.go` (`WebhookHandlers.Stripe`): reads raw body (MaxBytesReader 1 MiB — signature is over exact bytes, so no decode before verify), takes `X-Stub-Signature` (falls back to `Stripe-Signature`), `gateway.ConstructEvent` → `svc.ProcessEvent`. 200 on commit/dup/stale, 400 bad-sig/parse (never retried), 500 processing (Stripe retries). Mounted OUTSIDE session auth. FR-BILL-005.
+- [x] 4.5.2 `handlers/billing.go` `Summary` → `summaryResp` (plan/status/period-end/cancel flag/past-due/has-sub + nested `entitlements`). FR-BILL-001.
+- [x] 4.5.3 `handlers/billing.go`: `Checkout`(→{url}), `PreviewChange`(→{amount,currency}), `ApplyChange`(204), `Cancel`({at_period_end}→204), `Resume`(204), `Portal`(→{url}). FR-BILL-002/003/004/006.
+- [x] 4.5.4 `handlers/billing.go` `ListInvoices` → `{invoices:[…]}` newest-first. FR-BILL-008.
+- [x] 4.5.5 `router.go`: `/orgs/{orgId}/billing/*` mounted under `read`/`write(ObjBilling)` (ADMIN-only — added `ADMIN billing read` Casbin policy so summary/invoices reads gate too; enforcer_test pins it + MEMBER-denied); `POST /api/v1/webhooks/stripe` at api root, no auth. Deps gains `Billing`/`Webhooks`/`Entitlement` (populated in §6).
+- [x] 4.5.6 `middleware/entitlement.go`: `EntitlementGuard.Require(LimitProbe)` → cache-first `Resolve` → probe current-vs-max → `response.PlanLimit` `402 {code:plan_limit_exceeded, details:{limit,current,max}}` (unlimited = max<0 passes). `EntitlementResolver` port declared in middleware pkg (no usecase import). Concrete probes wired per route in §6.2. FR-BILL-009, 06 §7.
 
 ## Section 6 — Wiring
 

@@ -55,6 +55,19 @@ func Error(w http.ResponseWriter, err error) {
 	}})
 }
 
+// PlanLimit writes the 402 plan_limit_exceeded envelope with a machine-readable
+// body ("X of Y used") so the client can render the upgrade prompt (FR-BILL-009,
+// docs/06-BILLING.md §7). limit is the ceiling key (e.g. "max_projects"). This
+// is a richer variant of the ErrPlanLimit sentinel path, which carries no counts.
+func PlanLimit(w http.ResponseWriter, limit string, current, max int64) {
+	JSON(w, http.StatusPaymentRequired, Envelope{Error: ErrorBody{
+		Code:      "plan_limit_exceeded",
+		Message:   "plan limit exceeded",
+		Details:   map[string]any{"limit": limit, "current": current, "max": max},
+		RequestID: w.Header().Get("X-Request-ID"),
+	}})
+}
+
 // statusFor is the one place domain sentinels become HTTP status codes
 // (docs/CLAUDE.md §Code Conventions). Codes match docs/08-API-SPEC.md §1.
 func statusFor(err error) (int, string) {

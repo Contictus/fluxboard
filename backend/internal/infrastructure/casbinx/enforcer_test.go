@@ -37,6 +37,8 @@ func TestPermissionMatrix(t *testing.T) {
 		{tenant.RoleAdmin, tenant.ObjOrg, tenant.ActWrite, true},
 		{tenant.RoleAdmin, tenant.ObjMembers, tenant.ActWrite, true},
 		{tenant.RoleAdmin, tenant.ObjInvitations, tenant.ActWrite, true},
+		{tenant.RoleAdmin, tenant.ObjBilling, tenant.ActRead, true},
+		{tenant.RoleAdmin, tenant.ObjBilling, tenant.ActWrite, true},
 		{tenant.RoleAdmin, tenant.ObjAudit, tenant.ActRead, true},
 		{tenant.RoleAdmin, tenant.ObjProjects, tenant.ActWrite, true},
 
@@ -46,6 +48,8 @@ func TestPermissionMatrix(t *testing.T) {
 		{tenant.RoleMember, tenant.ObjOrg, tenant.ActRead, true},
 		{tenant.RoleMember, tenant.ObjOrg, tenant.ActWrite, false},
 		{tenant.RoleMember, tenant.ObjMembers, tenant.ActWrite, false},
+		{tenant.RoleMember, tenant.ObjBilling, tenant.ActRead, false},
+		{tenant.RoleMember, tenant.ObjBilling, tenant.ActWrite, false},
 		{tenant.RoleMember, tenant.ObjOwnership, tenant.ActWrite, false},
 
 		// GUEST: read org only.

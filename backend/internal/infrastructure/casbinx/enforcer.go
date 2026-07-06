@@ -30,6 +30,7 @@ var policies = [][]string{
 	{roleSub(tenant.RoleAdmin), tenant.ObjOrg, tenant.ActWrite},
 	{roleSub(tenant.RoleAdmin), tenant.ObjMembers, tenant.ActWrite},
 	{roleSub(tenant.RoleAdmin), tenant.ObjInvitations, tenant.ActWrite},
+	{roleSub(tenant.RoleAdmin), tenant.ObjBilling, tenant.ActRead},
 	{roleSub(tenant.RoleAdmin), tenant.ObjBilling, tenant.ActWrite},
 	{roleSub(tenant.RoleAdmin), tenant.ObjAPIKeys, tenant.ActWrite},
 	{roleSub(tenant.RoleAdmin), tenant.ObjAudit, tenant.ActRead},
