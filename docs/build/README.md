@@ -14,7 +14,7 @@ new session resumes with zero re-derivation.
 
 - **Phase:** 4 — Billing
 - **Next check:** `4.7.1` (Jobs: outbox:drain scheduler + Asynq handler)
-- **Last verified commit:** `<pending §6.2 commit>` (Phase 4 §6.1–6.2 wiring + enforcement)
+- **Last verified commit:** `cf459df` (Phase 4 §6.1–6.2 wiring + enforcement; §6.1 `c2e5110`)
 - **Stack state:** migrations at `0012`; plans seeded (3 rows); MODE=stub.
   Sections 0–6 DONE (§6.3 worker deps deferred into §7). §6.1: main.go builds the
   stripe gateway + billing repos + entitlement cache + billinguc + guard; billing
