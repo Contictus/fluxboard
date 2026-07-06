@@ -31,12 +31,14 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/oauthgoogle"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres"
 	redisx "github.com/mesutokul/fluxboard/backend/internal/infrastructure/redis"
+	stripex "github.com/mesutokul/fluxboard/backend/internal/infrastructure/stripe"
 	httpx "github.com/mesutokul/fluxboard/backend/internal/interface/http"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/handlers"
 	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/aesgcm"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/billinguc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/projectuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/tenantuc"
@@ -208,6 +210,32 @@ func run(logger *slog.Logger) error {
 	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
 	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
 
+	// Phase 4 — billing wiring (docs/06). The gateway selects stub vs live from
+	// STRIPE_MODE; stub needs no keys (the webhook secret is the HMAC key). Plan +
+	// processed-event tables are global (plain pool); subscription/invoice/usage/
+	// outbox/webhook are [T] over the RLS-enforcing TenantPool. BaseURL is the
+	// public app origin for Checkout/Portal return links.
+	stripeGW, err := stripex.New(cfg.StripeMode, cfg.StripeWebhookSecret, cfg.WebOrigin)
+	if err != nil {
+		return err
+	}
+	entitlementCache := redisx.NewEntitlementCache(rdb)
+	billingSvc := billinguc.New(billinguc.Deps{
+		Plans:    postgres.NewPlanRepo(pool),
+		Subs:     postgres.NewSubscriptionRepo(tenantPool),
+		Invoices: postgres.NewInvoiceRepo(tenantPool),
+		Events:   postgres.NewProcessedEventRepo(pool),
+		Webhooks: postgres.NewWebhookRepo(tenantPool),
+		Usage:    postgres.NewUsageRepo(tenantPool),
+		Gateway:  stripeGW,
+		Cache:    entitlementCache,
+		Logger:   logger,
+		BaseURL:  cfg.WebOrigin,
+	})
+	billingHandlers := handlers.NewBillingHandlers(billingSvc, logger)
+	webhookHandlers := handlers.NewWebhookHandlers(billingSvc, stripeGW, logger)
+	entitlementGuard := &mw.EntitlementGuard{Resolver: billingSvc, Logger: logger}
+
 	router := httpx.NewRouter(httpx.Deps{
 		Logger:        logger,
 		WebOrigin:     cfg.WebOrigin,
@@ -217,8 +245,11 @@ func run(logger *slog.Logger) error {
 		Orgs:          orgHandlers,
 		Projects:      projectHandlers,
 		Tasks:         taskHandlers,
+		Billing:       billingHandlers,
+		Webhooks:      webhookHandlers,
 		Authenticator: authenticator,
 		Tenant:        tenantGuard,
+		Entitlement:   entitlementGuard,
 	})
 
 	srv := &http.Server{

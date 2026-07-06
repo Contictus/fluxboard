@@ -99,7 +99,7 @@ Portal only).
 
 ## Section 6 — Wiring
 
-- [ ] 4.6.1 `cmd/api/main.go`: build stripe gateway, billing repos, entitlement cache, `billinguc`, entitlement middleware; add to `httpx.Deps`.
+- [x] 4.6.1 `cmd/api/main.go`: `stripex.New(cfg.StripeMode, cfg.StripeWebhookSecret, cfg.WebOrigin)` gateway; billing repos (PlanRepo+ProcessedEventRepo on plain pool; Sub/Invoice/Usage/Webhook over tenantPool); `redisx.NewEntitlementCache`; `billinguc.New` (BaseURL=cfg.WebOrigin); `mw.EntitlementGuard{Resolver: billingSvc}`. Set `httpx.Deps` Billing/Webhooks/Entitlement → billing endpoints now live.
 - [ ] 4.6.2 Attach entitlement checks to existing writes: project create (max_projects), invitation send/seat count (max_members, FR-TEN-004), attachment quota (align existing app-level `OrgStorageQuotaBytes` with plan `max_storage_bytes`). FR-BILL-004/009.
 - [ ] 4.6.3 `cmd/worker/main.go`: wire billing deps for the new jobs (subscription/usage/outbox repos, stripe gateway).
 
