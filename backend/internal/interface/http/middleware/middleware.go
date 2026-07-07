@@ -137,3 +137,13 @@ func (s *statusWriter) Write(b []byte) (int, error) {
 	s.wrote = true
 	return s.ResponseWriter.Write(b)
 }
+
+// Flush implements http.Flusher, delegating to the wrapped writer so streaming
+// handlers (SSE, docs/09 §1) can flush through the logging middleware. Without
+// this, the wrapper masks the underlying Flusher and SSE cannot stream.
+func (s *statusWriter) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		s.wrote = true
+		f.Flush()
+	}
+}

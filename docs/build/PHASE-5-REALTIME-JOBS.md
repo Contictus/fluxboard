@@ -116,10 +116,10 @@ Wire invariants: `v:1` schema version on every payload; `actor_id` always presen
 
 ## Section 9 — E2E verify (dockerized)
 
-- [ ] 5.9.1 [VERIFY] Open SSE (PowerShell/curl-in-container); create/move a task from a second client → `task.created`/`task.moved` received.
-- [ ] 5.9.2 [VERIFY] Reconnect with `Last-Event-ID` → missed events replayed.
-- [ ] 5.9.3 [VERIFY] @mention in a comment → notification via API + email visible in Mailpit.
-- [ ] 5.9.4 [VERIFY] `redis-cli FLUSHALL` → SSE clients get `resync` on reconnect; board self-heals. Write `scratchpad/smoke5.ps1`.
+- [x] 5.9.1 [VERIFY] Open SSE (PowerShell/curl-in-container); create/move a task from a second client → `task.created`/`task.moved` received. — `scratchpad/smoke5.ps1` green against `make up`; both frames received on the owner's stream.
+- [x] 5.9.2 [VERIFY] Reconnect with `Last-Event-ID` → missed events replayed. — reconnect from the first event id replays `task.moved` (XRANGE backlog).
+- [x] 5.9.3 [VERIFY] @mention in a comment → notification via API + email visible in Mailpit. — `@member` comment → member's `GET /notifications?unread=1` non-empty **and** a "You were mentioned" email in Mailpit (fan-out → outbox → drain → email:send, pref-rechecked).
+- [x] 5.9.4 [VERIFY] `redis-cli FLUSHALL` → SSE clients get `resync` on reconnect; board self-heals. Write `scratchpad/smoke5.ps1`. — `docker exec … redis-cli FLUSHALL` then reconnect with a stale id → `event: resync`. **Two source bugs found + fixed by this run:** (a) the logging `statusWriter` masked `http.Flusher` (SSE returned 422) — added a `Flush()` passthrough; (b) `EventBus.Replay` treated an empty (flushed) stream as "no gap" — since Replay only runs with a real Last-Event-ID, an empty stream now returns gap=true so the client resyncs.
 
 ## Section 10 — Commit gate
 

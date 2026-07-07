@@ -87,13 +87,17 @@ func (b *EventBus) Publish(ctx context.Context, orgID string, ev notify.Event) (
 // instead of a partial backlog.
 func (b *EventBus) Replay(ctx context.Context, orgID, lastID string) ([]notify.Event, bool, error) {
 	key := streamKey(orgID)
-	// Oldest surviving entry; empty stream ⇒ nothing to replay, no gap.
+	// Oldest surviving entry. Replay is only ever called with a non-empty lastID
+	// (StreamInit skips it otherwise), so an empty stream means the client's
+	// reference point is gone — trimmed away or the stream was flushed (e.g.
+	// redis FLUSHALL / restart without persistence). That is a gap: emit resync
+	// so the client refetches and self-heals (09 §1, 5.9.4).
 	oldest, err := b.rdb.XRangeN(ctx, key, "-", "+", 1).Result()
 	if err != nil {
 		return nil, false, err
 	}
 	if len(oldest) == 0 {
-		return nil, false, nil
+		return nil, true, nil
 	}
 	if idLess(lastID, oldest[0].ID) {
 		// Everything the client is missing was already evicted.
