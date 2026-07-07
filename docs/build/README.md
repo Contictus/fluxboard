@@ -12,22 +12,23 @@ new session resumes with zero re-derivation.
 
 ## ▶ Current Position
 
-- **Phase:** 4 — Billing
-- **Next check:** `4.7.1` (Jobs: outbox:drain scheduler + Asynq handler)
-- **Last verified commit:** `cf459df` (Phase 4 §6.1–6.2 wiring + enforcement; §6.1 `c2e5110`)
-- **Stack state:** migrations at `0012`; plans seeded (3 rows); MODE=stub.
-  Sections 0–6 DONE (§6.3 worker deps deferred into §7). §6.1: main.go builds the
-  stripe gateway + billing repos + entitlement cache + billinguc + guard; billing
-  endpoints + webhook are LIVE. §6.2: plan-limit enforcement — project-create
-  (RequireProjects/max_projects) + invitation-create (RequireMembers/max_members)
-  middleware gates (rich 402 {limit,current,max}); attachment upload now checks
-  the plan's max_storage_bytes (taskuc.RequestUpload, ErrPlanLimit). New concrete
-  count methods ProjectRepo.CountByOrg / MembershipRepo.CountMembers (+ sqlc).
-  `go test ./...` 96 pass. Next: Section 7 Jobs — outbox:drain (5s scheduler →
-  Asynq per-row, TaskID=outbox id dedup), usage counters + usage:aggregate hourly
-  + usage:push_stripe daily, billing:reconcile nightly; register on the worker mux
-  + jobs.Schedule(); §6.3 worker billing-dep wiring happens here too. Repos still
-  not DB-integration-tested (that's §8/§9).
+- **Phase:** 5 — Realtime + jobs (next up; Phase 4 COMPLETE)
+- **Next check:** `5.0.1` (open PHASE-5-REALTIME-JOBS.md at Section 0)
+- **Last verified commit:** `c80e6f0` (Phase 4 §8 tests; §7 jobs `e29f8c2`, §7 rate limiting `8ada86f`)
+- **Stack state:** migrations at `0012`; plans seeded; MODE=stub;
+  STRIPE_WEBHOOK_SECRET must be non-empty (stub HMAC key, see .env.example).
+  Phase 4 DONE end-to-end: billing endpoints + webhook live; worker runs
+  outbox:drain (5s, TaskID dedup) → email:send (OWNER mails via Mailpit),
+  usage:aggregate hourly (api_calls/active_members from Redis counters,
+  storage_bytes via SQL SUM — deviation from 06 §5 noted in 4.7.2),
+  usage:push_stripe daily, billing:reconcile nightly (stub ⇒ skip;
+  billing_reconciliation_drift_total on worker :8081). Org routes now enforce
+  plan api_rate_per_min (429) + meter usage (mw.RateLimiter). Queues
+  critical:6/default:3/low:1. First integration tests (-tags=integration,
+  TEST_DATABASE_URL) cover webhook replay/out-of-order on live Postgres;
+  scratchpad/smoke4.ps1 e2e ALL GREEN 2026-07-07. Phase 5 already has some
+  groundwork here: asynq server/scheduler, queue priorities, email:send, and
+  the outbox pattern — SSE + notification center are the main gaps.
 
 Update these four lines whenever a section closes.
 

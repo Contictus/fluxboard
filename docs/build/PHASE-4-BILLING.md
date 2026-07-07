@@ -101,41 +101,41 @@ Portal only).
 
 - [x] 4.6.1 `cmd/api/main.go`: `stripex.New(cfg.StripeMode, cfg.StripeWebhookSecret, cfg.WebOrigin)` gateway; billing repos (PlanRepo+ProcessedEventRepo on plain pool; Sub/Invoice/Usage/Webhook over tenantPool); `redisx.NewEntitlementCache`; `billinguc.New` (BaseURL=cfg.WebOrigin); `mw.EntitlementGuard{Resolver: billingSvc}`. Set `httpx.Deps` Billing/Webhooks/Entitlement → billing endpoints now live.
 - [x] 4.6.2 Entitlement checks on writes: project-create → `EntitlementGuard.RequireProjects()` (max_projects), invitation-create → `RequireMembers()` (max_members) — both middleware gates on the route (rich 402 `{limit,current,max}` via `response.PlanLimit`); counts via new concrete `ProjectRepo.CountByOrg`/`MembershipRepo.CountMembers` (sqlc `CountProjectsByOrg`/`CountMembers`) injected as closures (not on the domain ports → no fake churn). Attachment quota moved into `taskuc.RequestUpload`: optional `EntitlementResolver` → plan `max_storage_bytes` (nil ⇒ Free const), quota exceed now `ErrPlanLimit` (402, was ErrConflict). FR-BILL-004/009.
-- [~] 4.6.3 `cmd/worker/main.go` billing deps — **deferred to §7**: nothing to wire until the outbox-drain/usage/reconcile handlers exist; deps + handler registration land together there.
+- [x] 4.6.3 `cmd/worker/main.go` billing deps — landed with §7 (billing repos over tenantPool, stub gateway, entitlement cache + usage counters, mailer, asynq client, drift counter on the metrics registry, queues critical:6/default:3/low:1).
 
 ## Section 7 — Jobs (`internal/interface/jobs/`)
 
-- [ ] 4.7.1 `outbox:drain` — scheduler every 5s; claim batch → enqueue Asynq task per row with TaskID = outbox id (dedup). 09 §2.
-- [ ] 4.7.2 Usage counters (Redis) in request path + `usage:aggregate` hourly UPSERT into `usage_records`. FR-BILL-007, 06 §5.
-- [ ] 4.7.3 `usage:push_stripe` daily 02:00 → push aggregate with Action="set" (re-runnable). FR-BILL-007.
-- [ ] 4.7.4 `billing:reconcile` nightly 04:00 → diff Stripe vs local mirror, heal toward Stripe, `billing_reconciliation_drift_total` counter. 06 §8, ADR-010.
-- [ ] 4.7.5 Register handlers on worker mux + entries in `jobs.Schedule()`.
+- [x] 4.7.1 `outbox:drain` — scheduler `@every 5s` (queue critical); per-org `ClaimBatch(100)` → enqueue per row with `TaskID = outbox:{id}` (`ErrTaskIDConflict` ⇒ dedup success); companion `email:send` handler (queue default, MaxRetry 5) resolves org OWNER emails and sends via `mailer.SendBilling` (welcome/canceled/dunning/resolved templates). 09 §2, ADR-011.
+- [x] 4.7.2 Usage counters (Redis, `redisx.UsageCounter`) in request path via new `mw.RateLimiter` on the org router group (api_calls INCR + active_members PFADD, 48h TTL) + `usage:aggregate` hourly UPSERT. **Deviation from 06 §5:** `storage_bytes` is computed at aggregate time from `SUM(size_bytes)` in Postgres (existing `SumOrgAttachmentBytes`) instead of a Redis gauge — simpler, drift-free by construction. **Scope add (user-approved):** the same middleware also ENFORCES plan `api_rate_per_min` (fixed-window per org-minute → `429 rate_limited` + Retry-After, fail-open on Redis trouble), closing the Phase-4 `RateLimit` stub. FR-BILL-007/009.
+- [x] 4.7.3 `usage:push_stripe` daily 02:00 (queue low) → metered plans with a live sub only; `PushUsage(action=set)` + `MarkPushed`; re-runnable via `pushed_at IS NULL`. FR-BILL-007.
+- [x] 4.7.4 `billing:reconcile` nightly 04:00 (queue critical) → new `StripeGateway.FetchSubscription` port; drift on (status, plan, period_end, cancel flag) → ERROR log + `billing_reconciliation_drift_total` + heal toward Stripe + cache bust. Stub gateway returns `billing.ErrReconcileUnsupported` ⇒ per-org skip (no remote to drift from) until MODE=live. 06 §8, ADR-010.
+- [x] 4.7.5 `Billing.Register(mux)` on the worker + 4 new `jobs.Schedule()` entries (queue opts per 09 §2; maintenance entries moved to queue low).
 
 ## Section 8 — Tests
 
-- [ ] 4.8.1 Unit: entitlement derivation + state machine (extends 4.2.6). FR-BILL-004.
-- [ ] 4.8.2 Webhook replay: same event ×5 concurrent → exactly one side-effect set (unique-violation dedup). 06 §9.
-- [ ] 4.8.3 Webhook out-of-order: `updated(created=T2)` then stale `(T1)` → mirror stays at T2. 06 §9.
-- [ ] 4.8.4 Webhook bad/expired signature → 400. 06 §9.
+- [x] 4.8.1 Unit: derivation/state machine from 4.2.6 still green; new suites — billing job handlers (drain TaskID/conflict, aggregate day-grain values, metered-only push, reconcile drift/heal/stub-skip w/ prom testutil) + rate-limit middleware (under/over/unlimited/no-tenant). FR-BILL-004.
+- [x] 4.8.2 Webhook replay ×5 concurrent → exactly one side-effect set — **first integration-tagged test** (`webhook_repo_integration_test.go`, `-tags=integration`, `TEST_DATABASE_URL`, skips when unset; `make test-integration` supplies the compose DSN). Verified against live docker Postgres. 06 §9.
+- [x] 4.8.3 Out-of-order: `updated(T2)` then stale `(T1)` → mirror stays at T2, `last_stripe_event_at` unregressed (same integration file, live-verified). 06 §9.
+- [x] 4.8.4 Bad/absent/tampered signature → 400, valid → 200 — HTTP handler test (`handlers/webhooks_test.go`) over the real stub gateway. 06 §9.
 
 ## Section 9 — E2E verify (dockerized)
 
-- [ ] 4.9.1 [VERIFY] `stripe trigger checkout.session.completed` (or crafted payload) → subscription `active`, entitlements upgraded, summary reflects plan. FR-BILL-002/005.
-- [ ] 4.9.2 [VERIFY] `stripe trigger invoice.payment_failed` → org `past_due`, OWNER notification/email enqueued. FR-BILL-006.
-- [ ] 4.9.3 [VERIFY] Exceed a Free limit (e.g. create project over cap) → `402 plan_limit_exceeded` with `limit` field. FR-BILL-009.
-- [ ] 4.9.4 [VERIFY] Write a `scratchpad/smoke4.ps1` covering summary→checkout(sim)→webhook→entitlement→invoices; all green.
+- [x] 4.9.1 [VERIFY] Crafted signed `checkout.session.completed` (stub HMAC, no stripe-cli) → 200, summary pro/active, replay deduped, bad sig 400. FR-BILL-002/005.
+- [x] 4.9.2 [VERIFY] `invoice.payment_failed` → `past_due` + warning flag; dunning email landed in Mailpit (proves outbox → drain → email:send → SMTP). FR-BILL-006.
+- [x] 4.9.3 [VERIFY] Free org 4th project → `402 plan_limit_exceeded {limit:max_projects, current:3, max:3}`; bonus: free-plan rate limit tripped 429 after ~57 rapid calls. FR-BILL-009.
+- [x] 4.9.4 [VERIFY] `scratchpad/smoke4.ps1` (PS 5.1) covers the full flow — ALL GREEN 2026-07-07. Also verified live: `usage:aggregate` populated 13 orgs × 3 metrics in `usage_records`; `billing:reconcile` ran (0 drift, stub skip); `billing_reconciliation_drift_total` exposed on worker :8081/metrics.
 
 ## Section 10 — Commit gate
 
-- [ ] 4.10.1 [VERIFY] `cd backend && go build ./... && go vet ./... && go test ./...` green.
-- [ ] 4.10.2 `git commit` (`feat(billing): phase 4 — stripe subscriptions, webhooks, entitlements, usage metering`); update README Current Position.
+- [x] 4.10.1 [VERIFY] `go build ./... && go vet ./... && go test ./...` green + `-tags=integration` green against the live stack.
+- [x] 4.10.2 Committed as a series on `feat/phase2-gap-closure`: §7 jobs, §7 rate limiting, §8 tests, §9–10 e2e + docs. README Current Position advanced.
 
 ---
 
 ## Definition of Done (Phase 4)
 
-- [ ] All BILL-001..009 (M) checks ticked; BILL-010/011 (S/C) optional.
-- [ ] Webhook consumer idempotent + out-of-order safe + signature-verified (4.8.2–4.8.4).
-- [ ] Entitlement middleware returns 402 on limit; cache bust on webhook.
-- [ ] Usage pipeline + reconciliation jobs registered and re-runnable.
-- [ ] E2E (Section 9) green against dockerized stack; committed. README advanced to Phase 5.
+- [x] All BILL-001..009 (M) checks ticked; BILL-010/011 (S/C) optional — not built (seat quantity mirroring TODO(seats) remains, 4.3.3).
+- [x] Webhook consumer idempotent + out-of-order safe + signature-verified (4.8.2–4.8.4, integration-verified live).
+- [x] Entitlement middleware returns 402 on limit; cache bust on webhook.
+- [x] Usage pipeline + reconciliation jobs registered and re-runnable (set-semantics upsert, pushed_at guard, stub-mode reconcile no-op).
+- [x] E2E (Section 9) green against dockerized stack; committed. README advanced to Phase 5.
