@@ -68,6 +68,18 @@ func PlanLimit(w http.ResponseWriter, limit string, current, max int64) {
 	}})
 }
 
+// RateLimited writes the 429 rate_limited envelope with the plan's per-minute
+// ceiling and a Retry-After hint (FR-BILL-009, api_rate_per_min).
+func RateLimited(w http.ResponseWriter, perMin int) {
+	w.Header().Set("Retry-After", "60")
+	JSON(w, http.StatusTooManyRequests, Envelope{Error: ErrorBody{
+		Code:      "rate_limited",
+		Message:   "API rate limit exceeded",
+		Details:   map[string]any{"limit": "api_rate_per_min", "max": perMin},
+		RequestID: w.Header().Get("X-Request-ID"),
+	}})
+}
+
 // statusFor is the one place domain sentinels become HTTP status codes
 // (docs/CLAUDE.md §Code Conventions). Codes match docs/08-API-SPEC.md §1.
 func statusFor(err error) (int, string) {

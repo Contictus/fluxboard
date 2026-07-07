@@ -28,6 +28,7 @@ type Deps struct {
 	Authenticator *mw.Authenticator
 	Tenant        *mw.TenantGuard
 	Entitlement   *mw.EntitlementGuard
+	RateLimit     *mw.RateLimiter // nil ⇒ no plan rate limiting (tests)
 }
 
 // NewRouter assembles the router. Infrastructure middleware wrap every route;
@@ -101,6 +102,9 @@ func NewRouter(d Deps) http.Handler {
 			// Org-scoped surface (docs/08 §4).
 			sec.Route("/orgs/{orgId}", func(o chi.Router) {
 				o.Use(d.Tenant.Resolve) // 6 (+ RLS scope inside usecases)
+				if d.RateLimit != nil {
+					o.Use(d.RateLimit.Limit) // 7: plan api_rate_per_min + usage counters (06 §5/§7)
+				}
 
 				read := func(obj string) func(http.Handler) http.Handler {
 					return d.Tenant.Require(obj, tenant.ActRead)
@@ -157,8 +161,8 @@ func NewRouter(d Deps) http.Handler {
 				o.Route("/tasks/{taskId}", func(t chi.Router) {
 					t.With(read(tenant.ObjOrg)).Get("/", d.Tasks.GetTask)
 					t.With(read(tenant.ObjOrg)).Patch("/", d.Tasks.UpdateTask)
-					t.With(read(tenant.ObjOrg)).Delete("/", d.Tasks.TrashTask)          // FR-TASK-009
-					t.With(read(tenant.ObjOrg)).Post("/restore", d.Tasks.RestoreTask)   // FR-TASK-009
+					t.With(read(tenant.ObjOrg)).Delete("/", d.Tasks.TrashTask)        // FR-TASK-009
+					t.With(read(tenant.ObjOrg)).Post("/restore", d.Tasks.RestoreTask) // FR-TASK-009
 					t.With(read(tenant.ObjOrg)).Patch("/position", d.Projects.MoveTask)
 					t.With(read(tenant.ObjOrg)).Get("/activity", d.Tasks.ListActivity)
 					// Attachments (FR-TASK-006). Presigned PUT/GET; API proxies no bytes.

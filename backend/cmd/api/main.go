@@ -246,6 +246,13 @@ func run(logger *slog.Logger) error {
 		Logger:       logger,
 	}
 
+	// Plan-tier rate limit + request-path usage counters (06 §5/§7, FR-BILL-009).
+	rateLimiter := &mw.RateLimiter{
+		Resolver: billingSvc,
+		Counter:  redisx.NewUsageCounter(rdb),
+		Logger:   logger,
+	}
+
 	router := httpx.NewRouter(httpx.Deps{
 		Logger:        logger,
 		WebOrigin:     cfg.WebOrigin,
@@ -260,6 +267,7 @@ func run(logger *slog.Logger) error {
 		Authenticator: authenticator,
 		Tenant:        tenantGuard,
 		Entitlement:   entitlementGuard,
+		RateLimit:     rateLimiter,
 	})
 
 	srv := &http.Server{
