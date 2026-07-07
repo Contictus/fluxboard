@@ -12,23 +12,21 @@ new session resumes with zero re-derivation.
 
 ## ▶ Current Position
 
-- **Phase:** 5 — Realtime + jobs (next up; Phase 4 COMPLETE)
-- **Next check:** `5.0.1` (open PHASE-5-REALTIME-JOBS.md at Section 0)
-- **Last verified commit:** `c80e6f0` (Phase 4 §8 tests; §7 jobs `e29f8c2`, §7 rate limiting `8ada86f`)
-- **Stack state:** migrations at `0012`; plans seeded; MODE=stub;
-  STRIPE_WEBHOOK_SECRET must be non-empty (stub HMAC key, see .env.example).
-  Phase 4 DONE end-to-end: billing endpoints + webhook live; worker runs
-  outbox:drain (5s, TaskID dedup) → email:send (OWNER mails via Mailpit),
-  usage:aggregate hourly (api_calls/active_members from Redis counters,
-  storage_bytes via SQL SUM — deviation from 06 §5 noted in 4.7.2),
-  usage:push_stripe daily, billing:reconcile nightly (stub ⇒ skip;
-  billing_reconciliation_drift_total on worker :8081). Org routes now enforce
-  plan api_rate_per_min (429) + meter usage (mw.RateLimiter). Queues
-  critical:6/default:3/low:1. First integration tests (-tags=integration,
-  TEST_DATABASE_URL) cover webhook replay/out-of-order on live Postgres;
-  scratchpad/smoke4.ps1 e2e ALL GREEN 2026-07-07. Phase 5 already has some
-  groundwork here: asynq server/scheduler, queue priorities, email:send, and
-  the outbox pattern — SSE + notification center are the main gaps.
+- **Phase:** 6 — Admin + observability (next up; Phase 5 COMPLETE)
+- **Next check:** open PHASE-6 (admin panel, audit log viewer, Prometheus/Grafana)
+- **Last verified commit:** `9cc6921` (Phase 5 §9 smoke5 + SSE fixes); §4 `14d5560`, §5 `b7c6719`, §6 `20ac75a`, §7 `8eda8bf`, §8 `08dc789`
+- **Stack state:** migrations at `0014` (0013 notifications/prefs/stats DDL, 0014 RLS);
+  plans seeded; MODE=stub. Phase 5 DONE end-to-end (smoke5.ps1 ALL GREEN 2026-07-07):
+  SSE stream `GET /orgs/{org}/events` over Redis Streams (`events:{org}`, XADD MAXLEN
+  ~1000; per-org consumer; Last-Event-ID replay; resync on flush/gap), notification
+  center (`/notifications` list/unread/read/read-all + `/prefs` matrix), fan-out
+  (@mention/assigned/comment/invite → in-app rows + email:send outbox, send-time pref
+  recheck), and jobs email:send (shared handler, dispatches billing vs notification)
+  + stats:rollup (nightly project_stats_daily). Producers (task/project/tenant/billing)
+  publish via notify.EventBus. **Deferred to Phase 6:** org:hard_delete, audit:retention,
+  webhook:retry (need privileged/admin infra — see PHASE-5 §7 deferral note). Two SSE
+  bugs fixed in §9: logging statusWriter now passes through http.Flusher; Replay returns
+  gap on an empty stream. Phase-4 billing jobs + rate limiting still live.
 
 Update these four lines whenever a section closes.
 

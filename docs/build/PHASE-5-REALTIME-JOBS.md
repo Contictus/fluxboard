@@ -123,15 +123,15 @@ Wire invariants: `v:1` schema version on every payload; `actor_id` always presen
 
 ## Section 10 — Commit gate
 
-- [ ] 5.10.1 [VERIFY] `cd backend && go build ./... && go vet ./... && go test ./...` green.
-- [ ] 5.10.2 `git commit` (`feat(realtime): phase 5 — SSE stream, notifications, async jobs`); update README Current Position.
+- [x] 5.10.1 [VERIFY] `cd backend && go build ./... && go vet ./... && go test ./...` green. — build ok, `go vet` clean, **126 tests pass in 41 packages**; smoke5 green against the live stack.
+- [x] 5.10.2 `git commit` (`feat(realtime): phase 5 — SSE stream, notifications, async jobs`); update README Current Position. — committed across §4–§10 (`feat(realtime): phase 5 §N …`); README Current Position advanced to Phase 6.
 
 ---
 
 ## Definition of Done (Phase 5)
 
-- [ ] NTF-001..003 (M) ticked; NTF-004 (S) optional (prefs API done, UI is Phase 7).
-- [ ] SSE fan-out via Redis Stream, replay + resync working (5.9.1–5.9.2/5.9.4).
-- [ ] Notification fan-out + email via outbox; prefs honored at send-time.
-- [ ] All 09 §2 jobs registered, idempotent, per-org isolated.
-- [ ] E2E green; committed. README advanced to Phase 6.
+- [x] NTF-001..003 (M) ticked; NTF-004 (S) optional (prefs API done, UI is Phase 7). — SSE (NTF-001), notification center + fan-out (NTF-002), send-time prefs (NTF-003) complete; NTF-004 prefs API (`GET/PUT …/notifications/prefs`) shipped, UI deferred to Phase 7.
+- [x] SSE fan-out via Redis Stream, replay + resync working (5.9.1–5.9.2/5.9.4). — verified by smoke5.
+- [x] Notification fan-out + email via outbox; prefs honored at send-time. — email:send rechecks `PrefRepository.Get` before delivery (5.9.3).
+- [~] All 09 §2 jobs registered, idempotent, per-org isolated. — email:send/stats:rollup + the Phase-4 outbox/usage/reconcile jobs are live; `org:hard_delete`/`audit:retention`/`webhook:retry` deferred to Phase 6 (see §7 deferral note — missing privileged/admin infra).
+- [x] E2E green; committed. README advanced to Phase 6.
