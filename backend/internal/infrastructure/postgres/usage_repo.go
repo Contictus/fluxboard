@@ -29,6 +29,21 @@ func (r *UsageRepo) Upsert(ctx context.Context, orgID string, rec billing.UsageR
 	})
 }
 
+// StorageBytes returns the org's total committed attachment bytes — the
+// storage_bytes usage metric is computed straight from Postgres (SUM) at
+// aggregate time rather than via a Redis gauge (deviation from 06 §5 recorded
+// in docs/build/PHASE-4-BILLING.md §4.7.2: simpler and drift-free).
+func (r *UsageRepo) StorageBytes(ctx context.Context, orgID string) (int64, error) {
+	var n int64
+	err := r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
+		oid, _ := parseUUID(orgID)
+		var err error
+		n, err = q.SumOrgAttachmentBytes(ctx, oid)
+		return err
+	})
+	return n, err
+}
+
 func (r *UsageRepo) ListForPush(ctx context.Context, orgID string, day time.Time) ([]billing.UsageRecord, error) {
 	var out []billing.UsageRecord
 	err := r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {

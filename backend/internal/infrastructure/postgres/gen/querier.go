@@ -139,6 +139,8 @@ type Querier interface {
 	// Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role
 	// and text (name/email) filters; the (created_at,user_id) cursor is exclusive.
 	ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]ListMembersFilteredRow, error)
+	// OWNER addresses for billing notifications (dunning/cancel emails, 06 §4).
+	ListOrgOwnerEmails(ctx context.Context, orgID uuid.UUID) ([]string, error)
 	// Pending rows older than the cutoff (never PUT or never confirmed) — the nightly
 	// orphan GC removes their objects then their rows (per-tenant).
 	ListOrphanAttachments(ctx context.Context, arg ListOrphanAttachmentsParams) ([]Attachment, error)

@@ -17,7 +17,9 @@ var (
 	proPlan  = billing.Plan{Code: billing.PlanPro, MaxMembers: 25, MaxProjects: 50, MaxStorageBytes: 50 << 30, APIRatePerMin: 300, AuditRetentionDays: 30}
 )
 
-type fakePlans struct{ m map[billing.PlanCode]billing.Plan }
+type fakePlans struct {
+	m map[billing.PlanCode]billing.Plan
+}
 
 func (f *fakePlans) Get(_ context.Context, c billing.PlanCode) (*billing.Plan, error) {
 	if p, ok := f.m[c]; ok {
@@ -105,14 +107,19 @@ func (f *fakeGateway) UpdateSubscription(_ context.Context, _ string, p billing.
 	f.updatedPlan, f.updateIdem = p, idem
 	return nil
 }
-func (f *fakeGateway) CancelSubscription(context.Context, string, bool) error         { return nil }
-func (f *fakeGateway) Resume(context.Context, string) error                            { return nil }
-func (f *fakeGateway) PortalSession(context.Context, string, string) (string, error)   { return "https://portal", nil }
+func (f *fakeGateway) CancelSubscription(context.Context, string, bool) error { return nil }
+func (f *fakeGateway) Resume(context.Context, string) error                   { return nil }
+func (f *fakeGateway) PortalSession(context.Context, string, string) (string, error) {
+	return "https://portal", nil
+}
 func (f *fakeGateway) PushUsage(context.Context, string, billing.UsageMetric, int64, time.Time) error {
 	return nil
 }
 func (f *fakeGateway) ConstructEvent([]byte, string) (billing.StripeEvent, error) {
 	return billing.StripeEvent{}, nil
+}
+func (f *fakeGateway) FetchSubscription(context.Context, string) (*billing.StripeSubscription, error) {
+	return nil, billing.ErrReconcileUnsupported
 }
 
 type fakeCache struct {

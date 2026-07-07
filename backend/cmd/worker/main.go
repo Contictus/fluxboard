@@ -19,11 +19,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/mesutokul/fluxboard/backend/internal/config"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
+	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/mailer"
 	miniox "github.com/mesutokul/fluxboard/backend/internal/infrastructure/minio"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres"
+	redisx "github.com/mesutokul/fluxboard/backend/internal/infrastructure/redis"
+	stripex "github.com/mesutokul/fluxboard/backend/internal/infrastructure/stripe"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/jobs"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 )
@@ -76,18 +80,51 @@ func run(logger *slog.Logger) error {
 	maintenance := jobs.NewMaintenance(taskSvc, maintenanceRepo, logger)
 
 	// Metrics endpoint on its own port (scraped separately from the api).
-	metricsSrv := startMetrics(logger, cfg.WorkerMetricsAddr)
+	metricsSrv, metricsReg := startMetrics(logger, cfg.WorkerMetricsAddr)
 
 	redisOpt := asynq.RedisClientOpt{Addr: cfg.RedisAddr}
 	srv := asynq.NewServer(redisOpt, asynq.Config{
 		Concurrency: 10,
+		Queues:      jobs.Queues(), // critical:6 default:3 low:1 (09 §2)
 		Logger:      asynqLogger{logger},
 	})
 
-	// TODO(phase4/5): register the remaining handlers (email, usage aggregation,
-	// stats rollup, webhook retry, org hard-delete, audit purge).
+	// Billing jobs (Phase 4 §7): outbox drain, usage pipeline, reconciliation.
+	stripeGW, err := stripex.New(cfg.StripeMode, cfg.StripeWebhookSecret, cfg.WebOrigin)
+	if err != nil {
+		return err
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	defer rdb.Close()
+	asynqClient := asynq.NewClient(redisOpt)
+	defer asynqClient.Close()
+	driftCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "billing_reconciliation_drift_total",
+		Help: "Subscriptions found drifted from Stripe by the nightly reconcile (06 §8).",
+	})
+	metricsReg.MustRegister(driftCounter)
+	membershipRepo := postgres.NewMembershipRepo(tenantPool)
+	billingJobs := jobs.NewBilling(jobs.BillingDeps{
+		Outbox:      postgres.NewOutboxRepo(tenantPool),
+		Usage:       postgres.NewUsageRepo(tenantPool),
+		Subs:        postgres.NewSubscriptionRepo(tenantPool),
+		Plans:       postgres.NewPlanRepo(pool),
+		Gateway:     stripeGW,
+		Cache:       redisx.NewEntitlementCache(rdb),
+		Counters:    redisx.NewUsageCounter(rdb),
+		Mailer:      mailer.New(mailer.Config{Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUser, Password: cfg.SMTPPassword, From: cfg.SMTPFrom, WebOrigin: cfg.WebOrigin}, logger),
+		OwnerEmails: membershipRepo.ListOwnerEmails,
+		Client:      asynqClient,
+		Drift:       driftCounter,
+		Orgs:        maintenanceRepo,
+		Logger:      logger,
+	})
+
+	// TODO(phase5): register the remaining handlers (stats rollup, webhook
+	// retry, org hard-delete, audit purge).
 	mux := asynq.NewServeMux()
 	maintenance.Register(mux)
+	billingJobs.Register(mux)
 
 	if err := srv.Start(mux); err != nil {
 		return err
@@ -97,7 +134,7 @@ func run(logger *slog.Logger) error {
 	// Scheduler enqueues the periodic maintenance tasks (docs/01 §TASK).
 	scheduler := asynq.NewScheduler(redisOpt, &asynq.SchedulerOpts{Logger: asynqLogger{logger}})
 	for _, e := range jobs.Schedule() {
-		if _, err := scheduler.Register(e.Cron, e.Task); err != nil {
+		if _, err := scheduler.Register(e.Cron, e.Task, e.Opts...); err != nil {
 			return err
 		}
 	}
@@ -138,7 +175,7 @@ func loadObjectStore(ctx context.Context, cfg *config.Config, logger *slog.Logge
 	return store
 }
 
-func startMetrics(logger *slog.Logger, addr string) *http.Server {
+func startMetrics(logger *slog.Logger, addr string) (*http.Server, *prometheus.Registry) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector())
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -152,7 +189,7 @@ func startMetrics(logger *slog.Logger, addr string) *http.Server {
 			logger.Error("metrics server error", "err", err)
 		}
 	}()
-	return srv
+	return srv, reg
 }
 
 // asynqLogger adapts slog to asynq.Logger.

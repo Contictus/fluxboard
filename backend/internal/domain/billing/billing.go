@@ -7,8 +7,14 @@ package billing
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 )
+
+// ErrReconcileUnsupported is returned by StripeGateway.FetchSubscription when
+// the gateway cannot read remote subscription state (MODE=stub has no remote —
+// there is nothing to drift from). The reconcile job skips the org on it.
+var ErrReconcileUnsupported = errors.New("billing: gateway does not support subscription fetch")
 
 // ---- Plans ----------------------------------------------------------------
 

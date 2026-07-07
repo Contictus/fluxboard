@@ -82,6 +82,12 @@ func (g *StubGateway) PushUsage(context.Context, string, billing.UsageMetric, in
 	return nil
 }
 
+// FetchSubscription has no remote to read under MODE=stub; the reconcile job
+// treats ErrReconcileUnsupported as "skip org" (nothing to drift from).
+func (g *StubGateway) FetchSubscription(context.Context, string) (*billing.StripeSubscription, error) {
+	return nil, billing.ErrReconcileUnsupported
+}
+
 // stubEvent is the crafted webhook wire format for MODE=stub. It mirrors the
 // gateway-normalized billing.StripeEvent so tests can post exactly what the
 // consumer expects (the real adapter maps stripe-go's Event to the same shape).

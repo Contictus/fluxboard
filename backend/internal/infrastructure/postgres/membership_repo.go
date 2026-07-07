@@ -159,6 +159,20 @@ func (r *MembershipRepo) CountMembers(ctx context.Context, orgID string) (int64,
 	return n, err
 }
 
+// ListOwnerEmails returns the org's OWNER addresses for billing notifications
+// (dunning/cancel emails, docs/06-BILLING.md §4). Concrete-only (not on
+// MembershipRepository) — called by the worker's email:send handler.
+func (r *MembershipRepo) ListOwnerEmails(ctx context.Context, orgID string) ([]string, error) {
+	var emails []string
+	err := r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
+		oid, _ := parseUUID(orgID)
+		var err error
+		emails, err = q.ListOrgOwnerEmails(ctx, oid)
+		return err
+	})
+	return emails, err
+}
+
 func (r *MembershipRepo) TransferOwnership(ctx context.Context, orgID, fromUserID, toUserID string) error {
 	fromID, err := parseUUID(fromUserID)
 	if err != nil {

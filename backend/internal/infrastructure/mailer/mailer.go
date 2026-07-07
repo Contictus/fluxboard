@@ -68,6 +68,45 @@ func (m *Mailer) SendInvitation(ctx context.Context, to, orgName, rawToken strin
 			"\n\nThis invitation expires in 7 days.")
 }
 
+// billingTemplates maps an outbox email template name (produced by the webhook
+// consumer, docs/06-BILLING.md §4) to its subject and body. The billing link
+// points at the org-agnostic billing page; the recipient is always an OWNER.
+var billingTemplates = map[string]struct{ subject, body string }{
+	"billing.welcome": {
+		"Your Fluxboard subscription is active",
+		"Thanks for subscribing — your plan is now active.\n\nManage it any time under Settings → Billing:",
+	},
+	"billing.canceled": {
+		"Your Fluxboard subscription has ended",
+		"Your subscription has been canceled and the organization is back on the Free plan.\n\nResubscribe under Settings → Billing:",
+	},
+	"billing.dunning": {
+		"Action required: payment failed",
+		"The latest payment for your Fluxboard subscription failed. Please update your payment method to keep your plan:\n\n",
+	},
+	"billing.resolved": {
+		"Payment received — subscription restored",
+		"Your payment went through and your subscription is active again.\n\n",
+	},
+}
+
+// SendBilling delivers a billing notification to each recipient. Unknown
+// templates error so a bad outbox row surfaces in the dead queue instead of
+// silently dropping (09 §2 handler contract).
+func (m *Mailer) SendBilling(ctx context.Context, to []string, template string) error {
+	t, ok := billingTemplates[template]
+	if !ok {
+		return fmt.Errorf("mailer: unknown billing template %q", template)
+	}
+	link := strings.TrimRight(m.cfg.WebOrigin, "/") + "/settings/billing" // sitemap 02 §settings
+	for _, rcpt := range to {
+		if err := m.send(ctx, rcpt, t.subject, t.body+"\n"+link); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // link builds {WebOrigin}{path}?token=<raw>.
 func (m *Mailer) link(path, rawToken string) string {
 	base := strings.TrimRight(m.cfg.WebOrigin, "/")

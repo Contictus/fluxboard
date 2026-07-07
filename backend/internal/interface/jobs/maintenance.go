@@ -45,9 +45,10 @@ func (m *Maintenance) Register(mux *asynq.ServeMux) {
 }
 
 // forEachOrg runs fn under every active tenant, logging and continuing past a
-// single tenant's failure so one bad org never stalls the whole sweep.
-func (m *Maintenance) forEachOrg(ctx context.Context, job string, fn func(orgID string) (int, error)) error {
-	ids, err := m.orgs.ListActiveOrgIDs(ctx)
+// single tenant's failure so one bad org never stalls the whole sweep (09 §2
+// per-org error isolation). Shared by the maintenance and billing jobs.
+func forEachOrg(ctx context.Context, orgs OrgLister, logger *slog.Logger, job string, fn func(orgID string) (int, error)) error {
+	ids, err := orgs.ListActiveOrgIDs(ctx)
 	if err != nil {
 		return err
 	}
@@ -55,13 +56,17 @@ func (m *Maintenance) forEachOrg(ctx context.Context, job string, fn func(orgID 
 	for _, orgID := range ids {
 		n, err := fn(orgID)
 		if err != nil {
-			m.logger.Error("maintenance job: org failed", "job", job, "org", orgID, "err", err)
+			logger.Error("job: org failed", "job", job, "org", orgID, "err", err)
 			continue
 		}
 		total += n
 	}
-	m.logger.Info("maintenance job complete", "job", job, "orgs", len(ids), "reclaimed", total)
+	logger.Info("job complete", "job", job, "orgs", len(ids), "processed", total)
 	return nil
+}
+
+func (m *Maintenance) forEachOrg(ctx context.Context, job string, fn func(orgID string) (int, error)) error {
+	return forEachOrg(ctx, m.orgs, m.logger, job, fn)
 }
 
 // handleTrashPurge hard-deletes tasks past the Trash retention window (FR-TASK-009).
@@ -78,17 +83,24 @@ func (m *Maintenance) handleAttachmentGC(ctx context.Context, _ *asynq.Task) err
 	})
 }
 
-// ScheduleEntry is one periodic-schedule registration (cron spec + task).
+// ScheduleEntry is one periodic-schedule registration (cron spec + task +
+// enqueue options, e.g. the target queue per 09 §2 priorities).
 type ScheduleEntry struct {
 	Cron string
 	Task *asynq.Task
+	Opts []asynq.Option
 }
 
 // Schedule returns the periodic entries the worker registers with an
-// asynq.Scheduler. Both run nightly, offset so they do not contend.
+// asynq.Scheduler. Queues follow 09 §2: billing sync + outbox drain on
+// critical, rollups/GC on low. Nightly jobs are offset so they do not contend.
 func Schedule() []ScheduleEntry {
 	return []ScheduleEntry{
-		{Cron: "0 3 * * *", Task: asynq.NewTask(TypeTrashPurge, nil)},
-		{Cron: "30 3 * * *", Task: asynq.NewTask(TypeAttachmentGC, nil)},
+		{Cron: "0 3 * * *", Task: asynq.NewTask(TypeTrashPurge, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}},
+		{Cron: "30 3 * * *", Task: asynq.NewTask(TypeAttachmentGC, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}},
+		{Cron: "@every 5s", Task: asynq.NewTask(TypeOutboxDrain, nil), Opts: []asynq.Option{asynq.Queue(QueueCritical)}},
+		{Cron: "0 * * * *", Task: asynq.NewTask(TypeUsageAggregate, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}},
+		{Cron: "0 2 * * *", Task: asynq.NewTask(TypeUsagePushStripe, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}},
+		{Cron: "0 4 * * *", Task: asynq.NewTask(TypeBillingReconcile, nil), Opts: []asynq.Option{asynq.Queue(QueueCritical)}},
 	}
 }

@@ -178,6 +178,10 @@ type StripeGateway interface {
 	PortalSession(ctx context.Context, customerID, returnURL string) (string, error)
 	// PushUsage reports a metered aggregate to Stripe with action=set (06 §5).
 	PushUsage(ctx context.Context, subscriptionID string, metric UsageMetric, quantity int64, ts time.Time) error
+	// FetchSubscription reads the authoritative remote subscription state for
+	// the nightly reconcile (06 §8, ADR-010). Returns ErrReconcileUnsupported
+	// when the gateway has no remote to read (MODE=stub).
+	FetchSubscription(ctx context.Context, subscriptionID string) (*StripeSubscription, error)
 	// ConstructEvent verifies the signature and normalizes the payload.
 	// Returns domain.ErrValidation on a bad/expired signature.
 	ConstructEvent(payload []byte, sigHeader string) (StripeEvent, error)

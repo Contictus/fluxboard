@@ -109,6 +109,14 @@ SELECT count(*) FROM memberships WHERE org_id = @org_id AND role = @role;
 -- Total member (seat) count for the plan-limit gate (FR-BILL-009).
 SELECT count(*) FROM memberships WHERE org_id = @org_id;
 
+-- name: ListOrgOwnerEmails :many
+-- OWNER addresses for billing notifications (dunning/cancel emails, 06 §4).
+SELECT u.email
+FROM memberships m
+JOIN users u ON u.id = m.user_id
+WHERE m.org_id = @org_id AND m.role = 'OWNER'
+ORDER BY u.email;
+
 -- Invitations ([T], tenant-scoped) ------------------------------------------
 
 -- name: CreateInvitation :exec

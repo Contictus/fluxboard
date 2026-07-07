@@ -464,6 +464,35 @@ func (q *Queries) ListMembersFiltered(ctx context.Context, arg ListMembersFilter
 	return items, nil
 }
 
+const listOrgOwnerEmails = `-- name: ListOrgOwnerEmails :many
+SELECT u.email
+FROM memberships m
+JOIN users u ON u.id = m.user_id
+WHERE m.org_id = $1 AND m.role = 'OWNER'
+ORDER BY u.email
+`
+
+// OWNER addresses for billing notifications (dunning/cancel emails, 06 §4).
+func (q *Queries) ListOrgOwnerEmails(ctx context.Context, orgID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listOrgOwnerEmails, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			return nil, err
+		}
+		items = append(items, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingInvitations = `-- name: ListPendingInvitations :many
 SELECT id, org_id, email, role, token_hash, invited_by,
        expires_at, accepted_at, revoked_at, created_at
