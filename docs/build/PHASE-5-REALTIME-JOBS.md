@@ -13,25 +13,55 @@ notification fan-out + outbox e2e green.
 
 ## Section 0 — Prereqs & decisions
 
-- [ ] 5.0.1 [VERIFY] Confirm Phase-4 `outbox` table + `outbox:drain` job exist (dependency). If billing was stubbed, ensure outbox landed regardless.
-- [ ] 5.0.2 [DECISION] Confirm fan-out = **Redis Stream per org** (`events:{orgId}`, XADD MAXLEN ~1000), per 09 §1 — records the horizontal-scale rationale.
-- [ ] 5.0.3 Freeze the event catalog + wire format in this file: `task.created|updated|moved|deleted|restored`, `comment.created`, `member.joined|left|role_changed`, `membership.revoked`, `notification.created`, `billing.status_changed`, `resync`. 09 §1.
+- [x] 5.0.1 [VERIFY] Confirm Phase-4 `outbox` table + `outbox:drain` job exist (dependency). If billing was stubbed, ensure outbox landed regardless. — `outbox` [T] in `0011_billing.up.sql` (partial index `outbox_undrained_idx WHERE drained_at IS NULL`); `outbox:drain` handler + `@every 5s` schedule live in `internal/interface/jobs/billing.go` (TaskID=`outbox:{id}` dedup, queue `critical`). Landed regardless of stub.
+- [x] 5.0.2 [DECISION] Confirm fan-out = **Redis Stream per org** (`events:{orgId}`, XADD MAXLEN ~1000), per 09 §1 — records the horizontal-scale rationale. **CONFIRMED**: Redis Stream per org. Rationale (09 §1): stream is the bus, so any API replica serves any subscriber (horizontal scale); ~1000 MAXLEN ≈ 5 min history bounds replay window; entry ID doubles as `Last-Event-ID`. No Postgres LISTEN/NOTIFY (doesn't survive multi-replica + no replay).
+- [x] 5.0.3 Freeze the event catalog + wire format in this file (see **Frozen event catalog** block below). 09 §1.
+
+### Frozen event catalog (5.0.3)
+
+Producers publish `notify.Event{ID, Name, Data, ActorID}` → `EventBus.Publish(orgID, ev)` → XADD `events:{orgId}` MAXLEN ~1000. SSE frame:
+
+```
+id: <redis-stream-entry-id>          ← doubles as Last-Event-ID
+event: <name>
+data: <compact-json of Data, includes "actor_id" and "v":1>
+```
+
+| Event name | Data payload keys | Targeting |
+|---|---|---|
+| `task.created` | task_id, project_key, column_id, title, actor_id, v | broadcast (org) |
+| `task.updated` | task_id, project_key, fields[], actor_id, v | broadcast |
+| `task.moved` | task_id, project_key, from_column, to_column, rank, actor_id, v | broadcast |
+| `task.deleted` | task_id, project_key, actor_id, v | broadcast |
+| `task.restored` | task_id, project_key, actor_id, v | broadcast |
+| `comment.created` | task_id, comment_id, project_key, actor_id, v | broadcast |
+| `member.joined` | user_id, role, actor_id, v | broadcast |
+| `member.left` | user_id, actor_id, v | broadcast |
+| `member.role_changed` | user_id, role, actor_id, v | broadcast |
+| `membership.revoked` | user_id, actor_id, v | targeted (that user hard-redirects out of org) |
+| `notification.created` | notification_id, category, user_id, actor_id, v | targeted by user_id (client-side filter) |
+| `billing.status_changed` | status, plan_code, actor_id, v | broadcast |
+| `resync` | (empty) | server-emitted on replay gap; client invalidates caches |
+
+Wire invariants: `v:1` schema version on every payload; `actor_id` always present so a client skips its own optimistic-applied events (`actor_id === me`); targeted events are filtered client-side (payload carries `user_id`), not by separate streams — one stream per org keeps the consumer model simple. Event-name constants live in `internal/domain/notify/event.go`.
 
 ## Section 1 — Migrations (0013 DDL, 0014 RLS)
 
-- [ ] 5.1.1 `0013_notifications.up.sql`: `notifications` [T] (id, org_id, user_id, category, title, body, entity_type, entity_id, read_at, created_at) + index (org_id,user_id,read_at). FR-NTF-002. 90-day retention.
-- [ ] 5.1.2 `0013`: `notification_prefs` [T] (org_id, user_id, category, email bool, in_app bool, `PK(org_id,user_id,category)`). FR-NTF-004.
-- [ ] 5.1.3 `0013`: `project_stats_daily` [T] (org_id, project_id, day, completed_count, created_count, per-column counts jsonb, cycle_time_secs, `UNIQUE(project_id,day)`) — backs `stats:rollup` here + analytics reads in Phase 6. FR-AN-001.
-- [ ] 5.1.4 `0013.down.sql` + `0014_realtime_rls.up/.down.sql`: RLS `tenant_isolation` on all three (copy 0008 pattern).
-- [ ] 5.1.5 [VERIFY] `migrate up`/`down 2`/`up` clean on 0013/0014.
+- [x] 5.1.1 `0013_notifications.up.sql`: `notifications` [T] (id, org_id, user_id, category, title, body, entity_type, entity_id, read_at, created_at) + index (org_id,user_id,read_at). FR-NTF-002. 90-day retention. — two indexes: `notifications_user_idx (org_id,user_id,created_at DESC)` for list, partial `notifications_unread_idx … WHERE read_at IS NULL` for unread-count.
+- [x] 5.1.2 `0013`: `notification_prefs` [T] (org_id, user_id, category, email bool, in_app bool, `PK(org_id,user_id,category)`). FR-NTF-004.
+- [x] 5.1.3 `0013`: `project_stats_daily` [T] (org_id, project_id, day, completed_count, created_count, per-column counts jsonb, cycle_time_secs, `UNIQUE(project_id,day)`) — backs `stats:rollup` here + analytics reads in Phase 6. FR-AN-001. — column names follow 07 §4 (`column_snapshot`, `avg_cycle_seconds`); `PRIMARY KEY (project_id, day)` + `project_stats_daily_org_idx (org_id, day DESC)`.
+- [x] 5.1.4 `0013.down.sql` + `0014_realtime_rls.up/.down.sql`: RLS `tenant_isolation` on all three (copy 0008 pattern).
+- [x] 5.1.5 [VERIFY] `migrate up`/`down 2`/`up` clean on 0013/0014. — verified against live compose Postgres: `13/u`,`14/u` → `14/d`,`13/d` → `13/u`,`14/u` all clean.
+
+> **Schema-shape decision (07 §4 vs this tracker conflict).** docs/07 §4 models `notifications` as `(kind, payload jsonb)` and `notification_prefs` as channel-rows `(user_id, category, channel, enabled)` with **no org_id**. This tracker (5.1.1/5.1.2) specifies structured notification columns and a `email/in_app` matrix keyed by `(org_id,user_id,category)`. **Followed the tracker** (same precedent as Phase 4, where 0011 evolved past 07): structured columns give the list endpoint render-ready rows; the prefs matrix keyed by org_id satisfies invariant #1 (every [T] table carries org_id for RLS) — the org_id-less 07 prefs shape could not be RLS-isolated. Recorded here rather than as a silent improvisation.
 
 ## Section 2 — Domain (`internal/domain/notify/`)
 
-- [ ] 5.2.1 `notify.go`: `Notification` model; `Category` enum (task_assigned, mention, comment, invite_accepted, billing); `Channel` enum (email, in_app); `Pref` model.
-- [ ] 5.2.2 `event.go`: `Event` type (id, name, data, actorID) + event-name constants from the catalog (5.0.3).
-- [ ] 5.2.3 `ports.go`: `NotificationRepository`, `PrefRepository` (orgID-first) + `StatsRepository` (project_stats_daily upsert).
-- [ ] 5.2.4 `ports.go`: `EventBus` (Publish(orgID, Event), Subscribe(orgID)→channel, Replay(orgID, lastID)→(events, gap bool)).
-- [ ] 5.2.5 [VERIFY] Unit: pref resolution — opt-out honored; transactional auth-email categories (verify/reset) bypass prefs via whitelist. FR-NTF-003.
+- [x] 5.2.1 `notify.go`: `Notification` model; `Category` enum (task_assigned, mention, comment, invite_accepted, billing); `Channel` enum (email, in_app); `Pref` model. — package is `internal/domain/notify` (matches `notifyuc`; empty `domain/notification` scaffold removed). Adds `WantsChannel`/`DefaultPref` resolution + `CenterCategories()`; `ProjectStat` rollup grain lives here too.
+- [x] 5.2.2 `event.go`: `Event` type (id, name, data, actorID) + event-name constants from the catalog (5.0.3). — `Event.ID` assigned by the bus on publish; `NewEvent` helper; all 13 catalog name constants.
+- [x] 5.2.3 `ports.go`: `NotificationRepository`, `PrefRepository` (orgID-first) + `StatsRepository` (project_stats_daily upsert). — NotificationRepository has CreateBatch/List(ListFilter cursor)/UnreadCount/MarkRead/MarkAllRead; PrefRepository GetForUser/Get(send-time)/Upsert; StatsRepository ProjectIDs/ComputeDay/Upsert.
+- [x] 5.2.4 `ports.go`: `EventBus` (Publish(orgID, Event), Subscribe(orgID)→channel, Replay(orgID, lastID)→(events, gap bool)). — Subscribe returns (chan, cancel func); Publish returns assigned entry id; Replay returns (events, gap bool).
+- [x] 5.2.5 [VERIFY] Unit: pref resolution — opt-out honored; transactional auth-email categories (verify/reset) bypass prefs via whitelist. FR-NTF-003. — `notify_test.go` 6 tests green (default opt-in, opt-out honored, transactional bypass, category validity/transactional, default pref).
 
 ## Section 3 — Usecase (`internal/usecase/notifyuc/`)
 
