@@ -109,10 +109,10 @@ Wire invariants: `v:1` schema version on every payload; `actor_id` always presen
 
 ## Section 8 — Tests
 
-- [ ] 5.8.1 Unit: pref resolution + auth-email whitelist (extends 5.2.5).
-- [ ] 5.8.2 Replay/resync: reconnect with stale `Last-Event-ID` beyond retention → `resync`. 09 §4.
-- [ ] 5.8.3 Outbox drain: drainer down then up → backlog drains, no duplicate emails (TaskID dedup). 09 §4.
-- [ ] 5.8.4 Fan-out: comment with @mention → notification row + `email:send` outbox for opted-in target only.
+- [x] 5.8.1 Unit: pref resolution + auth-email whitelist (extends 5.2.5). — `domain/notify/notify_test.go` (default opt-in, opt-out honored, transactional bypass) + the send-time recheck exercised in `jobs/notifications_test.go` (opted-out ⇒ not mailed).
+- [x] 5.8.2 Replay/resync: reconnect with stale `Last-Event-ID` beyond retention → `resync`. 09 §4. — `notifyuc/service_test.go`: `StreamInit` empty-id ⇒ no backlog, valid id ⇒ replays, gap ⇒ resync=true+no backlog.
+- [x] 5.8.3 Outbox drain: drainer down then up → backlog drains, no duplicate emails (TaskID dedup). 09 §4. — covered by `jobs/billing_test.go` (`TestOutboxDrainEnqueuesWithTaskID`, `TestOutboxDrainTaskIDConflictIsSuccess`): TaskID=`outbox:{id}`, conflict treated as success.
+- [x] 5.8.4 Fan-out: comment with @mention → notification row + `email:send` outbox for opted-in target only. — `notifyuc/service_test.go TestFanOutComment_MentionRowAndEmailForOptedInOnly`: @mention + comment-target rows, actor never self-notified, email outbox only for the email-opted-in target.
 
 ## Section 9 — E2E verify (dockerized)
 
