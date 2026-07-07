@@ -60,8 +60,12 @@ web: ## Run the Next.js dev server (Phase 7 stub)
 test: ## Run unit tests
 	cd backend && go test ./...
 
-test-integration: ## Run testcontainers integration suites (grows per phase)
-	cd backend && go test -tags=integration ./...
+# Integration DSN targets the app role on the HOST-exposed postgres port
+# (compose stack up + migrated). Override for CI.
+TEST_DATABASE_URL ?= postgres://fluxboard_app:app_pw@localhost:5432/fluxboard?sslmode=disable
+
+test-integration: ## Run integration suites against the compose stack (make up + migrate first)
+	cd backend && TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -tags=integration ./...
 
 lint: ## Run golangci-lint + go-arch-lint dependency check
 	cd backend && golangci-lint run ./...
