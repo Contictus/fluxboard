@@ -103,6 +103,7 @@ func run(logger *slog.Logger) error {
 		Help: "Subscriptions found drifted from Stripe by the nightly reconcile (06 §8).",
 	})
 	metricsReg.MustRegister(driftCounter)
+	mail := mailer.New(mailer.Config{Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUser, Password: cfg.SMTPPassword, From: cfg.SMTPFrom, WebOrigin: cfg.WebOrigin}, logger)
 	membershipRepo := postgres.NewMembershipRepo(tenantPool)
 	billingJobs := jobs.NewBilling(jobs.BillingDeps{
 		Outbox:      postgres.NewOutboxRepo(tenantPool),
@@ -112,7 +113,7 @@ func run(logger *slog.Logger) error {
 		Gateway:     stripeGW,
 		Cache:       redisx.NewEntitlementCache(rdb),
 		Counters:    redisx.NewUsageCounter(rdb),
-		Mailer:      mailer.New(mailer.Config{Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUser, Password: cfg.SMTPPassword, From: cfg.SMTPFrom, WebOrigin: cfg.WebOrigin}, logger),
+		Mailer:      mail,
 		OwnerEmails: membershipRepo.ListOwnerEmails,
 		Client:      asynqClient,
 		Drift:       driftCounter,
@@ -120,11 +121,22 @@ func run(logger *slog.Logger) error {
 		Logger:      logger,
 	})
 
-	// TODO(phase5): register the remaining handlers (stats rollup, webhook
-	// retry, org hard-delete, audit purge).
+	// Phase 5 §7: notification email delivery (send-time pref recheck) + the
+	// nightly project-stats rollup. Notify owns the shared email:send handler and
+	// delegates billing-shaped payloads to billingJobs.HandleEmailSend.
+	notifyJobs := jobs.NewNotify(jobs.NotifyDeps{
+		Prefs:        postgres.NewPrefRepo(tenantPool),
+		Stats:        postgres.NewStatsRepo(tenantPool),
+		Mailer:       mail,
+		Orgs:         maintenanceRepo,
+		BillingEmail: billingJobs.HandleEmailSend,
+		Logger:       logger,
+	})
+
 	mux := asynq.NewServeMux()
 	maintenance.Register(mux)
 	billingJobs.Register(mux)
+	notifyJobs.Register(mux)
 
 	if err := srv.Start(mux); err != nil {
 		return err

@@ -100,10 +100,12 @@ func NewBilling(d BillingDeps) *Billing {
 	return &Billing{d: d}
 }
 
-// Register wires the handlers onto an Asynq mux.
+// Register wires the handlers onto an Asynq mux. email:send is intentionally
+// NOT registered here: the outbox carries both billing and notification email
+// rows under the same kind, so the Notify job owns the single email:send handler
+// and delegates billing payloads back to Billing.HandleEmailSend (worker wiring).
 func (b *Billing) Register(mux *asynq.ServeMux) {
 	mux.HandleFunc(TypeOutboxDrain, b.HandleOutboxDrain)
-	mux.HandleFunc(TypeEmailSend, b.HandleEmailSend)
 	mux.HandleFunc(TypeUsageAggregate, b.HandleUsageAggregate)
 	mux.HandleFunc(TypeUsagePushStripe, b.HandleUsagePush)
 	mux.HandleFunc(TypeBillingReconcile, b.HandleReconcile)

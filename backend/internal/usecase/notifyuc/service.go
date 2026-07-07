@@ -45,6 +45,7 @@ type OutboxWriter interface {
 // before sending (09 §3). Distinguished from the billing payload by UserID being
 // set (billing uses Template + OrgID).
 type EmailPayload struct {
+	OrgID    string `json:"org_id"`
 	UserID   string `json:"user_id"`
 	Category string `json:"category"`
 	ToEmail  string `json:"to_email,omitempty"`
@@ -335,7 +336,7 @@ func (s *Service) deliver(ctx context.Context, orgID, actorID string, ts []targe
 	// email outbox — send-time pref recheck happens in the worker.
 	for _, t := range emails {
 		p := EmailPayload{
-			UserID: t.ref.ID, Category: string(t.cat), ToEmail: t.ref.Email,
+			OrgID: orgID, UserID: t.ref.ID, Category: string(t.cat), ToEmail: t.ref.Email,
 			Subject: t.title, Body: t.body,
 		}
 		raw, err := json.Marshal(p)
