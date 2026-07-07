@@ -83,11 +83,11 @@ Wire invariants: `v:1` schema version on every payload; `actor_id` always presen
 
 ## Section 5 — HTTP
 
-- [ ] 5.5.1 `handlers/events.go`: `GET /orgs/{orgId}/events` — `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`; `:ka` heartbeat every 25s; `http.Flusher` per event. FR-NTF-001.
-- [ ] 5.5.2 `events.go`: read `Last-Event-ID` header → replay then live; emit `event: resync` on gap; respect ctx cancel.
-- [ ] 5.5.3 `handlers/notifications.go`: `GET /orgs/{orgId}/notifications` (list, unread/all tabs, paginated).
-- [ ] 5.5.4 `notifications.go`: `GET …/notifications/unread-count`, `POST …/notifications/{id}/read`, `POST …/notifications/read-all`.
-- [ ] 5.5.5 `router.go`: mount events + notifications under `read(ObjOrg)` O(GUEST); events endpoint keeps the standard auth+tenant chain. FR-NTF-001/002.
+- [x] 5.5.1 `handlers/events.go`: `GET /orgs/{orgId}/events` — `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`; `:ka` heartbeat every 25s; `http.Flusher` per event. FR-NTF-001. — `EventHandlers.Stream`; `http.Flusher` asserted (non-streaming writer ⇒ 422); frame writer `id:`/`event:`/`data:` (compact-JSON Data).
+- [x] 5.5.2 `events.go`: read `Last-Event-ID` header → replay then live; emit `event: resync` on gap; respect ctx cancel. — `Last-Event-ID` header (or `?last`) → `StreamInit`; resync frame `event: resync\ndata: {}`; select loop on ctx.Done / event chan / 25s ticker; `defer cancel()` releases the bus subscription.
+- [x] 5.5.3 `handlers/notifications.go`: `GET /orgs/{orgId}/notifications` (list, unread/all tabs, paginated). — `?unread=1`, `?limit=N` (≤50), `?before=RFC3339` cursor; userID from TenantContext (never a param).
+- [x] 5.5.4 `notifications.go`: `GET …/notifications/unread-count`, `POST …/notifications/{id}/read`, `POST …/notifications/read-all`. — plus `GET/PUT …/notifications/prefs` (matrix, FR-NTF-004); MarkRead 404s on a foreign/absent id.
+- [x] 5.5.5 `router.go`: mount events + notifications under `read(ObjOrg)` O(GUEST); events endpoint keeps the standard auth+tenant chain. FR-NTF-001/002. — mounted in the `/orgs/{orgId}` group under `read(ObjOrg)`; `Deps.Events`/`Deps.Notifications` nil ⇒ routes skipped (tests).
 
 ## Section 6 — Wiring
 

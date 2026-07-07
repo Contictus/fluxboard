@@ -25,6 +25,8 @@ type Deps struct {
 	Tasks         *handlers.TaskHandlers
 	Billing       *handlers.BillingHandlers
 	Webhooks      *handlers.WebhookHandlers
+	Events        *handlers.EventHandlers        // nil ⇒ SSE disabled (tests)
+	Notifications *handlers.NotificationHandlers // nil ⇒ notification center disabled (tests)
 	Authenticator *mw.Authenticator
 	Tenant        *mw.TenantGuard
 	Entitlement   *mw.EntitlementGuard
@@ -203,6 +205,22 @@ func NewRouter(d Deps) http.Handler {
 				o.With(write(tenant.ObjBilling)).Post("/billing/cancel", d.Billing.Cancel)
 				o.With(write(tenant.ObjBilling)).Post("/billing/resume", d.Billing.Resume)
 				o.With(write(tenant.ObjBilling)).Post("/billing/portal", d.Billing.Portal)
+
+				// Phase 5 — realtime SSE + notification center (docs/09 §1/§3,
+				// FR-NTF-001/002/004). All under read:org; the notification
+				// endpoints scope to the caller's own rows (userID from the
+				// tenant context). Registered only when wired (nil in tests).
+				if d.Events != nil {
+					o.With(read(tenant.ObjOrg)).Get("/events", d.Events.Stream)
+				}
+				if d.Notifications != nil {
+					o.With(read(tenant.ObjOrg)).Get("/notifications", d.Notifications.List)
+					o.With(read(tenant.ObjOrg)).Get("/notifications/unread-count", d.Notifications.UnreadCount)
+					o.With(read(tenant.ObjOrg)).Post("/notifications/read-all", d.Notifications.MarkAllRead)
+					o.With(read(tenant.ObjOrg)).Post("/notifications/{id}/read", d.Notifications.MarkRead)
+					o.With(read(tenant.ObjOrg)).Get("/notifications/prefs", d.Notifications.GetPrefs)
+					o.With(read(tenant.ObjOrg)).Put("/notifications/prefs", d.Notifications.SetPref)
+				}
 			})
 		})
 	})
