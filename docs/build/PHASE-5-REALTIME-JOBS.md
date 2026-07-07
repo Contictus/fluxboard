@@ -91,9 +91,9 @@ Wire invariants: `v:1` schema version on every payload; `actor_id` always presen
 
 ## Section 6 — Wiring
 
-- [ ] 5.6.1 `cmd/api/main.go`: build event bus + `notifyuc`; inject publisher into task/project/tenant/billing services; add handlers to `httpx.Deps`.
-- [ ] 5.6.2 `cmd/worker/main.go`: wire notification/pref/stats repos + mailer for the new jobs.
-- [ ] 5.6.3 SSE consumer goroutine lifecycle managed by the api process (start on first subscriber, stop on last; graceful shutdown drains).
+- [x] 5.6.1 `cmd/api/main.go`: build event bus + `notifyuc`; inject publisher into task/project/tenant/billing services; add handlers to `httpx.Deps`. — `redisx.NewEventBus` + `notifyuc.New`; `Events`/`Notifier` injected into task/tenant, `Events` into project, `Bus` into billing; `notifyDirectory` adapter (postgres DTO → notifyuc.UserRef) keeps postgres usecase-import-free.
+- [ ] 5.6.2 `cmd/worker/main.go`: wire notification/pref/stats repos + mailer for the new jobs. — done with §7 (jobs + worker wiring land together).
+- [x] 5.6.3 SSE consumer goroutine lifecycle managed by the api process (start on first subscriber, stop on last; graceful shutdown drains). — handled inside `EventBus.Subscribe/consume` (per-org goroutine starts on first sub, stops on last cancel); the SSE handler `defer cancel()`s on disconnect and returns on `ctx.Done()`, so `srv.Shutdown` cancellation drains live streams.
 
 ## Section 7 — Jobs (`internal/interface/jobs/`)
 

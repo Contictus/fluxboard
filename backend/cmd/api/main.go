@@ -39,6 +39,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/billinguc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/notifyuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/projectuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/tenantuc"
@@ -164,16 +165,34 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+
+	// Phase 5 — realtime bus + notification fan-out (docs/09 §1/§3). eventBus is
+	// the Redis-Stream SSE backbone; notifySvc writes in-app rows + email:send
+	// outbox entries and publishes notification.created. The producer services
+	// (task/project/tenant/billing) take the bus + notifier below so their writes
+	// emit realtime events and fan-out notifications.
+	eventBus := redisx.NewEventBus(rdb, logger)
+	notifySvc := notifyuc.New(notifyuc.Deps{
+		Notifs: postgres.NewNotificationRepo(tenantPool),
+		Prefs:  postgres.NewPrefRepo(tenantPool),
+		Bus:    eventBus,
+		Dir:    notifyDirectory{postgres.NewDirectoryRepo(tenantPool)},
+		Outbox: postgres.NewOutboxRepo(tenantPool),
+		Logger: logger,
+	})
+
 	tenantSvc := tenantuc.New(tenantuc.Deps{
-		Orgs:    orgRepo,
-		Members: membershipRepo,
-		Invites: invitationRepo,
-		Users:   userRepo,
-		Cache:   membershipCache,
-		Mailer:  mail,
-		Audit:   auditRepo,
-		Idem:    redisx.NewIdempotencyStore(rdb),
-		Logger:  logger,
+		Orgs:     orgRepo,
+		Members:  membershipRepo,
+		Invites:  invitationRepo,
+		Users:    userRepo,
+		Cache:    membershipCache,
+		Mailer:   mail,
+		Audit:    auditRepo,
+		Idem:     redisx.NewIdempotencyStore(rdb),
+		Events:   eventBus,
+		Notifier: notifySvc,
+		Logger:   logger,
 	})
 	orgHandlers := handlers.NewOrgHandlers(tenantSvc, logger)
 	tenantGuard := &mw.TenantGuard{
@@ -217,24 +236,28 @@ func run(logger *slog.Logger) error {
 		Usage:    postgres.NewUsageRepo(tenantPool),
 		Gateway:  stripeGW,
 		Cache:    entitlementCache,
+		Bus:      eventBus,
 		Logger:   logger,
 		BaseURL:  cfg.WebOrigin,
 	})
 
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
-		Columns: columnRepo, Tasks: taskRepo, Logger: logger,
+		Columns: columnRepo, Tasks: taskRepo, Events: eventBus, Logger: logger,
 	})
 	taskSvc := taskuc.New(taskuc.Deps{
 		Tasks: taskRepo, Subtasks: subtaskRepo, Labels: labelRepo, Comments: commentRepo,
 		Activity: activityRepo, Attachments: attachmentRepo, Projects: projectRepo,
 		Members: projectMemberRepo, Boards: boardRepo, Columns: columnRepo,
-		Store: objectStore, Entitlements: billingSvc, Logger: logger,
+		Store: objectStore, Entitlements: billingSvc,
+		Events: eventBus, Notifier: notifySvc, Logger: logger,
 	})
 	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
 	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
 	billingHandlers := handlers.NewBillingHandlers(billingSvc, logger)
 	webhookHandlers := handlers.NewWebhookHandlers(billingSvc, stripeGW, logger)
+	eventHandlers := handlers.NewEventHandlers(notifySvc, logger)
+	notificationHandlers := handlers.NewNotificationHandlers(notifySvc, logger)
 
 	// EntitlementGuard gates resource-creating writes on the org's plan limits
 	// (FR-BILL-009). The counts live in the project/tenant domains, so they enter
@@ -264,6 +287,8 @@ func run(logger *slog.Logger) error {
 		Tasks:         taskHandlers,
 		Billing:       billingHandlers,
 		Webhooks:      webhookHandlers,
+		Events:        eventHandlers,
+		Notifications: notificationHandlers,
 		Authenticator: authenticator,
 		Tenant:        tenantGuard,
 		Entitlement:   entitlementGuard,
@@ -373,6 +398,32 @@ func loadObjectStore(ctx context.Context, cfg *config.Config, logger *slog.Logge
 		return nil
 	}
 	return store
+}
+
+// notifyDirectory adapts postgres.DirectoryRepo (which returns a postgres-layer
+// DTO) to notifyuc.Directory. Living in the composition root keeps the postgres
+// package free of a usecase import (clean-arch layering).
+type notifyDirectory struct{ repo *postgres.DirectoryRepo }
+
+func (d notifyDirectory) ProjectMembers(ctx context.Context, orgID, projectID string) ([]notifyuc.UserRef, error) {
+	us, err := d.repo.ProjectMembers(ctx, orgID, projectID)
+	return toUserRefs(us), err
+}
+
+func (d notifyDirectory) UsersByID(ctx context.Context, orgID string, ids []string) ([]notifyuc.UserRef, error) {
+	us, err := d.repo.UsersByID(ctx, orgID, ids)
+	return toUserRefs(us), err
+}
+
+func toUserRefs(us []postgres.DirUser) []notifyuc.UserRef {
+	if us == nil {
+		return nil
+	}
+	out := make([]notifyuc.UserRef, 0, len(us))
+	for _, u := range us {
+		out = append(out, notifyuc.UserRef{ID: u.ID, Email: u.Email, Name: u.Name})
+	}
+	return out
 }
 
 // redisPinger adapts *redis.Client to httpx.Pinger.
