@@ -117,6 +117,27 @@ type Membership struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type Notification struct {
+	ID         uuid.UUID          `json:"id"`
+	OrgID      uuid.UUID          `json:"org_id"`
+	UserID     uuid.UUID          `json:"user_id"`
+	Category   string             `json:"category"`
+	Title      string             `json:"title"`
+	Body       string             `json:"body"`
+	EntityType *string            `json:"entity_type"`
+	EntityID   *string            `json:"entity_id"`
+	ReadAt     pgtype.Timestamptz `json:"read_at"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
+
+type NotificationPref struct {
+	OrgID    uuid.UUID `json:"org_id"`
+	UserID   uuid.UUID `json:"user_id"`
+	Category string    `json:"category"`
+	Email    bool      `json:"email"`
+	InApp    bool      `json:"in_app"`
+}
+
 type OauthIdentity struct {
 	ID          uuid.UUID `json:"id"`
 	UserID      uuid.UUID `json:"user_id"`
@@ -202,6 +223,16 @@ type ProjectMember struct {
 	UserID    uuid.UUID `json:"user_id"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectStatsDaily struct {
+	OrgID           uuid.UUID `json:"org_id"`
+	ProjectID       uuid.UUID `json:"project_id"`
+	Day             time.Time `json:"day"`
+	CreatedCount    int32     `json:"created_count"`
+	CompletedCount  int32     `json:"completed_count"`
+	ColumnSnapshot  []byte    `json:"column_snapshot"`
+	AvgCycleSeconds *int64    `json:"avg_cycle_seconds"`
 }
 
 type RecoveryCode struct {

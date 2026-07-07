@@ -74,12 +74,12 @@ Wire invariants: `v:1` schema version on every payload; `actor_id` always presen
 
 ## Section 4 — Infra
 
-- [ ] 5.4.1 `internal/infrastructure/redis/eventbus.go`: `Publish` = XADD `events:{org}` MAXLEN ~1000; entry id = event id.
-- [ ] 5.4.2 `eventbus.go`: per-org consumer goroutine (XREAD BLOCK) demuxing to in-process subscriber channels (one consumer per org with ≥1 subscriber). 09 §1.
-- [ ] 5.4.3 `eventbus.go`: `Replay` via XRANGE from `Last-Event-ID`; id older than retention → gap=true.
-- [ ] 5.4.4 `postgres/notification_repo.go` over TenantPool.
-- [ ] 5.4.5 `postgres/notification_prefs_repo.go` (get/upsert matrix).
-- [ ] 5.4.6 `postgres/stats_repo.go` (project_stats_daily upsert + range read). Add `queries/{notifications,notification_prefs,stats}.sql`; `sqlc generate`.
+- [x] 5.4.1 `internal/infrastructure/redis/eventbus.go`: `Publish` = XADD `events:{org}` MAXLEN ~1000; entry id = event id. — package `redisx`; injects `actor_id` + `v:1` into every payload (wire invariants); `Approx` MAXLEN ~1000.
+- [x] 5.4.2 `eventbus.go`: per-org consumer goroutine (XREAD BLOCK) demuxing to in-process subscriber channels (one consumer per org with ≥1 subscriber). 09 §1. — `orgFanout` starts consumer on first `Subscribe`, stops on last `cancel`; `readBlock`=25s; non-blocking dispatch drops for a slow client (recovers via reconnect/replay).
+- [x] 5.4.3 `eventbus.go`: `Replay` via XRANGE from `Last-Event-ID`; id older than retention → gap=true. — `XRangeN(-,+,1)` oldest check; `idLess(lastID,oldest)` ⇒ gap; else exclusive `("+lastID` XRange.
+- [x] 5.4.4 `postgres/notification_repo.go` over TenantPool. — CreateBatch/List(cursor+OnlyUnread)/UnreadCount/MarkRead(0 rows⇒`domain.ErrNotFound`)/MarkAllRead; nullable entity_type/id via `strPtr`.
+- [x] 5.4.5 `postgres/notification_prefs_repo.go` (get/upsert matrix). — GetForUser(map)/Get(`pgx.ErrNoRows`⇒ok=false)/Upsert. Plus `directory_repo.go` (`DirUser` DTO → adapted to `notifyuc.Directory` in cmd wiring, keeps postgres free of a usecase import) and `OutboxRepo.InsertEmail` (reuses `insertOutbox`, kind `email:send`).
+- [x] 5.4.6 `postgres/stats_repo.go` (project_stats_daily upsert + range read). Add `queries/{notifications,notification_prefs,stats}.sql`; `sqlc generate`. — ComputeDay: created count over `[day,day+1)` UTC + per-column open snapshot (`column_id`→count); CompletedCount/AvgCycleSeconds deferred to Phase 6 (activity mining); Upsert marshals snapshot jsonb.
 
 ## Section 5 — HTTP
 

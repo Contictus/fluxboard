@@ -26,6 +26,8 @@ type Querier interface {
 	// Atomically mark up to @lim undrained rows drained and return them. FOR UPDATE
 	// SKIP LOCKED lets concurrent drainers make progress without contending.
 	ClaimOutboxBatch(ctx context.Context, arg ClaimOutboxBatchParams) ([]Outbox, error)
+	// Current open (non-trashed) task count per column for a project.
+	ColumnOpenCounts(ctx context.Context, arg ColumnOpenCountsParams) ([]ColumnOpenCountsRow, error)
 	// Flip a pending row to committed (idempotency: no-op if already committed via
 	// the WHERE status filter). size_bytes is corrected to the HEAD-verified size.
 	CommitAttachment(ctx context.Context, arg CommitAttachmentParams) (int64, error)
@@ -39,6 +41,9 @@ type Querier interface {
 	CountMembersByRole(ctx context.Context, arg CountMembersByRoleParams) (int64, error)
 	// Live (non-archived) project count for the plan-limit gate (FR-BILL-009).
 	CountProjectsByOrg(ctx context.Context, orgID uuid.UUID) (int64, error)
+	// [@day, @next_day) is the UTC day window (bounds computed by the caller).
+	CountTasksCreatedOnDay(ctx context.Context, arg CountTasksCreatedOnDayParams) (int64, error)
+	CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (int64, error)
 	// Attachments ([T], tenant-scoped) — FR-TASK-006 -----------------------------
 	// Insert the 'pending' row alongside minting a presigned PUT URL.
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) error
@@ -87,6 +92,7 @@ type Querier interface {
 	GetInvitationByEmail(ctx context.Context, arg GetInvitationByEmailParams) (Invitation, error)
 	GetLabel(ctx context.Context, arg GetLabelParams) (Label, error)
 	GetMembership(ctx context.Context, arg GetMembershipParams) (Membership, error)
+	GetNotificationPref(ctx context.Context, arg GetNotificationPrefParams) (NotificationPref, error)
 	// Looks up an external identity by (provider, subject). domain.ErrNotFound when
 	// absent drives the link-or-create branch in the OAuth callback (04 §4).
 	GetOAuthIdentity(ctx context.Context, arg GetOAuthIdentityParams) (OauthIdentity, error)
@@ -113,6 +119,9 @@ type Querier interface {
 	GetTrashedTask(ctx context.Context, arg GetTrashedTaskParams) (GetTrashedTaskRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
+	// Notifications — Phase 5 (docs/09-REALTIME-JOBS.md §3, FR-NTF-002). notifications
+	// [T]: cursor pagination by created_at DESC; unread = read_at IS NULL.
+	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
 	// Transactional outbox — Phase 4 / 09 §2 --------------------------------------
 	// outbox [T]: producers INSERT within their write tx (the webhook does so in
 	// webhook_repo); the worker's outbox:drain claims undrained rows and enqueues to
@@ -139,6 +148,11 @@ type Querier interface {
 	// Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role
 	// and text (name/email) filters; the (created_at,user_id) cursor is exclusive.
 	ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]ListMembersFilteredRow, error)
+	// Notification preferences — Phase 5 (FR-NTF-004). notification_prefs [T]:
+	// one row per (org, user, category); absent row ⇒ opt-in default in the domain.
+	ListNotificationPrefs(ctx context.Context, arg ListNotificationPrefsParams) ([]NotificationPref, error)
+	// only_unread=false returns all; before nil ⇒ newest page.
+	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
 	// OWNER addresses for billing notifications (dunning/cancel emails, 06 §4).
 	ListOrgOwnerEmails(ctx context.Context, orgID uuid.UUID) ([]string, error)
 	// Pending rows older than the cutoff (never PUT or never confirmed) — the nightly
@@ -146,17 +160,31 @@ type Querier interface {
 	ListOrphanAttachments(ctx context.Context, arg ListOrphanAttachmentsParams) ([]Attachment, error)
 	ListPendingInvitations(ctx context.Context, orgID uuid.UUID) ([]Invitation, error)
 	ListPlans(ctx context.Context) ([]Plan, error)
+	// Directory lookups — Phase 5 notification fan-out (notifyuc.Directory). Resolves
+	// project members (for @mention matching) and specific users (targeted notifs).
+	// Runs inside a tenant tx: project_members is RLS-scoped; users is global.
+	ListProjectMemberUsers(ctx context.Context, arg ListProjectMemberUsersParams) ([]ListProjectMemberUsersRow, error)
 	ListProjectMembers(ctx context.Context, arg ListProjectMembersParams) ([]ListProjectMembersRow, error)
 	// Visibility filter (FR-PROJ-002/003): see_all (org ADMIN+) returns every
 	// project; otherwise 'org'-visible plus 'private' ones the user is a member of.
 	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
+	// Project stats rollup — Phase 5 (FR-AN-001). project_stats_daily [T]: nightly
+	// recompute of yesterday's grain (set-semantics UPSERT). Completion/cycle metrics
+	// that need task_activity mining are deferred to Phase 6 analytics; this rollup
+	// captures the created count + a current per-column open-task snapshot (recorded
+	// in docs/build/PHASE-5 §4).
+	// Non-archived, non-deleted projects for an org (rollup iteration).
+	ListRollupProjectIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
 	ListSubtasksByTask(ctx context.Context, arg ListSubtasksByTaskParams) ([]Subtask, error)
 	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error)
 	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error)
 	ListTrashedTasks(ctx context.Context, arg ListTrashedTasksParams) ([]ListTrashedTasksRow, error)
 	// Metered aggregates for a day not yet pushed to Stripe.
 	ListUsageForPush(ctx context.Context, arg ListUsageForPushParams) ([]UsageRecord, error)
+	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]ListUsersByIDsRow, error)
+	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error)
 	MarkInvitationAccepted(ctx context.Context, arg MarkInvitationAcceptedParams) (int64, error)
+	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (int64, error)
 	MarkSessionRotated(ctx context.Context, id uuid.UUID) error
 	MarkUsagePushed(ctx context.Context, arg MarkUsagePushedParams) error
 	MarkUserEmailVerified(ctx context.Context, id uuid.UUID) error
@@ -214,6 +242,8 @@ type Querier interface {
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
 	UpsertInvoice(ctx context.Context, arg UpsertInvoiceParams) error
+	UpsertNotificationPref(ctx context.Context, arg UpsertNotificationPrefParams) error
+	UpsertProjectStat(ctx context.Context, arg UpsertProjectStatParams) error
 	// Full desired state, keyed on org_id. The caller owns last_stripe_event_at:
 	// persistCustomer passes the row's existing value; the webhook passes the event
 	// time (after its staleness guard), so EXCLUDED never regresses it.

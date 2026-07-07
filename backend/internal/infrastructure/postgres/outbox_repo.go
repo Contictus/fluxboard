@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -41,6 +42,22 @@ func (r *OutboxRepo) ClaimBatch(ctx context.Context, orgID string, limit int) ([
 		return nil
 	})
 	return out, err
+}
+
+// InsertEmail enqueues an email:send outbox row in its own tenant tx (satisfies
+// notifyuc.OutboxWriter). Notification fan-out uses this after its own writes;
+// the email:send worker rechecks the recipient's preference before sending
+// (09 §2/§3).
+func (r *OutboxRepo) InsertEmail(ctx context.Context, orgID string, payload json.RawMessage) error {
+	return r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
+		oid, _ := parseUUID(orgID)
+		return insertOutbox(ctx, q, oid, billing.OutboxItem{
+			ID:      uuid.NewString(),
+			OrgID:   orgID,
+			Kind:    billing.OutboxEmailSend,
+			Payload: payload,
+		})
+	})
 }
 
 // insertOutbox writes an outbox row via q (tx-bound), inside the caller's
