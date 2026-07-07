@@ -16,6 +16,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/audit"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/reqmeta"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/uuidv7"
@@ -39,6 +40,12 @@ type Mailer interface {
 	SendInvitation(ctx context.Context, to, orgName, token string) error
 }
 
+// Notifier fans a notification to explicit users (invite accepted). Implemented
+// by notifyuc.Service; nil disables the fan-out. Best-effort side effect.
+type Notifier interface {
+	NotifyTargets(ctx context.Context, orgID, actorID string, cat notify.Category, userIDs []string, title, body, entityType, entityID string)
+}
+
 // IdempotencyStore backs the Idempotency-Key replay guard on invitation creation
 // (docs/08 §4). Get returns "" (no error) when the key is absent. Implemented in
 // infrastructure/redis; optional — when nil the guard is a no-op.
@@ -56,9 +63,11 @@ type Deps struct {
 	Cache   tenant.MembershipCache
 	Mailer  Mailer
 	Audit   audit.Writer
-	Idem    IdempotencyStore
-	Logger  *slog.Logger
-	Now     func() time.Time // injectable for tests; defaults to time.Now
+	Idem     IdempotencyStore
+	Events   notify.EventBus // realtime member.* events; nil ⇒ no publish
+	Notifier Notifier        // invite-accepted fan-out; nil ⇒ no fan-out
+	Logger   *slog.Logger
+	Now      func() time.Time // injectable for tests; defaults to time.Now
 }
 
 // Service implements the tenancy application logic.
@@ -70,9 +79,11 @@ type Service struct {
 	cache   tenant.MembershipCache
 	mailer  Mailer
 	auditor audit.Writer
-	idem    IdempotencyStore
-	logger  *slog.Logger
-	now     func() time.Time
+	idem     IdempotencyStore
+	events   notify.EventBus
+	notifier Notifier
+	logger   *slog.Logger
+	now      func() time.Time
 }
 
 // New builds a Service from Deps.
@@ -92,7 +103,17 @@ func New(d Deps) *Service {
 	return &Service{
 		orgs: d.Orgs, members: d.Members, invites: d.Invites, users: d.Users,
 		cache: d.Cache, mailer: d.mailerOrNoop(), auditor: auditor, idem: d.Idem,
-		logger: logger, now: now,
+		events: d.Events, notifier: d.Notifier, logger: logger, now: now,
+	}
+}
+
+// publish emits a realtime event best-effort (logged, not returned).
+func (s *Service) publish(ctx context.Context, orgID, name, actorID string, data map[string]any) {
+	if s.events == nil {
+		return
+	}
+	if _, err := s.events.Publish(ctx, orgID, notify.NewEvent(name, actorID, data)); err != nil {
+		s.logger.WarnContext(ctx, "event publish failed", "event", name, "err", err)
 	}
 }
 
@@ -391,6 +412,9 @@ func (s *Service) ChangeMemberRole(ctx context.Context, orgID string, actingRole
 		Metadata:   map[string]any{"old_role": string(target.Role), "new_role": string(newRole)},
 		Severity:   audit.SeveritySecurity,
 	})
+	s.publish(ctx, orgID, notify.EventMemberRoleChanged, "", map[string]any{
+		"user_id": targetUserID, "role": string(newRole),
+	})
 	return nil
 }
 
@@ -420,6 +444,10 @@ func (s *Service) RemoveMember(ctx context.Context, orgID string, actingRole ten
 		TargetID:   targetUserID,
 		Severity:   audit.SeverityWarning,
 	})
+	// membership.revoked is targeted: the removed user's client hard-redirects
+	// out of the org (09 §1). Also broadcast member.left for the roster.
+	s.publish(ctx, orgID, notify.EventMembershipRevoked, "", map[string]any{"user_id": targetUserID})
+	s.publish(ctx, orgID, notify.EventMemberLeft, "", map[string]any{"user_id": targetUserID})
 	return nil
 }
 
@@ -447,6 +475,7 @@ func (s *Service) Leave(ctx context.Context, orgID, userID string) error {
 		TargetID:    userID,
 		Severity:    audit.SeverityInfo,
 	})
+	s.publish(ctx, orgID, notify.EventMemberLeft, userID, map[string]any{"user_id": userID})
 	return nil
 }
 

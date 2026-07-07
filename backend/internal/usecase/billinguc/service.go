@@ -15,6 +15,7 @@ import (
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/billing"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/uuidv7"
 )
 
@@ -32,6 +33,7 @@ type Deps struct {
 	Usage    billing.UsageRepository
 	Gateway  billing.StripeGateway
 	Cache    billing.EntitlementCache
+	Bus      notify.EventBus // realtime billing.status_changed; nil ⇒ no publish
 	Logger   *slog.Logger
 	Now      func() time.Time // injectable for tests; defaults to time.Now
 	BaseURL  string           // public app base, for Checkout/Portal return URLs
@@ -47,6 +49,7 @@ type Service struct {
 	usage    billing.UsageRepository
 	gw       billing.StripeGateway
 	cache    billing.EntitlementCache
+	bus      notify.EventBus
 	logger   *slog.Logger
 	now      func() time.Time
 	baseURL  string
@@ -65,7 +68,7 @@ func New(d Deps) *Service {
 	return &Service{
 		plans: d.Plans, subs: d.Subs, invoices: d.Invoices, events: d.Events,
 		webhooks: d.Webhooks, usage: d.Usage, gw: d.Gateway, cache: d.Cache,
-		logger: logger, now: now, baseURL: d.BaseURL,
+		bus: d.Bus, logger: logger, now: now, baseURL: d.BaseURL,
 	}
 }
 

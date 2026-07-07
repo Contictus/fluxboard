@@ -8,6 +8,7 @@ import (
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/audit"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/token"
 )
@@ -180,6 +181,15 @@ func (s *Service) AcceptInvitation(ctx context.Context, userID, rawToken string)
 		Metadata:    map[string]any{"email": inv.Email, "role": string(inv.Role), "email_mismatch": emailMismatch},
 		Severity:    audit.SeverityInfo,
 	})
+	s.publish(ctx, inv.OrgID, notify.EventMemberJoined, userID, map[string]any{
+		"user_id": userID, "role": string(inv.Role),
+	})
+	// Notify the inviter that their invitation was accepted (FR-NTF-002).
+	if s.notifier != nil && inv.InvitedBy != "" {
+		s.notifier.NotifyTargets(ctx, inv.OrgID, userID, notify.CategoryInviteAccepted,
+			[]string{inv.InvitedBy}, "Invitation accepted",
+			"Someone you invited has joined the organization.", "org", inv.OrgID)
+	}
 	return &AcceptOutcome{OrgID: inv.OrgID, Role: inv.Role}, nil
 }
 

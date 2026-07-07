@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/rank"
@@ -29,6 +30,7 @@ type Deps struct {
 	Boards   project.BoardRepository
 	Columns  project.ColumnRepository
 	Tasks    project.TaskRepository
+	Events   notify.EventBus // realtime publish; nil ⇒ no SSE events
 	Logger   *slog.Logger
 	Now      func() time.Time // injectable for tests; defaults to time.Now
 }
@@ -40,6 +42,7 @@ type Service struct {
 	boards   project.BoardRepository
 	columns  project.ColumnRepository
 	tasks    project.TaskRepository
+	events   notify.EventBus
 	logger   *slog.Logger
 	now      func() time.Time
 }
@@ -56,11 +59,22 @@ func New(d Deps) *Service {
 	}
 	return &Service{
 		projects: d.Projects, members: d.Members, boards: d.Boards,
-		columns: d.Columns, tasks: d.Tasks, logger: logger, now: now,
+		columns: d.Columns, tasks: d.Tasks, events: d.Events, logger: logger, now: now,
 	}
 }
 
 func newID() string { return uuidv7.New().String() }
+
+// publish emits a realtime event best-effort (a publish failure is logged, not
+// returned — realtime is off the critical write path).
+func (s *Service) publish(ctx context.Context, orgID, name, actorID string, data map[string]any) {
+	if s.events == nil {
+		return
+	}
+	if _, err := s.events.Publish(ctx, orgID, notify.NewEvent(name, actorID, data)); err != nil {
+		s.logger.Warn("event publish failed", "event", name, "err", err)
+	}
+}
 
 // ---- Inputs ---------------------------------------------------------------
 
@@ -396,7 +410,15 @@ func (s *Service) MoveTask(ctx context.Context, orgID, userID, taskID, columnID,
 	if col.BoardID != board.ID {
 		return domain.ErrValidation
 	}
-	return s.tasks.Move(ctx, orgID, taskID, columnID, newRank)
+	fromColumn := t.ColumnID
+	if err := s.tasks.Move(ctx, orgID, taskID, columnID, newRank); err != nil {
+		return err
+	}
+	s.publish(ctx, orgID, notify.EventTaskMoved, userID, map[string]any{
+		"task_id": taskID, "project_id": t.ProjectID,
+		"from_column": fromColumn, "to_column": columnID, "rank": newRank,
+	})
+	return nil
 }
 
 // requireColumn checks LEAD access on the project and that the column belongs to

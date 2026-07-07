@@ -9,6 +9,7 @@ import (
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/billing"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 )
 
 // ProcessEvent is the Stripe webhook consumer — the idempotency core (invariant
@@ -60,6 +61,15 @@ func (s *Service) ProcessEvent(ctx context.Context, ev billing.StripeEvent) (bil
 	}
 	if res.SubscriptionCh {
 		s.bust(ctx, ev.OrgID)
+		if s.bus != nil && m.Subscription != nil {
+			bev := notify.NewEvent(notify.EventBillingStatusChanged, "", map[string]any{
+				"status":    string(m.Subscription.Status),
+				"plan_code": string(m.Subscription.PlanCode),
+			})
+			if _, err := s.bus.Publish(ctx, ev.OrgID, bev); err != nil {
+				s.logger.WarnContext(ctx, "billing status publish failed", "err", err)
+			}
+		}
 	}
 	return res, nil
 }

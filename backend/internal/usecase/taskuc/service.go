@@ -14,6 +14,7 @@ import (
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/billing"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/rank"
@@ -26,6 +27,15 @@ import (
 // Implemented by billinguc.Service.
 type EntitlementResolver interface {
 	Resolve(ctx context.Context, orgID string) (billing.Entitlements, error)
+}
+
+// Notifier performs notification fan-out for task events (comments/@mentions and
+// assignment). Implemented by notifyuc.Service; nil disables fan-out (tests).
+// Calls are best-effort side effects — the notifier logs and swallows its own
+// errors so a fan-out failure never fails the originating task action.
+type Notifier interface {
+	FanOutComment(ctx context.Context, orgID, actorID, projectID, taskID, commentID, body string, commentTargets []string)
+	NotifyAssigned(ctx context.Context, orgID, actorID, taskID, assigneeID, taskTitle string)
 }
 
 // Deps are the collaborators the service needs.
@@ -42,6 +52,8 @@ type Deps struct {
 	Columns      project.ColumnRepository
 	Store        project.ObjectStore // MinIO; nil disables attachment endpoints
 	Entitlements EntitlementResolver // plan storage ceiling; nil ⇒ Free const
+	Events       notify.EventBus     // realtime publish; nil ⇒ no SSE events
+	Notifier     Notifier            // notification fan-out; nil ⇒ no fan-out
 	Logger       *slog.Logger
 	Now          func() time.Time // injectable for tests; defaults to time.Now
 }
@@ -60,6 +72,8 @@ type Service struct {
 	columns      project.ColumnRepository
 	store        project.ObjectStore
 	entitlements EntitlementResolver
+	events       notify.EventBus
+	notifier     Notifier
 	logger       *slog.Logger
 	now          func() time.Time
 }
@@ -78,7 +92,19 @@ func New(d Deps) *Service {
 		tasks: d.Tasks, subtasks: d.Subtasks, labels: d.Labels, comments: d.Comments,
 		activity: d.Activity, attachments: d.Attachments, projects: d.Projects,
 		members: d.Members, boards: d.Boards, columns: d.Columns, store: d.Store,
-		entitlements: d.Entitlements, logger: logger, now: now,
+		entitlements: d.Entitlements, events: d.Events, notifier: d.Notifier,
+		logger: logger, now: now,
+	}
+}
+
+// publish emits a realtime event (best-effort; a publish failure is logged, not
+// returned — realtime is not on the critical write path).
+func (s *Service) publish(ctx context.Context, orgID, name, actorID string, data map[string]any) {
+	if s.events == nil {
+		return
+	}
+	if _, err := s.events.Publish(ctx, orgID, notify.NewEvent(name, actorID, data)); err != nil {
+		s.logger.Warn("event publish failed", "event", name, "err", err)
 	}
 }
 
@@ -180,6 +206,12 @@ func (s *Service) CreateTask(ctx context.Context, orgID, userID string, in Creat
 	if err := s.tasks.Create(ctx, orgID, t); err != nil {
 		return nil, err
 	}
+	s.publish(ctx, orgID, notify.EventTaskCreated, userID, map[string]any{
+		"task_id": t.ID, "project_id": t.ProjectID, "column_id": t.ColumnID, "title": t.Title,
+	})
+	if t.AssigneeID != nil && s.notifier != nil {
+		s.notifier.NotifyAssigned(ctx, orgID, userID, t.ID, *t.AssigneeID, t.Title)
+	}
 	return s.tasks.Get(ctx, orgID, t.ID)
 }
 
@@ -236,11 +268,25 @@ func (s *Service) UpdateTask(ctx context.Context, orgID, userID, taskID string, 
 	if err := s.tasks.Update(ctx, orgID, t); err != nil {
 		return nil, err
 	}
+	fields := make([]string, 0, len(changes))
+	assigneeChanged := false
 	for _, c := range changes {
 		a := &project.Activity{ID: newID(), TaskID: taskID, ActorID: userID, Field: c.field, OldValue: c.old, NewValue: c.new}
 		if err := s.activity.Append(ctx, orgID, a); err != nil {
 			s.logger.Warn("activity append failed", "task", taskID, "field", c.field, "err", err)
 		}
+		fields = append(fields, c.field)
+		if c.field == "assignee" {
+			assigneeChanged = true
+		}
+	}
+	if len(changes) > 0 {
+		s.publish(ctx, orgID, notify.EventTaskUpdated, userID, map[string]any{
+			"task_id": taskID, "project_id": t.ProjectID, "fields": fields,
+		})
+	}
+	if assigneeChanged && in.AssigneeID != nil && s.notifier != nil {
+		s.notifier.NotifyAssigned(ctx, orgID, userID, taskID, *in.AssigneeID, t.Title)
 	}
 	return s.tasks.Get(ctx, orgID, taskID)
 }
@@ -410,14 +456,25 @@ func (s *Service) AddComment(ctx context.Context, orgID, userID, taskID, body st
 	if body == "" {
 		return nil, domain.ErrValidation
 	}
-	if _, _, err := s.taskAccess(ctx, orgID, taskID, userID, orgRole, project.RoleContributor); err != nil {
+	t, _, err := s.taskAccess(ctx, orgID, taskID, userID, orgRole, project.RoleContributor)
+	if err != nil {
 		return nil, err
 	}
-	// TODO(phase5): parse @mentions of project members and enqueue notifications
-	// (FR-TASK-005 → FR-NTF-002); the notification center is Phase 5.
 	c := &project.Comment{ID: newID(), TaskID: taskID, AuthorID: userID, Body: body}
 	if err := s.comments.Create(ctx, orgID, c); err != nil {
 		return nil, err
+	}
+	s.publish(ctx, orgID, notify.EventCommentCreated, userID, map[string]any{
+		"task_id": taskID, "comment_id": c.ID, "project_id": t.ProjectID,
+	})
+	// Fan out @mentions (project members) + comment targets (task creator +
+	// assignee) to the notification center + email (FR-TASK-005 → FR-NTF-002).
+	if s.notifier != nil {
+		targets := []string{t.CreatedBy}
+		if t.AssigneeID != nil {
+			targets = append(targets, *t.AssigneeID)
+		}
+		s.notifier.FanOutComment(ctx, orgID, userID, t.ProjectID, taskID, c.ID, body, targets)
 	}
 	return s.comments.Get(ctx, orgID, c.ID)
 }

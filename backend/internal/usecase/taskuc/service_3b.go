@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/rank"
@@ -17,10 +18,17 @@ import (
 // TrashTask soft-deletes a task into the Trash (CONTRIBUTOR+). It keeps its
 // board slot for 30 days; the purge job hard-deletes it after that.
 func (s *Service) TrashTask(ctx context.Context, orgID, userID, taskID string, orgRole tenant.OrgRole) error {
-	if _, _, err := s.taskAccess(ctx, orgID, taskID, userID, orgRole, project.RoleContributor); err != nil {
+	t, _, err := s.taskAccess(ctx, orgID, taskID, userID, orgRole, project.RoleContributor)
+	if err != nil {
 		return err
 	}
-	return s.tasks.SoftDelete(ctx, orgID, taskID, s.now().UTC())
+	if err := s.tasks.SoftDelete(ctx, orgID, taskID, s.now().UTC()); err != nil {
+		return err
+	}
+	s.publish(ctx, orgID, notify.EventTaskDeleted, userID, map[string]any{
+		"task_id": taskID, "project_id": t.ProjectID,
+	})
+	return nil
 }
 
 // RestoreTask returns a trashed task to its board (CONTRIBUTOR+). ErrConflict if
@@ -36,6 +44,9 @@ func (s *Service) RestoreTask(ctx context.Context, orgID, userID, taskID string,
 	if err := s.tasks.Restore(ctx, orgID, taskID); err != nil {
 		return nil, err
 	}
+	s.publish(ctx, orgID, notify.EventTaskRestored, userID, map[string]any{
+		"task_id": taskID, "project_id": t.ProjectID,
+	})
 	return s.tasks.Get(ctx, orgID, taskID)
 }
 

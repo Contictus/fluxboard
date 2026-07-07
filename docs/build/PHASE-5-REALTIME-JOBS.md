@@ -65,12 +65,12 @@ Wire invariants: `v:1` schema version on every payload; `actor_id` always presen
 
 ## Section 3 — Usecase (`internal/usecase/notifyuc/`)
 
-- [ ] 5.3.1 `service.go`: create notifications, `List/UnreadCount/MarkRead/MarkAllRead`. FR-NTF-002.
-- [ ] 5.3.2 Fan-out rules → notif rows + `outbox(email:send)` per opted-in target: task assigned, @mention, comment on task you created/assigned, invitation accepted, billing (OWNER/ADMIN). FR-NTF-002, 09 §3.
-- [ ] 5.3.3 `@mention` parse of project members inside `taskuc.AddComment` (fills the existing `TODO(phase5)`); resolve handles → user ids → fan-out. FR-TASK-005 → FR-NTF-002.
-- [ ] 5.3.4 After-commit publisher wired into `taskuc`/`projectuc`/`tenantuc`/`billinguc` producers → `EventBus.Publish` (task.*, comment.created, member.*, billing.status_changed). 09 §1.
-- [ ] 5.3.5 SSE session usecase: subscribe org stream; on connect with `Last-Event-ID` → `Replay`; gap beyond retention → emit `resync`. FR-NTF-001, 09 §1.
-- [ ] 5.3.6 Send-time pref recheck (worker re-reads `notification_prefs`). 09 §3.
+- [x] 5.3.1 `service.go`: create notifications, `List/UnreadCount/MarkRead/MarkAllRead`. FR-NTF-002. — plus `GetPrefs`/`SetPref` (matrix, defaults filled) for FR-NTF-004; list capped at 50, cursor by created_at.
+- [x] 5.3.2 Fan-out rules → notif rows + `outbox(email:send)` per opted-in target: task assigned, @mention, comment on task you created/assigned, invitation accepted, billing (OWNER/ADMIN). FR-NTF-002, 09 §3. — `deliver()` reads each target's pref: in-app row when `WantsChannel(…in_app)`, email outbox when `WantsChannel(…email)` (rechecked at send). `FanOutComment` (mention∪comment-targets), `NotifyAssigned`, `NotifyTargets` (invite/billing). Billing owner-targeting handled by the existing billing outbox path; notify.NotifyTargets covers invite-accepted.
+- [x] 5.3.3 `@mention` parse of project members inside `taskuc.AddComment` (fills the existing `TODO(phase5)`); resolve handles → user ids → fan-out. FR-TASK-005 → FR-NTF-002. — handle = email local-part (users have no username — noted in §3 decision); `mentionRE` + `Directory.ProjectMembers`; comment targets = task creator + assignee passed by taskuc (keeps notifyuc task-repo-free).
+- [x] 5.3.4 After-commit publisher wired into `taskuc`/`projectuc`/`tenantuc`/`billinguc` producers → `EventBus.Publish` (task.*, comment.created, member.*, billing.status_changed). 09 §1. — taskuc: task.created/updated/deleted/restored + comment.created; projectuc: task.moved; tenantuc: member.joined/left/role_changed + membership.revoked; billinguc: billing.status_changed (on SubscriptionCh). Payloads carry `project_id` (not project_key — avoids an extra lookup; frontend is Phase 7). Producers depend on the `notify.EventBus` domain port directly (no usecase→usecase import); fan-out via locally-declared `Notifier` interfaces satisfied by notifyuc.Service.
+- [x] 5.3.5 SSE session usecase: subscribe org stream; on connect with `Last-Event-ID` → `Replay`; gap beyond retention → emit `resync`. FR-NTF-001, 09 §1. — `notifyuc.StreamInit` (empty id ⇒ no backlog; gap ⇒ resync=true) + `Subscribe` (channel + cancel); nil bus tolerated.
+- [x] 5.3.6 Send-time pref recheck (worker re-reads `notification_prefs`). 09 §3. — email outbox row created at fan-out; the email:send job rechecks `PrefRepository.Get(user,category)` before sending (implemented in §7).
 
 ## Section 4 — Infra
 

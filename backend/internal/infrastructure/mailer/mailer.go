@@ -107,6 +107,15 @@ func (m *Mailer) SendBilling(ctx context.Context, to []string, template string) 
 	return nil
 }
 
+// SendNotification delivers one rendered in-app notification as an email
+// (Phase 5 fan-out, 09 §3). Subject/body are pre-rendered by the producer; a
+// footer links to the notifications page. Send-time preference recheck happens
+// in the email:send job before this is called.
+func (m *Mailer) SendNotification(ctx context.Context, to, subject, body string) error {
+	link := strings.TrimRight(m.cfg.WebOrigin, "/") + "/notifications" // sitemap 02 §app
+	return m.send(ctx, to, subject, body+"\n\nView it in Fluxboard:\n"+link)
+}
+
 // link builds {WebOrigin}{path}?token=<raw>.
 func (m *Mailer) link(path, rawToken string) string {
 	base := strings.TrimRight(m.cfg.WebOrigin, "/")
