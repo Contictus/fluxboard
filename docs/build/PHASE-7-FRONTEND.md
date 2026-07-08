@@ -18,35 +18,35 @@ pnpm build` green (no `go test`).
 
 ---
 
-## Section 0 — Scaffolding & foundations
+## Section 0 — Scaffolding & foundations  ✅ (commit `e64737a`)
 
-- [ ] 7.0.1 Scaffold `web/` — Next.js 14 App Router, TypeScript strict, ESLint/Prettier; add `web` compose service + Makefile `web` target.
-- [ ] 7.0.2 Tailwind + shadcn/ui base (theme, components dir).
-- [ ] 7.0.3 TanStack Query v5 provider; generate typed API client from `/api/v1/openapi.json` (`make gen-client`, depends on Phase 6 §6.4.5).
-- [ ] 7.0.4 Auth context: access token in memory, refresh via httpOnly cookie; silent-refresh on 401; logout clears.
-- [ ] 7.0.5 Route groups `(public)`/`(auth)`/`(app)`/`(admin)` + guard helpers (P/A/V/O(role)/PA) per sitemap legend.
-- [ ] 7.0.6 Root layout: maintenance-flag check, global 404/403 boundaries, 402 upgrade-modal mount point.
+- [x] 7.0.1 Scaffold `web/` — Next.js 14 App Router, TypeScript strict, ESLint/Prettier; add `web` compose service + Makefile `web` target.
+- [x] 7.0.2 Tailwind + shadcn/ui base (theme tokens, hand-authored `components/ui` primitives).
+- [x] 7.0.3 TanStack Query v5 provider; **hand-written typed fetch client** (`lib/api/client.ts`) instead of `make gen-client` — the served OpenAPI only covers Phase-6 handlers, so types are authored per docs/08 and grown per section.
+- [x] 7.0.4 Auth context: access token in memory, cookie→refresh bootstrap on mount, single-flight silent-refresh on 401; logout clears + revokes.
+- [x] 7.0.5 Route groups `(public)`/`(auth)`/`(app)`/`(admin)` + guard helpers (`RequireAuth`/`RequireVerified`/`RequirePlatformAdmin`). PA is session-only for now (platform_role comes from `/me`).
+- [x] 7.0.6 Root layout: global 404/403 boundaries, 402 upgrade-modal mount point (body wired in Phase 8). Maintenance-flag check deferred to org shell.
 
-## Section 1 — Public / Marketing `(public)`
+## Section 1 — Public / Marketing `(public)`  ✅ (commit `aeaafbd`)
 
-- [ ] 7.1.1 `/` landing, `/pricing` (plan table + metered explainer), `/features`.
-- [ ] 7.1.2 `/changelog` (MDX), `/legal/{terms,privacy,dpa}`, `/status`.
+- [x] 7.1.1 `/` landing, `/pricing` (plan table + metered explainer + FAQ), `/features`.
+- [x] 7.1.2 `/changelog` (content array), `/legal/{terms,privacy,dpa}`, `/status`.
 
-## Section 2 — Auth `(auth)`
+## Section 2 — Auth `(auth)`  ✅ (commit `b9b7f55`)
 
-- [ ] 7.2.1 `/login` — email+password + "continue with Google" + links. FR-AUTH-003/009.
-- [ ] 7.2.2 `/login/2fa` — TOTP challenge (pending-auth token). FR-AUTH-013.
-- [ ] 7.2.3 `/register`. FR-AUTH-001.
-- [ ] 7.2.4 `/verify-email` (blocking + resend rate-limited) + `/verify-email/confirm?token=`. FR-AUTH-002.
-- [ ] 7.2.5 `/forgot-password` (identical response) + `/reset-password?token=`. FR-AUTH-010.
-- [ ] 7.2.6 `/oauth/google/callback` (route handler), `/invite/{token}` (logged-in accept / logged-out login-then-accept), `/logout`. FR-AUTH-009, FR-TEN-004.
+- [x] 7.2.1 `/login` — email+password + "continue with Google" + links. FR-AUTH-003/009.
+- [x] 7.2.2 `/login/2fa` — TOTP challenge (pending-auth token in sessionStorage). FR-AUTH-013.
+- [x] 7.2.3 `/register`. FR-AUTH-001.
+- [x] 7.2.4 `/verify-email` (blocking + resend rate-limited) + `/verify-email/confirm?token=`. FR-AUTH-002.
+- [x] 7.2.5 `/forgot-password` (identical response) + `/reset-password?token=`. FR-AUTH-010.
+- [x] 7.2.6 `/oauth/google/callback` (reads `#access_token` fragment), `/invite/{token}` (logged-in accept / logged-out login-then-accept), `/logout` (client-side; token is in memory). FR-AUTH-009, FR-TEN-004.
 
-## Section 3 — Account (user-scoped) `(app)`
+## Section 3 — Account (user-scoped) `(app)`  ✅ (backend §B `c6b45a4`, web commit below)
 
-- [ ] 7.3.1 `/app` org switcher (auto-redirect if exactly 1) + `/app/new-organization` (slug live availability). FR-TEN-001/002.
-- [ ] 7.3.2 `/account/profile` — name, avatar MinIO upload, email-change flow. FR-AUTH-014.
-- [ ] 7.3.3 `/account/security` (password, TOTP enroll/disable, recovery codes) + `/account/sessions` (list + revoke + log-out-all). FR-AUTH-008/012/013.
-- [ ] 7.3.4 `/account/notifications` prefs matrix (FR-NTF-004) + `/account/danger` (delete, blocked while sole OWNER).
+- [x] 7.3.1 `/app` org switcher + `/app/new-organization` (slug live availability). FR-TEN-001/002. NOTE: auto-redirect-if-1 deferred until the org shell (§4) exists so users aren't bounced to a 404.
+- [x] 7.3.2 `/account/profile` — name (`PATCH /me`), avatar MinIO upload (presigned PUT→confirm). FR-AUTH-014. Email-change control disabled (deferred, ADR-015).
+- [x] 7.3.3 `/account/security` (password change, TOTP enroll/activate/disable + recovery codes) + `/account/sessions` (list + revoke + log-out-all). FR-AUTH-008/012/013.
+- [x] 7.3.4 `/account/notifications` prefs matrix — **per-org** with an org selector (global prefs not built; ADR-015) — + `/account/danger` (`DELETE /me`, 409 sole_owner_of block list). FR-NTF-004.
 
 ## Section 4 — Org shell + home
 

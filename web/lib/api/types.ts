@@ -59,12 +59,40 @@ export interface Enroll2FAResponse {
   provisioning_uri: string;
 }
 
-/** Org membership summary row (GET /orgs). */
+/** Org membership summary row (GET /orgs -> { items: [...] }). */
 export interface OrgSummary {
-  id: string;
-  name: string;
-  slug: string;
+  org_id: string;
   role: string;
-  plan?: string;
-  status?: string;
+  slug: string;
+  name: string;
+  created_at: string;
+}
+
+/** The created-org shape (POST /orgs). */
+export interface Org {
+  id: string;
+  slug: string;
+  name: string;
+  logo_key?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** The caller's account profile (GET /me). */
+export interface Profile {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url?: string;
+  email_verified: boolean;
+  platform_role: string;
+  totp_enabled: boolean;
+  created_at: string;
+}
+
+/** A stored notification preference row (per-org, GET /orgs/{id}/notifications/prefs). */
+export interface NotificationPref {
+  category: string;
+  email: boolean;
+  in_app: boolean;
 }
