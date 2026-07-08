@@ -30,11 +30,11 @@
 
 ## Section 2 — Domain
 
-- [ ] 6.2.1 `internal/domain/admin/`: `PlatformRole`, `TenantSummary`, `EntitlementOverride`, `FeatureFlag`, `ImpersonationClaim` (imp) models + ports (`AdminRepository`, `FeatureFlagRepository`, `OverrideRepository`).
-- [ ] 6.2.2 `internal/domain/apikey/`: `APIKey`, `Scope` (read|write) models; hashing contract (prefix `fbk_live_` + 32B random, SHA-256 stored, plaintext shown once). FR-API-001.
-- [ ] 6.2.3 `apikey/ports.go`: `APIKeyRepository` (create, get-by-hash, list, revoke, touch-last-used).
-- [ ] 6.2.4 `internal/domain/analytics/`: `ProjectStats`, `UsageDashboard` views + ports (`StatsRepository` read, reuse billing `UsageRepository`). FR-AN-001/002.
-- [ ] 6.2.5 [VERIFY] Unit: API-key hash+verify + scope check.
+- [x] 6.2.1 `internal/domain/admin/`: `TenantSummary` (+MRR/member count), `TenantFilter`, `WebhookEvent`, `EntitlementOverride`, `FeatureFlag`, `ImpersonationClaim` + ports `AdminRepository`/`FeatureFlagRepository`/`OverrideRepository`. Reuses `auth.PlatformRole` (not redefined).
+- [x] 6.2.2 `internal/domain/apikey/`: `APIKey`, `Scope` (read|write, write⇒read); `Generate`/`Hash`/`Verify` (prefix `fbk_live_`+32B hex, SHA-256 hex stored, plaintext once), `LooksLikeKey`. FR-API-001.
+- [x] 6.2.3 `apikey/ports.go`: `APIKeyRepository` (Create, List, GetByHash, Revoke, TouchLastUsed).
+- [x] 6.2.4 `internal/domain/analytics/`: `DailyStat`, `ProjectAnalytics`, `UsageDashboard` + ports `StatsRepository` (rollup read) + `UsageReader` (Latest/SumRange over usage_records; kept read-only, separate from billing's write-oriented `UsageRepository`). FR-AN-001/002.
+- [x] 6.2.5 [VERIFY] `apikey_test.go`: hash/verify (constant-time), scope (write⇒read), generate shape/uniqueness — green.
 
 ## Section 3 — Usecase
 

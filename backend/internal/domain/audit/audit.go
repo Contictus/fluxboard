@@ -43,6 +43,19 @@ const (
 	ActionOrgSoftDelete        Action = "org.soft_delete"
 	ActionOrgRestore           Action = "org.restore"
 	ActionOrgTransferOwnership Action = "org.transfer_ownership"
+
+	// Platform admin (docs/build/PHASE-6 §5, FR-ADM-002/003/004/006). Impersonation
+	// rows carry both identities (ImpersonatorUserID set); overrides/flags/retries
+	// record the operator action on a tenant.
+	ActionImpersonateStart Action = "admin.impersonate_start"
+	ActionOverrideSet      Action = "admin.override_set"
+	ActionOverrideDelete   Action = "admin.override_delete"
+	ActionFlagSet          Action = "admin.flag_set"
+	ActionWebhookRetry     Action = "admin.webhook_retry"
+
+	// API keys (docs/build/PHASE-6 §5, FR-API-001).
+	ActionAPIKeyCreate Action = "apikey.create"
+	ActionAPIKeyRevoke Action = "apikey.revoke"
 )
 
 // Entry is one immutable audit record. Empty string IDs map to SQL NULL in the
@@ -67,4 +80,30 @@ type Entry struct {
 // best-effort: a failed append is logged, never surfaced to the user.
 type Writer interface {
 	Append(ctx context.Context, e Entry) error
+}
+
+// ExportCap bounds an audit CSV export (FR-AUD-003); the reader never streams more
+// than this many rows in one export.
+const ExportCap = 10000
+
+// Filter parameters an audit-log read (FR-AUD-003 org viewer, FR-ADM-005 global).
+// OrgID scopes to one tenant; empty OrgID means "all orgs" and is ONLY valid on the
+// platform-admin global path (the org viewer always sets it — the isolation
+// backstop for a non-RLS table, docs/07 §4). Zero-value time bounds are ignored.
+type Filter struct {
+	OrgID    string
+	Actor    string
+	Action   Action
+	Severity Severity
+	Since    time.Time
+	Until    time.Time
+	Limit    int // capped at ExportCap by the reader
+}
+
+// Reader queries the append-only audit_log. audit_log is not tenant-scoped (RLS),
+// so isolation for the org viewer is an explicit org_id filter in SQL (Filter.OrgID),
+// NOT the RLS GUC — the reader must reject an empty OrgID from the org-scoped path.
+type Reader interface {
+	// List returns entries newest-first per the filter (bounded by Limit/ExportCap).
+	List(ctx context.Context, f Filter) ([]Entry, error)
 }
