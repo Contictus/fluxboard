@@ -39,6 +39,7 @@ type Deps struct {
 	RateLimit     *mw.RateLimiter          // nil ⇒ no plan rate limiting (tests)
 	PlatformAdmin *mw.PlatformAdminGuard   // nil ⇒ /admin surface disabled
 	APIKeyResolver mw.APIKeyResolver       // nil ⇒ API-key auth path disabled (session only)
+	HTTPMetrics   mw.HTTPMetrics           // nil ⇒ no request-duration histogram (tests)
 }
 
 // NewRouter assembles the router. Infrastructure middleware wrap every route;
@@ -53,6 +54,9 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(mw.Recoverer)
 	r.Use(mw.CORS(d.WebOrigin))
 	r.Use(mw.ClientMeta) // stash client IP/UA for audit enrichment (pkg/reqmeta)
+	if d.HTTPMetrics != nil {
+		r.Use(mw.Metrics(d.HTTPMetrics)) // request-duration histogram (10 §5)
+	}
 
 	// Operational endpoints (outside auth).
 	r.Get("/healthz", d.Health.Live)

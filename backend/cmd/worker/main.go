@@ -143,6 +143,23 @@ func run(logger *slog.Logger) error {
 	})
 	webhookRetry := jobs.NewWebhookRetry(processedEventRepo, billingSvc, logger)
 
+	// Phase 6 §7: audit:retention (FR-AUD-002). The DELETE runs on the OWNER pool —
+	// audit_log DELETE is revoked from the app role (0005 append-only). Disabled
+	// (logged no-op) when DATABASE_URL_MIGRATE is unset, so no widening of the app
+	// role and no retry storm from the scheduled task.
+	var auditPurger jobs.AuditPurger
+	if cfg.DatabaseURLMigrate != "" {
+		ownerPool, err := pgxpool.New(ctx, cfg.DatabaseURLMigrate)
+		if err != nil {
+			return err
+		}
+		defer ownerPool.Close()
+		auditPurger = postgres.NewAuditRetentionRepo(ownerPool)
+	} else {
+		logger.Warn("DATABASE_URL_MIGRATE not set; audit:retention disabled")
+	}
+	auditRetention := jobs.NewAuditRetention(maintenanceRepo, billingSvc, auditPurger, logger)
+
 	// Phase 5 §7: notification email delivery (send-time pref recheck) + the
 	// nightly project-stats rollup. Notify owns the shared email:send handler and
 	// delegates billing-shaped payloads to billingJobs.HandleEmailSend.
@@ -156,10 +173,28 @@ func run(logger *slog.Logger) error {
 	})
 
 	mux := asynq.NewServeMux()
+	// Job counters by type + result (docs/10-INFRA-DEVOPS.md §5). Middleware wraps
+	// every handler so counts are uniform across job kinds.
+	jobCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "asynq_task_processed_total", Help: "Asynq tasks processed by type and status (docs/10 §5).",
+	}, []string{"type", "status"})
+	metricsReg.MustRegister(jobCounter)
+	mux.Use(func(next asynq.Handler) asynq.Handler {
+		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
+			err := next.ProcessTask(ctx, t)
+			status := "success"
+			if err != nil {
+				status = "error"
+			}
+			jobCounter.WithLabelValues(t.Type(), status).Inc()
+			return err
+		})
+	})
 	maintenance.Register(mux)
 	billingJobs.Register(mux)
 	notifyJobs.Register(mux)
 	webhookRetry.Register(mux)
+	auditRetention.Register(mux)
 
 	if err := srv.Start(mux); err != nil {
 		return err

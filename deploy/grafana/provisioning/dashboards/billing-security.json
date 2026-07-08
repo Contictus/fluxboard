@@ -1,0 +1,60 @@
+{
+  "uid": "fluxboard-billing-security",
+  "title": "Fluxboard — Billing & Security",
+  "tags": ["fluxboard"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Billing reconciliation drift (total)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "billing_reconciliation_drift_total", "legendFormat": "drift" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Drift detected (increase / 1h)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "increase(billing_reconciliation_drift_total[1h])", "legendFormat": "drift/1h" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Login attempts (per/s by result)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (rate(auth_login_total[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Refresh-token reuse (security signal, 24h)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "increase(auth_refresh_reuse_total[24h])" }
+      ]
+    }
+  ]
+}

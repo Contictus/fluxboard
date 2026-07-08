@@ -94,6 +94,13 @@ pgxpool stats (acquired/idle), go runtime defaults
 3. *Jobs & Queues* — Asynq depth by queue, failure rate, dead-letter count
 4. *Security* — login failures, refresh-reuse events, 403/404-probe rates, rate-limit hits
 
+**Endpoint exposure:** `/metrics` (api :8080, worker :8081) is scraped over the
+internal compose/cluster network only — it is NOT routed through the public
+ingress/LB. Locally, Prometheus reaches it by compose-service DNS
+(`api:8080`, `worker:8081`); in prod, keep the metrics path behind a network
+policy / firewall (no auth is applied at the handler). `/readyz` gates traffic on
+DB + Redis (+ optional MinIO/Stripe); `/healthz` is liveness only. (6.7.5)
+
 **Alert rules (prometheus rules file, documented even if only local):**
 webhook error-rate > 5%/10 m, dead-letter > 0, readyz failing 3×,
 refresh_reuse > 0 (info-level security alert), queue depth > 1000.

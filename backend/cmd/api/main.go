@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -111,6 +112,11 @@ func run(logger *slog.Logger) error {
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registerPoolStats(reg, pool)
 	obs := newAuthObserver(reg, logger)
+	httpMetrics := newHTTPMetrics(reg)
+	sseGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "sse_connections_active", Help: "Current number of live SSE subscribers (docs/10 §5).",
+	})
+	reg.MustRegister(sseGauge)
 
 	// Auth wiring: signer/verifier, repositories, session cache, usecase.
 	signer, err := loadSigner(cfg, logger)
@@ -190,7 +196,7 @@ func run(logger *slog.Logger) error {
 	// outbox entries and publishes notification.created. The producer services
 	// (task/project/tenant/billing) take the bus + notifier below so their writes
 	// emit realtime events and fan-out notifications.
-	eventBus := redisx.NewEventBus(rdb, logger)
+	eventBus := redisx.NewEventBus(rdb, logger, redisx.WithSubscriberGauge(sseGauge))
 	notifySvc := notifyuc.New(notifyuc.Deps{
 		Notifs: postgres.NewNotificationRepo(tenantPool),
 		Prefs:  postgres.NewPrefRepo(tenantPool),
@@ -382,6 +388,7 @@ func run(logger *slog.Logger) error {
 		RateLimit:     rateLimiter,
 		PlatformAdmin: platformGuard,
 		APIKeyResolver: apiKeyResolver,
+		HTTPMetrics:    httpMetrics,
 	})
 
 	srv := &http.Server{
@@ -601,6 +608,24 @@ func (o *authObserver) LoginAttempt(_ context.Context, result string) {
 func (o *authObserver) RefreshReuse(_ context.Context) {
 	o.reuse.Inc()
 	o.logger.Warn("refresh token reuse detected (family revoked)")
+}
+
+// httpMetrics implements mw.HTTPMetrics over a Prometheus histogram
+// (docs/10-INFRA-DEVOPS.md §5). Labels are bounded: method, route pattern, status.
+type httpMetrics struct{ dur *prometheus.HistogramVec }
+
+func newHTTPMetrics(reg prometheus.Registerer) *httpMetrics {
+	dur := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "http_request_duration_seconds",
+		Help:    "HTTP request duration by route, method, and status.",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"method", "route", "status"})
+	reg.MustRegister(dur)
+	return &httpMetrics{dur: dur}
+}
+
+func (h *httpMetrics) ObserveRequest(method, route string, status int, seconds float64) {
+	h.dur.WithLabelValues(method, route, strconv.Itoa(status)).Observe(seconds)
 }
 
 // registerPoolStats exposes pgxpool connection counts as gauges.

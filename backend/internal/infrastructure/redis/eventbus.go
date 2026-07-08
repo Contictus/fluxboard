@@ -25,18 +25,40 @@ import (
 type EventBus struct {
 	rdb    *redis.Client
 	logger *slog.Logger
+	gauge  SubscriberGauge // nil ⇒ no metric
 
 	mu   sync.Mutex
 	orgs map[string]*orgFanout // consumers keyed by orgID (present ⇒ ≥1 subscriber)
 }
 
+// SubscriberGauge tracks the live SSE subscriber count (docs/10-INFRA-DEVOPS.md
+// §5). prometheus.Gauge satisfies it; declared here so redisx stays off the
+// prometheus import.
+type SubscriberGauge interface {
+	Inc()
+	Dec()
+}
+
+// EventBusOption configures an EventBus at construction.
+type EventBusOption func(*EventBus)
+
+// WithSubscriberGauge wires a gauge incremented on Subscribe and decremented when
+// the subscriber's cancel runs.
+func WithSubscriberGauge(g SubscriberGauge) EventBusOption {
+	return func(b *EventBus) { b.gauge = g }
+}
+
 // NewEventBus builds an EventBus over the given client. A nil logger defaults to
 // slog.Default.
-func NewEventBus(rdb *redis.Client, logger *slog.Logger) *EventBus {
+func NewEventBus(rdb *redis.Client, logger *slog.Logger, opts ...EventBusOption) *EventBus {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &EventBus{rdb: rdb, logger: logger, orgs: map[string]*orgFanout{}}
+	b := &EventBus{rdb: rdb, logger: logger, orgs: map[string]*orgFanout{}}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
 
 var _ notify.EventBus = (*EventBus)(nil)
@@ -143,6 +165,9 @@ func (b *EventBus) Subscribe(ctx context.Context, orgID string) (<-chan notify.E
 	fo.subs[ch] = struct{}{}
 	fo.mu.Unlock()
 	b.mu.Unlock()
+	if b.gauge != nil {
+		b.gauge.Inc()
+	}
 
 	var once sync.Once
 	cancel := func() {
@@ -158,6 +183,9 @@ func (b *EventBus) Subscribe(ctx context.Context, orgID string) (<-chan notify.E
 			}
 			b.mu.Unlock()
 			close(ch)
+			if b.gauge != nil {
+				b.gauge.Dec()
+			}
 		})
 	}
 	return ch, cancel, nil

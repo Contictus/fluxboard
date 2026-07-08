@@ -73,11 +73,11 @@
 
 ## Section 7 — Observability (`docs/10-INFRA-DEVOPS.md`)
 
-- [ ] 6.7.1 Expand Prometheus metrics: HTTP request duration histogram (by route/status), Asynq job counters, `billing_reconciliation_drift_total`, SSE subscribers gauge.
-- [ ] 6.7.2 Provision Grafana dashboards under `deploy/grafana/` (API latency, job throughput, billing health).
-- [ ] 6.7.3 [VERIFY] `audit:retention` job (built Phase 5) honors per-plan retention via privileged role. FR-AUD-002.
-- [ ] 6.7.4 [VERIFY] Platform-admin TOTP enforcement (no admin route reachable without 2FA). FR-ADM-001, 11-SECURITY.
-- [ ] 6.7.5 `/metrics` restricted to internal network; `/readyz` covers DB+Redis (+MinIO/Stripe optional).
+- [x] 6.7.1 Metrics: `Metrics` middleware (chi route-pattern label) → `http_request_duration_seconds{method,route,status}` histogram (main wires `httpMetrics`); worker mux middleware → `asynq_task_processed_total{type,status}`; `billing_reconciliation_drift_total` (pre-existing); `sse_connections_active` gauge via `redisx.WithSubscriberGauge` (inc on Subscribe / dec on cancel). Metric names match docs/10 §5.
+- [x] 6.7.2 Grafana dashboards under `deploy/grafana/provisioning/dashboards/`: `api-overview` (RPS/p95/5xx/SSE/pgxpool), `jobs-queues` (throughput/failure/error-ratio), `billing-security` (drift/logins/refresh-reuse). Provider path already mounted; JSON validated.
+- [x] 6.7.3 `audit:retention` job built: fans out per org, deletes `audit_log` rows older than `plans.audit_retention_days`; runs on the OWNER pool (`AuditRetentionRepo`) because audit_log DELETE is revoked from the app role (0005 append-only) — no app-role widening. Scheduled `45 3 * * *`; logged no-op when `DATABASE_URL_MIGRATE` unset. FR-AUD-002.
+- [x] 6.7.4 [VERIFY] `PlatformAdminGuard.RequireAdmin` refuses unless `platform_role=admin` AND `totp_enabled`, and rejects impersonation tokens (`ImpersonatedOrg!=""`) → no `/admin` route reachable without 2FA. FR-ADM-001, 11-SECURITY.
+- [x] 6.7.5 [VERIFY] `/metrics` scraped on the internal compose/cluster network only (not public ingress) — noted in docs/10 §5; `/readyz` gates on DB+Redis (Health{DB,Redis}), `/healthz` liveness only.
 
 ## Section 8 — Tests
 

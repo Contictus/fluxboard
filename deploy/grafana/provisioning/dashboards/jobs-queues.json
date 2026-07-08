@@ -1,0 +1,56 @@
+{
+  "uid": "fluxboard-jobs",
+  "title": "Fluxboard — Jobs & Queues",
+  "tags": ["fluxboard"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Job throughput (jobs/s by type)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type) (rate(asynq_task_processed_total[5m]))",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Job failure rate (errors/s by type)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type) (rate(asynq_task_processed_total{status=\"error\"}[5m]))",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Overall job error ratio",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(asynq_task_processed_total{status=\"error\"}[15m])) / clamp_min(sum(rate(asynq_task_processed_total[15m])), 1)"
+        }
+      ]
+    }
+  ]
+}

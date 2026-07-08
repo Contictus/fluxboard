@@ -1,0 +1,78 @@
+{
+  "uid": "fluxboard-api",
+  "title": "Fluxboard — API Overview",
+  "tags": ["fluxboard"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request rate (req/s by status)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(http_request_duration_seconds_count[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Latency p95 by route (s)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "5xx error ratio",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_request_duration_seconds_count{status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_request_duration_seconds_count[5m])), 1)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Live SSE subscribers",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "sse_connections_active", "legendFormat": "subscribers" }]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "pgxpool connections",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "pgxpool_acquired_conns", "legendFormat": "acquired" },
+        { "refId": "B", "expr": "pgxpool_idle_conns", "legendFormat": "idle" },
+        { "refId": "C", "expr": "pgxpool_total_conns", "legendFormat": "total" }
+      ]
+    }
+  ]
+}

@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/uuidv7"
 )
 
@@ -74,6 +76,34 @@ func LoggerFrom(ctx context.Context) *slog.Logger {
 		return l
 	}
 	return slog.Default()
+}
+
+// HTTPMetrics is the observation surface for the metrics middleware, implemented
+// in cmd/api over a Prometheus histogram. Declared here as an interface so the
+// middleware package stays off the prometheus import (mirrors RequestCounter).
+type HTTPMetrics interface {
+	// ObserveRequest records one served request. route is the chi route PATTERN
+	// (e.g. /api/v1/orgs/{orgId}/projects) — bounded cardinality, never the raw path.
+	ObserveRequest(method, route string, status int, seconds float64)
+}
+
+// Metrics records request duration by route pattern, method, and status. It runs
+// in the infrastructure chain, so it reads the matched route pattern AFTER the
+// downstream handler returns (chi fills the RouteContext during routing). An
+// unmatched request (404) reports route="unmatched" to bound cardinality.
+func Metrics(m HTTPMetrics) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+			next.ServeHTTP(sw, r)
+			route := chi.RouteContext(r.Context()).RoutePattern()
+			if route == "" {
+				route = "unmatched"
+			}
+			m.ObserveRequest(r.Method, route, sw.status, time.Since(start).Seconds())
+		})
+	}
 }
 
 // Recoverer turns a panic into a 500 and logs the stack. The stack never
