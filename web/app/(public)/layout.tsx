@@ -1,7 +1,14 @@
 import type { ReactNode } from 'react';
 
-// Marketing chrome (header/footer) is added in §1. Kept as a pass-through group
-// layout so the (public) route group exists from scaffolding.
+import { SiteHeader } from '@/components/marketing/site-header';
+import { SiteFooter } from '@/components/marketing/site-footer';
+
 export default function PublicLayout({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+  return (
+    <div className="flex min-h-screen flex-col">
+      <SiteHeader />
+      <main className="flex-1">{children}</main>
+      <SiteFooter />
+    </div>
+  );
 }
