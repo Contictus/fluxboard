@@ -52,6 +52,7 @@ type Plan struct {
 	APIRatePerMin         int
 	AuditRetentionDays    int
 	Metered               bool
+	MonthlyPrice          int64 // recurring price in minor units (0011 monthly_price); backs MRR + usage estimate
 }
 
 // ---- Subscription state machine -------------------------------------------

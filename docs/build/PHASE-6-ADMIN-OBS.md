@@ -38,13 +38,13 @@
 
 ## Section 3 — Usecase
 
-- [ ] 6.3.1 `adminuc`: tenant list (search, plan/status filters, member count, MRR) + tenant detail (subscription timeline, webhook events for customer, overrides). FR-ADM-002.
-- [ ] 6.3.2 `adminuc`: impersonation — mint short-lived token with `imp` claim (read-only); dual-identity context. FR-ADM-003.
-- [ ] 6.3.3 `adminuc`: webhook browser (list processed_stripe_events) + retry (enqueue `webhook:retry`). FR-ADM-004.
-- [ ] 6.3.4 `adminuc`: feature flags CRUD + entitlement override CRUD. FR-ADM-006/002.
-- [ ] 6.3.5 `apikeyuc`: create (return one-time plaintext), list, revoke; `ResolveByKey` (hash → org context + scopes). FR-API-001/002.
-- [ ] 6.3.6 `analyticsuc`: project analytics (completed/week, cumulative flow, cycle time, per-assignee) + org usage dashboard (seats/storage/api-calls, invoice estimate). Reads rollup tables only. FR-AN-001/002.
-- [ ] 6.3.7 `audituc`: org-scoped viewer (filters actor/action/date, CSV export ≤10k, FR-AUD-003) + global viewer (FR-ADM-005).
+- [x] 6.3.1 `adminuc`: `ListTenants` (search/plan/status, capped) + `GetTenantDetail` (subscription via `billing.SubscriptionRepository.Get`, webhook events by customer, invoices, overrides, flags). FR-ADM-002.
+- [x] 6.3.2 `adminuc.StartImpersonation`: `ImpersonationMinter` port mints the token; records a `security` audit row with BOTH identities. FR-ADM-003. (jwtx `imp` claim + middleware land in §5.)
+- [x] 6.3.3 `adminuc.RetryWebhook`: `WebhookRetrier` port enqueues `webhook:retry`; audited. FR-ADM-004.
+- [x] 6.3.4 `adminuc`: `ListFlags`/`SetFlag` + `ListOverrides`/`SetOverride`/`DeleteOverride`, all audited. FR-ADM-006/002.
+- [x] 6.3.5 `apikeyuc`: `Create` (one-time plaintext), `List`, `Revoke`, `ResolveByKey` (hash→GetByHash→active→touch; misses/revoked ⇒ `ErrUnauthorized`). FR-API-001/002.
+- [x] 6.3.6 `analyticsuc`: `ProjectAnalytics` (window series + totals + mean cycle from rollup) + `UsageDashboard` (MTD seats/storage/api-calls + plan base-price estimate). Rollup-only. FR-AN-001/002.
+- [x] 6.3.7 `audituc`: `ListForOrg` (forces OrgID isolation) + `ListGlobal`; `export` flag caps rows at `ExportCap` (10k) for CSV. FR-AUD-003/ADM-005. (Added `billing.Plan.MonthlyPrice` field for MRR/estimate.)
 
 ## Section 4 — Infra
 
