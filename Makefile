@@ -12,7 +12,7 @@ DATABASE_URL_MIGRATE ?= postgres://fluxboard_owner:owner_pw@postgres:5432/fluxbo
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down logs migrate migrate-down sqlc gen-client seed stripe-seed \
+.PHONY: help up down logs migrate migrate-down sqlc openapi gen-client seed stripe-seed \
         api worker web test test-integration lint audit
 
 help: ## List targets
@@ -39,8 +39,12 @@ migrate-down: ## Roll back the last migration
 sqlc: ## Regenerate query code from SQL (no-op until queries exist)
 	docker run --rm -v "$(CURDIR)/backend":/src -w /src sqlc/sqlc generate
 
-gen-client: ## Generate the TS API client from openapi.json (Phase 7 stub)
-	@echo "gen-client: stub until the OpenAPI spec exists (Phase 7)."
+openapi: ## Regenerate the OpenAPI 3.1 spec from swaggo annotations (needs swag v2)
+	cd backend && swag init -g cmd/api/main.go -o docs --parseInternal --parseDepth 2 --v3.1 --outputTypes json
+	cp backend/docs/swagger.json backend/internal/interface/http/handlers/openapi.json
+
+gen-client: ## Generate the TS API client from the served openapi.json (Phase 7)
+	@echo "gen-client: point openapi-typescript at http://localhost:8080/api/v1/openapi.json (Phase 7 frontend)."
 
 seed: ## Seed demo tenant + users (Phase 2 stub)
 	@echo "seed: stub until seed data is defined (docs/12-TESTING.md §5)."

@@ -39,7 +39,17 @@ type dailyStatResp struct {
 	AvgCycleSeconds *int64         `json:"avg_cycle_seconds,omitempty"`
 }
 
-// ProjectAnalytics: GET /orgs/{orgId}/projects/{projectId}/analytics?from=&to=
+// ProjectAnalytics returns a project's rollup analytics for a window.
+// @Summary  Project analytics
+// @Tags     analytics
+// @Security BearerAuth
+// @Produce  json
+// @Param    orgId      path  string  true   "Organization ID"
+// @Param    projectId  path  string  true   "Project ID"
+// @Param    from       query string  false  "Start day (YYYY-MM-DD)"
+// @Param    to         query string  false  "End day (YYYY-MM-DD)"
+// @Success  200  {object}  map[string]interface{}
+// @Router   /orgs/{orgId}/projects/{projectId}/analytics [get]
 func (h *AnalyticsHandlers) ProjectAnalytics(w http.ResponseWriter, r *http.Request) {
 	tc, ok := mw.TenantFrom(r.Context())
 	if !ok {
@@ -74,7 +84,14 @@ func (h *AnalyticsHandlers) ProjectAnalytics(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-// Usage: GET /orgs/{orgId}/usage
+// Usage returns the org usage dashboard (seats/storage/api-calls + estimate).
+// @Summary  Org usage dashboard
+// @Tags     analytics
+// @Security BearerAuth
+// @Produce  json
+// @Param    orgId  path  string  true  "Organization ID"
+// @Success  200  {object}  map[string]interface{}
+// @Router   /orgs/{orgId}/usage [get]
 func (h *AnalyticsHandlers) Usage(w http.ResponseWriter, r *http.Request) {
 	tc, ok := mw.TenantFrom(r.Context())
 	if !ok {

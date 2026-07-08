@@ -31,6 +31,8 @@ type Deps struct {
 	AuditView     *handlers.AuditHandlers        // nil ⇒ org audit viewer disabled
 	Analytics     *handlers.AnalyticsHandlers    // nil ⇒ analytics disabled
 	Admin         *handlers.AdminHandlers        // nil ⇒ /admin surface disabled
+	OpenAPI       *handlers.OpenAPIHandlers      // nil ⇒ openapi.json / docs disabled
+	DevDocs       bool                           // true ⇒ mount interactive Swagger UI at /api/docs (non-prod)
 	Authenticator *mw.Authenticator
 	Tenant        *mw.TenantGuard
 	Entitlement   *mw.EntitlementGuard
@@ -57,11 +59,22 @@ func NewRouter(d Deps) http.Handler {
 	r.Get("/readyz", d.Health.Ready)
 	r.Handle("/metrics", d.MetricsHTTP)
 
+	// Interactive API docs (Swagger UI) — non-prod only (FR-API-003).
+	if d.OpenAPI != nil && d.DevDocs {
+		r.Get("/api/docs", d.OpenAPI.Docs)
+	}
+
 	r.Route("/api/v1", func(api chi.Router) {
 		// Stripe webhook (FR-BILL-005). Mounted OUTSIDE session auth — Stripe
 		// carries no bearer token; the handler authenticates the request by
 		// verifying the payload signature through the gateway. docs/06 §4.
 		api.Post("/webhooks/stripe", d.Webhooks.Stripe)
+
+		// OpenAPI 3.1 spec (FR-API-003) — public, outside auth so client codegen
+		// and Swagger UI can fetch it without a token.
+		if d.OpenAPI != nil {
+			api.Get("/openapi.json", d.OpenAPI.Spec)
+		}
 
 		// Auth surface (docs/04-AUTH.md §5) — no org context.
 		api.Route("/auth", func(a chi.Router) {

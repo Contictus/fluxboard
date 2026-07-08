@@ -52,7 +52,7 @@
 - [x] 6.4.2 `postgres/feature_flag_repo.go` + `override_repo.go` over TenantPool.
 - [x] 6.4.3 `postgres/admin_repo.go` (OWNER pool): `ListTenants`/`GetTenant` with MRR aggregate (`SUM monthly_price` over entitled sub, join subscriptions/plans, member count) + `WebhookEventsForCustomer` (payload `#>>{data,object,customer}`). `analytics_repo.go`: rollup + usage reads via TenantPool.
 - [x] 6.4.4 `postgres/audit_read_repo.go`: hand-written dynamic filtered reads on the plain pool (org isolation via explicit org_id predicate), bounded at `ExportCap`.
-- [ ] 6.4.5 OpenAPI 3.1 (swaggo v2) → serve `/api/v1/openapi.json` + `/api/docs`; `make gen-client` hook. FR-API-003. Queries `queries/{apikeys,admin,flags,overrides,analytics}.sql` + `monthly_price` added to plans query; `sqlc generate` clean. **[OpenAPI serving moved to §5 — annotations live on the handlers.]**
+- [x] 6.4.5 OpenAPI 3.1 (swaggo **v2**, `swag init … --v3.1`): general info on `cmd/api/main.go` + `@Router` annotations on the Phase-6 handlers → `docs/swagger.json`, embedded at `handlers/openapi.json`, served `GET /api/v1/openapi.json` (public) + Swagger UI `GET /api/docs` (non-prod). `make openapi` regenerates; `make gen-client` points the FE codegen at it. Queries `{apikeys,admin,flags,overrides,analytics}.sql` + `monthly_price` on plans; `sqlc generate` clean.
 
 ## Section 5 — HTTP
 
@@ -63,7 +63,7 @@
 - [x] 6.5.5 `GET /admin/audit` (global) + flag/override PUT/DELETE + `GET /admin/jobs` (JobsInspector port). FR-ADM-005/006.
 - [x] 6.5.6 `middleware/apikey.go`: `HybridAuth` resolves `Bearer fbk_…` → org+scopes (no session); `TenantGuard` maps scope→synthetic role; `APIKeyScopeGuard` 403s writes from read keys; `X-RateLimit-Limit` header on org responses; plan rate limit reused (429+Retry-After). FR-API-002.
 - [x] 6.5.7 Org `GET/POST /api-keys` (one-time secret reveal), `DELETE /api-keys/{id}` (O(ADMIN)); org audit `GET /audit` + `GET /audit.csv` (O(ADMIN), 10k cap). FR-API-001, FR-AUD-003.
-- [~] 6.5.8 Analytics `GET /projects/{id}/analytics` (O(MEMBER)) + `GET /usage` (O(ADMIN)) DONE. **OpenAPI `/api/v1/openapi.json` + Swagger UI `/api/docs` = remaining §5 tail (swaggo v2 toolchain not yet installed; next step).** FR-AN-001/002, FR-API-003.
+- [x] 6.5.8 Analytics `GET /projects/{id}/analytics` (O(MEMBER)) + `GET /usage` (O(ADMIN)); OpenAPI `GET /api/v1/openapi.json` (public) + Swagger UI `GET /api/docs` (non-prod, `DevDocs`). FR-AN-001/002, FR-API-003.
 
 ## Section 6 — Wiring
 

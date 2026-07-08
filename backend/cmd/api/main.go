@@ -56,6 +56,14 @@ const (
 	loginRateWindow = 15 * time.Minute
 )
 
+// @title           Fluxboard API
+// @version         1.0
+// @description     Multi-tenant project management + usage-based billing API. Bearer
+// @description     auth accepts either a user session JWT or an org API key (fbk_live_…).
+// @BasePath        /api/v1
+// @securityDefinitions.apikey  BearerAuth
+// @in              header
+// @name            Authorization
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)

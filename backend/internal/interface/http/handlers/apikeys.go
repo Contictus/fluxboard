@@ -53,7 +53,14 @@ func toAPIKeyResp(k apikey.APIKey) apiKeyResp {
 	}
 }
 
-// List: GET /orgs/{orgId}/api-keys
+// List returns the org's API keys (secrets never included).
+// @Summary  List API keys
+// @Tags     api-keys
+// @Security BearerAuth
+// @Produce  json
+// @Param    orgId  path  string  true  "Organization ID"
+// @Success  200  {object}  map[string]interface{}
+// @Router   /orgs/{orgId}/api-keys [get]
 func (h *APIKeyHandlers) List(w http.ResponseWriter, r *http.Request) {
 	tc, ok := mw.TenantFrom(r.Context())
 	if !ok {
