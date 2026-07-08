@@ -137,6 +137,34 @@ func (r *UserRepo) MarkEmailVerified(ctx context.Context, id string) error {
 	return r.q.MarkUserEmailVerified(ctx, uid)
 }
 
+// UpdateName sets the user's display name (FR-AUTH-014, PATCH /me).
+func (r *UserRepo) UpdateName(ctx context.Context, id, name string) error {
+	uid, err := parseUUID(id)
+	if err != nil {
+		return fmt.Errorf("update name: %w", err)
+	}
+	return r.q.UpdateUserName(ctx, gen.UpdateUserNameParams{Name: name, ID: uid})
+}
+
+// UpdateAvatarKey sets (or clears, via "") the MinIO object key for the avatar.
+func (r *UserRepo) UpdateAvatarKey(ctx context.Context, id, key string) error {
+	uid, err := parseUUID(id)
+	if err != nil {
+		return fmt.Errorf("update avatar: %w", err)
+	}
+	return r.q.UpdateUserAvatarKey(ctx, gen.UpdateUserAvatarKeyParams{AvatarKey: key, ID: uid})
+}
+
+// Delete hard-deletes the account. Memberships and sessions cascade. The
+// sole-owner guard MUST run first (see useruc).
+func (r *UserRepo) Delete(ctx context.Context, id string) error {
+	uid, err := parseUUID(id)
+	if err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
+	return r.q.DeleteUser(ctx, uid)
+}
+
 func (r *UserRepo) SetTOTP(ctx context.Context, id, encSecret string, enabled bool) error {
 	uid, err := parseUUID(id)
 	if err != nil {

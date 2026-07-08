@@ -51,6 +51,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/projectuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/tenantuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/useruc"
 )
 
 // version is injected at build time via -ldflags "-X main.version=...".
@@ -279,6 +280,7 @@ func run(logger *slog.Logger) error {
 		adminHandlers     *handlers.AdminHandlers
 		platformGuard     *mw.PlatformAdminGuard
 		apiKeyResolver    mw.APIKeyResolver
+		userSoleOwner     useruc.SoleOwnerReader // cross-org sole-owner reader (owner pool); nil ⇒ account deletion disabled
 	)
 	if cfg.DatabaseURLMigrate == "" {
 		logger.Warn("DATABASE_URL_MIGRATE not set; platform-admin + API-key surfaces disabled")
@@ -326,7 +328,19 @@ func run(logger *slog.Logger) error {
 		adminHandlers = handlers.NewAdminHandlers(adminSvc, auditSvc, jobsInspector{insp: inspector}, logger)
 		platformGuard = &mw.PlatformAdminGuard{Users: userRepo, Logger: logger}
 		apiKeyResolver = apikeySvc
+		userSoleOwner = postgres.NewUserOwnerRepo(ownerPool) // account-delete sole-owner guard (cross-org)
 	}
+
+	// Account self-service (docs/08 §3). Avatars reuse the MinIO object store; the
+	// sole-owner guard needs the owner pool (nil ⇒ DELETE /me returns 403).
+	userSvc := useruc.New(useruc.Deps{
+		Users:     userRepo,
+		Avatars:   objectStore,
+		Sessions:  sessionRepo,
+		SoleOwner: userSoleOwner,
+		Logger:    logger,
+	})
+	userHandlers := handlers.NewUserHandlers(userSvc, logger)
 
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
@@ -369,6 +383,7 @@ func run(logger *slog.Logger) error {
 		Health:        httpx.Health{DB: pool, Redis: redisPinger{rdb}},
 		MetricsHTTP:   promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
 		Auth:          authHandlers,
+		User:          userHandlers,
 		Orgs:          orgHandlers,
 		Projects:      projectHandlers,
 		Tasks:         taskHandlers,

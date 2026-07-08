@@ -39,6 +39,17 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 	return err
 }
 
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users WHERE id = $1
+`
+
+// Hard-deletes the account (docs/08 §3 DELETE /me). Memberships/sessions cascade
+// via ON DELETE CASCADE. Callers MUST enforce the sole-owner guard first.
+func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, email,
        coalesce(password_hash, '')::text AS password_hash,
@@ -133,6 +144,45 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 	return i, err
 }
 
+const listSoleOwnerOrgs = `-- name: ListSoleOwnerOrgs :many
+SELECT o.id, o.slug, o.name
+FROM memberships m
+JOIN organizations o ON o.id = m.org_id
+WHERE m.user_id = $1
+  AND m.role = 'OWNER'
+  AND o.deleted_at IS NULL
+  AND (SELECT count(*) FROM memberships m2
+       WHERE m2.org_id = m.org_id AND m2.role = 'OWNER') = 1
+`
+
+type ListSoleOwnerOrgsRow struct {
+	ID   uuid.UUID `json:"id"`
+	Slug string    `json:"slug"`
+	Name string    `json:"name"`
+}
+
+// Orgs the user solely owns (blocks account deletion, docs/08 §3). Cross-org read:
+// run on the owner pool (memberships RLS is non-FORCE, table owner bypasses it).
+func (q *Queries) ListSoleOwnerOrgs(ctx context.Context, userID uuid.UUID) ([]ListSoleOwnerOrgsRow, error) {
+	rows, err := q.db.Query(ctx, listSoleOwnerOrgs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSoleOwnerOrgsRow
+	for rows.Next() {
+		var i ListSoleOwnerOrgsRow
+		if err := rows.Scan(&i.ID, &i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markUserEmailVerified = `-- name: MarkUserEmailVerified :exec
 UPDATE users SET email_verified = true WHERE id = $1
 `
@@ -158,6 +208,35 @@ type SetUserTOTPParams struct {
 // flag together (docs/04-AUTH.md §4 TOTP step).
 func (q *Queries) SetUserTOTP(ctx context.Context, arg SetUserTOTPParams) error {
 	_, err := q.db.Exec(ctx, setUserTOTP, arg.TotpSecret, arg.TotpEnabled, arg.ID)
+	return err
+}
+
+const updateUserAvatarKey = `-- name: UpdateUserAvatarKey :exec
+UPDATE users SET avatar_key = nullif($1, '')::text WHERE id = $2
+`
+
+type UpdateUserAvatarKeyParams struct {
+	AvatarKey interface{} `json:"avatar_key"`
+	ID        uuid.UUID   `json:"id"`
+}
+
+// Sets (or clears, via empty string) the MinIO object key for the user's avatar.
+func (q *Queries) UpdateUserAvatarKey(ctx context.Context, arg UpdateUserAvatarKeyParams) error {
+	_, err := q.db.Exec(ctx, updateUserAvatarKey, arg.AvatarKey, arg.ID)
+	return err
+}
+
+const updateUserName = `-- name: UpdateUserName :exec
+UPDATE users SET name = $1 WHERE id = $2
+`
+
+type UpdateUserNameParams struct {
+	Name string    `json:"name"`
+	ID   uuid.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateUserName(ctx context.Context, arg UpdateUserNameParams) error {
+	_, err := q.db.Exec(ctx, updateUserName, arg.Name, arg.ID)
 	return err
 }
 

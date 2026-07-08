@@ -88,6 +88,9 @@ type Querier interface {
 	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error)
 	DeleteOverride(ctx context.Context, arg DeleteOverrideParams) (int64, error)
 	DeleteSubtask(ctx context.Context, arg DeleteSubtaskParams) (int64, error)
+	// Hard-deletes the account (docs/08 §3 DELETE /me). Memberships/sessions cascade
+	// via ON DELETE CASCADE. Callers MUST enforce the sole-owner guard first.
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 	// Clears any prior codes before a fresh batch is issued (activate / regenerate).
 	DeleteUserRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DetachLabel(ctx context.Context, arg DetachLabelParams) (int64, error)
@@ -200,6 +203,9 @@ type Querier interface {
 	// in docs/build/PHASE-5 §4).
 	// Non-archived, non-deleted projects for an org (rollup iteration).
 	ListRollupProjectIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	// Orgs the user solely owns (blocks account deletion, docs/08 §3). Cross-org read:
+	// run on the owner pool (memberships RLS is non-FORCE, table owner bypasses it).
+	ListSoleOwnerOrgs(ctx context.Context, userID uuid.UUID) ([]ListSoleOwnerOrgsRow, error)
 	ListSubtasksByTask(ctx context.Context, arg ListSubtasksByTaskParams) ([]Subtask, error)
 	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error)
 	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error)
@@ -275,6 +281,9 @@ type Querier interface {
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (int64, error)
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
+	// Sets (or clears, via empty string) the MinIO object key for the user's avatar.
+	UpdateUserAvatarKey(ctx context.Context, arg UpdateUserAvatarKeyParams) error
+	UpdateUserName(ctx context.Context, arg UpdateUserNameParams) error
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
 	UpsertFeatureFlag(ctx context.Context, arg UpsertFeatureFlagParams) error
 	UpsertInvoice(ctx context.Context, arg UpsertInvoiceParams) error

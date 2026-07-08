@@ -20,6 +20,7 @@ type Deps struct {
 	Health        Health
 	MetricsHTTP   http.Handler
 	Auth          *handlers.AuthHandlers
+	User          *handlers.UserHandlers // nil ⇒ /me account surface disabled
 	Orgs          *handlers.OrgHandlers
 	Projects      *handlers.ProjectHandlers
 	Tasks         *handlers.TaskHandlers
@@ -122,6 +123,15 @@ func NewRouter(d Deps) http.Handler {
 				sec.Use(d.Authenticator.Authenticate)
 			}
 			sec.Use(mw.RequireVerified) // FR-AUTH-002: block unverified email (API keys are marked verified)
+
+			// Account self-service (docs/08 §3, FR-AUTH-014). User-scoped, org-independent.
+			if d.User != nil {
+				sec.Get("/me", d.User.Me)
+				sec.Patch("/me", d.User.UpdateMe)
+				sec.Delete("/me", d.User.DeleteMe)
+				sec.Post("/me/avatar/upload-url", d.User.AvatarUploadURL)
+				sec.Post("/me/avatar/confirm", d.User.AvatarConfirm)
+			}
 
 			// Org root (no {orgId} — cannot resolve a tenant).
 			sec.Post("/orgs", d.Orgs.CreateOrg)
