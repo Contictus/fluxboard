@@ -14,19 +14,19 @@
 
 ## Section 0 — Prereqs & decisions
 
-- [ ] 6.0.1 [DECISION] How the first `platform_role=admin` is bootstrapped (seed migration / CLI). Record here.
-- [ ] 6.0.2 [VERIFY] Audit `audit_log` (0005) columns vs FR-AUD-001 (needs `impersonator_user_id`, `severity`, nullable `org_id`); note any add for 6.1.5.
-- [ ] 6.0.3 [DECISION] OpenAPI generation approach (annotation lib e.g. `swaggo/swag` vs maintained hand-written 3.1 spec). Record. FR-API-003.
+- [x] 6.0.1 [DECISION] Bootstrap = new `cmd/adminctl grant <email>` — idempotent `UPDATE users SET platform_role='admin' WHERE email=$1` on the owner pool. No hardcoded user in seed/migration.
+- [x] 6.0.2 [VERIFY] No add needed: `audit_log` (0005) already has `impersonator_user_id`, `severity` (info|warning|security) and nullable `org_id`. → 6.1.5 is a no-op.
+- [x] 6.0.3 [DECISION] OpenAPI = `swaggo/swag` **v2** (`github.com/swaggo/swag/v2`, emits OpenAPI 3.1; v1 only does Swagger 2.0). Annotate handlers → `swag init` → serve `/api/v1/openapi.json` + Swagger UI `/api/docs` (non-prod).
 
 ## Section 1 — Migrations (0015 DDL, 0016 RLS)
 
-- [ ] 6.1.1 `0015_admin.up.sql`: `users.platform_role` column (null | 'admin'). FR-ADM-001.
-- [ ] 6.1.2 `0015`: `api_keys` [T] (id, org_id, prefix, key_hash, name, scopes text[], created_by, last_used_at, revoked_at, created_at). FR-API-001.
-- [ ] 6.1.3 `0015`: `feature_flags` [T] (org_id, flag, enabled, `PK(org_id,flag)`). FR-ADM-006.
-- [ ] 6.1.4 `0015`: `entitlement_overrides` [T] (org_id, key, value, note, created_by, created_at). FR-ADM-002.
-- [ ] 6.1.5 `0015`: add any missing `audit_log` columns from 6.0.2. FR-AUD-001.
-- [ ] 6.1.6 `0015.down.sql` + `0016_admin_rls.up/.down.sql`: RLS `tenant_isolation` on `api_keys`, `feature_flags`, `entitlement_overrides` (audit_log stays as-is; app role has no UPDATE/DELETE grant per FR-AUD-002).
-- [ ] 6.1.7 [VERIFY] `migrate up`/`down 2`/`up` clean on 0015/0016.
+- [x] 6.1.1 SUPERSEDED — `users.platform_role` (+ `totp_secret`/`totp_enabled`) already exist since 0002; not re-added. Instead 0015 adds `plans.monthly_price bigint` (local MRR source, FR-ADM-002; plans otherwise stores only Stripe price IDs).
+- [x] 6.1.2 `0015`: `api_keys` [T] (id, org_id, prefix, key_hash UNIQUE, name, scopes text[], created_by, last_used_at, revoked_at, created_at) + `api_keys_org_idx`. FR-API-001.
+- [x] 6.1.3 `0015`: `feature_flags` [T] (org_id, flag, enabled, `PK(org_id,flag)`). FR-ADM-006.
+- [x] 6.1.4 `0015`: `entitlement_overrides` [T] (org_id, key, value, note, created_by, created_at, `PK(org_id,key)`). FR-ADM-002.
+- [x] 6.1.5 NO-OP per 6.0.2 (audit_log already complete).
+- [x] 6.1.6 `0015.down.sql` (drops 3 tables + monthly_price) + `0016_admin_rls.up/.down.sql`: RLS `tenant_isolation` on the 3 [T] tables (audit_log stays as-is; app role has no UPDATE/DELETE grant per FR-AUD-002). Seed (`cmd/stripeseed`) sets monthly_price free=0/pro=1200/business=4900.
+- [x] 6.1.7 [VERIFY] `migrate up`/`down 2`/`up` clean on 0015/0016 (version 16, no errors).
 
 ## Section 2 — Domain
 

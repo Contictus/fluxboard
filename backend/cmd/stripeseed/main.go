@@ -35,12 +35,13 @@ type plan struct {
 	apiRatePerMin      int
 	auditRetentionDays int
 	metered            bool
+	monthlyPrice       int64 // recurring price in minor units (cents); backs admin MRR (FR-ADM-002)
 }
 
 var plans = []plan{
-	{"free", "Free", 5, 3, 2 << 30, 60, 7, false},
-	{"pro", "Pro", 25, 50, 50 << 30, 300, 30, false},
-	{"business", "Business", -1, -1, 500 << 30, 1200, 365, true},
+	{"free", "Free", 5, 3, 2 << 30, 60, 7, false, 0},
+	{"pro", "Pro", 25, 50, 50 << 30, 300, 30, false, 1200},
+	{"business", "Business", -1, -1, 500 << 30, 1200, 365, true, 4900},
 }
 
 func main() {
@@ -75,8 +76,8 @@ func run(logger *slog.Logger) error {
 
 	const q = `
 INSERT INTO plans (code, name, max_members, max_projects, max_storage_bytes,
-                   api_rate_per_min, audit_retention_days, metered)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                   api_rate_per_min, audit_retention_days, metered, monthly_price)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 ON CONFLICT (code) DO UPDATE SET
   name                 = EXCLUDED.name,
   max_members          = EXCLUDED.max_members,
@@ -84,11 +85,12 @@ ON CONFLICT (code) DO UPDATE SET
   max_storage_bytes    = EXCLUDED.max_storage_bytes,
   api_rate_per_min     = EXCLUDED.api_rate_per_min,
   audit_retention_days = EXCLUDED.audit_retention_days,
-  metered              = EXCLUDED.metered`
+  metered              = EXCLUDED.metered,
+  monthly_price        = EXCLUDED.monthly_price`
 
 	for _, p := range plans {
 		if _, err := pool.Exec(ctx, q, p.code, p.name, p.maxMembers, p.maxProjects,
-			p.maxStorageBytes, p.apiRatePerMin, p.auditRetentionDays, p.metered); err != nil {
+			p.maxStorageBytes, p.apiRatePerMin, p.auditRetentionDays, p.metered, p.monthlyPrice); err != nil {
 			return fmt.Errorf("seed plan %q: %w", p.code, err)
 		}
 		logger.Info("seeded plan", "code", p.code, "max_members", p.maxMembers,
