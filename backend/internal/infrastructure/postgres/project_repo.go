@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
@@ -91,9 +92,13 @@ func (r *ProjectRepo) Get(ctx context.Context, orgID, id string) (*project.Proje
 }
 
 func (r *ProjectRepo) List(ctx context.Context, orgID, userID string, seeAll, includeArchived bool) ([]project.Project, error) {
+	// A non-user principal — an org API key (userID "apikey:<id>") — has no project
+	// membership. Fall back to the nil uuid so the visibility filter returns only
+	// 'org'-visible projects (no private memberships match); real users always
+	// carry a valid uuid. seeAll callers ignore the id entirely.
 	uid, err := parseUUID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("project list: user: %w", err)
+		uid = uuid.Nil
 	}
 	var out []project.Project
 	err = r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {

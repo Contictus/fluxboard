@@ -88,10 +88,10 @@
 
 ## Section 9 — E2E verify (dockerized)
 
-- [ ] 6.9.1 [VERIFY] Admin login (platform_role + TOTP) → `/admin/tenants` list + detail with MRR/webhooks.
-- [ ] 6.9.2 [VERIFY] Impersonate an org → reads OK, a write returns 403, audit shows both identities.
-- [ ] 6.9.3 [VERIFY] Create API key (one-time reveal) → call `/api/v1/...` with `Bearer fbk_…` → scoped access, `X-RateLimit-*` headers present.
-- [ ] 6.9.4 [VERIFY] Project analytics + org usage dashboard return rollup data; `/api/v1/openapi.json` served. Write `scratchpad/smoke6.ps1`.
+- [x] 6.9.1 [VERIFY] `scratchpad/smoke6.ps1` green: `adminctl grant` + register/verify → TOTP enroll/activate → 2FA login → `/admin/tenants` list + `/admin/tenants/{id}` detail (mrr field); non-admin gets 403.
+- [x] 6.9.2 [VERIFY] Impersonate → read 200, write 403 (`ImpersonationReadOnly`); `/admin/audit?action=admin.impersonate_start` row carries `impersonator_user_id`.
+- [x] 6.9.3 [VERIFY] `POST /orgs/{id}/api-keys` (read scope) one-time reveal → `GET …/projects` with `Bearer fbk_…` → 200 + `X-RateLimit-Limit: 60`; read-key write → 403. **Fixed a bug this surfaced:** `ProjectRepo.List` `parseUUID(userID)` 500'd on the `apikey:<id>` principal — now falls back to the nil uuid (API keys see org-visible projects; real users unaffected).
+- [x] 6.9.4 [VERIFY] `GET …/projects/{id}/analytics` + `GET …/usage` return rollup shape; `GET /api/v1/openapi.json` served (openapi 3.1.0). smoke6 exercises the full flow end-to-end against `make up`.
 
 ## Section 10 — Commit gate
 
