@@ -12,21 +12,24 @@ new session resumes with zero re-derivation.
 
 ## ▶ Current Position
 
-- **Phase:** 6 — Admin + observability (next up; Phase 5 COMPLETE)
-- **Next check:** open PHASE-6 (admin panel, audit log viewer, Prometheus/Grafana)
-- **Last verified commit:** `9cc6921` (Phase 5 §9 smoke5 + SSE fixes); §4 `14d5560`, §5 `b7c6719`, §6 `20ac75a`, §7 `8eda8bf`, §8 `08dc789`
-- **Stack state:** migrations at `0014` (0013 notifications/prefs/stats DDL, 0014 RLS);
-  plans seeded; MODE=stub. Phase 5 DONE end-to-end (smoke5.ps1 ALL GREEN 2026-07-07):
-  SSE stream `GET /orgs/{org}/events` over Redis Streams (`events:{org}`, XADD MAXLEN
-  ~1000; per-org consumer; Last-Event-ID replay; resync on flush/gap), notification
-  center (`/notifications` list/unread/read/read-all + `/prefs` matrix), fan-out
-  (@mention/assigned/comment/invite → in-app rows + email:send outbox, send-time pref
-  recheck), and jobs email:send (shared handler, dispatches billing vs notification)
-  + stats:rollup (nightly project_stats_daily). Producers (task/project/tenant/billing)
-  publish via notify.EventBus. **Deferred to Phase 6:** org:hard_delete, audit:retention,
-  webhook:retry (need privileged/admin infra — see PHASE-5 §7 deferral note). Two SSE
-  bugs fixed in §9: logging statusWriter now passes through http.Flusher; Replay returns
-  gap on an empty stream. Phase-4 billing jobs + rate limiting still live.
+- **Phase:** 7 — Frontend (next up; Phase 6 COMPLETE)
+- **Next check:** open PHASE-7 (Next.js app wiring the ~55 sitemap routes to the API)
+- **Last verified commit:** `bf6988f` (Phase 6 §9 smoke6 + api-key list fix); §1 `66f6399`, §2 `3770b3a`, §3 `76ba018`, §4 `49943b2`, §5 `b86607d`+`f5052d6`, §6 `550144f`, §7 `b099d0e`, §8 `d259c46`
+- **Stack state:** migrations at `0016` (0015 admin DDL: `plans.monthly_price` + `api_keys`/`feature_flags`/`entitlement_overrides`; 0016 RLS on the three [T] tables); MODE=stub. Phase 6 DONE end-to-end (smoke6.ps1 ALL GREEN 2026-07-08):
+  platform-admin `/admin` router OUTSIDE tenant mw, gated by `PlatformAdminGuard`
+  (platform_role=admin AND totp_enabled; impersonation tokens rejected). Cross-org
+  admin reads + API-key by-hash auth run on the OWNER pool (`DATABASE_URL_MIGRATE`,
+  bypasses non-FORCE RLS). Org API keys (`fbk_live_` + SHA-256, plaintext once) via
+  `HybridAuth` (Bearer key OR session) → scope guard (read/write); rate-limited +
+  metered on the shared org chain. Impersonation: short-lived `imp`-claim JWT under
+  the admin's SID, synthetic read-only ADMIN role, write-guard 403, start audited with
+  both identities. Analytics from Phase-5 rollups (`project_stats_daily`) + usage
+  dashboard. OpenAPI 3.1 served at `/api/v1/openapi.json` (+ Swagger UI `/api/docs`,
+  non-prod). Observability: `http_request_duration_seconds` histogram,
+  `asynq_task_processed_total`, `sse_connections_active` gauge, Grafana dashboards;
+  `audit:retention` job on the owner pool (audit_log append-only for the app role).
+  `cmd/adminctl grant <email>` bootstraps the first admin. **Bug fixed via e2e:**
+  `ProjectRepo.List` 500'd on the non-uuid `apikey:<id>` principal → nil-uuid fallback.
 
 Update these four lines whenever a section closes.
 
@@ -91,8 +94,8 @@ can begin area-by-area once the backing API for that area (its phase) is done.
   `MaintenanceRepo` on the plain pool).
 - sqlc v1.31.1: queries in `internal/infrastructure/postgres/queries/*.sql` are the
   source of truth → `sqlc generate` from `backend/`. Never hand-edit `gen/`.
-- Migrations split DDL from RLS (e.g. 0007/0008, 0009/0010). Next free number:
-  **0011**.
+- Migrations split DDL from RLS (e.g. 0007/0008, 0009/0010, 0015/0016). Next free
+  number: **0017**.
 - Error → HTTP mapping (single place): `ErrValidation→422`, `ErrConflict→409`,
   `ErrNotFound→404`, `ErrForbidden→403`. Billing adds `402 plan_limit_exceeded`.
 - Asynq worker + scheduler already run (`cmd/worker`); add handlers to its mux and

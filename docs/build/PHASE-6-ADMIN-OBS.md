@@ -95,15 +95,15 @@
 
 ## Section 10 — Commit gate
 
-- [ ] 6.10.1 [VERIFY] `cd backend && go build ./... && go vet ./... && go test ./...` green.
-- [ ] 6.10.2 `git commit` (`feat(admin): phase 6 — platform admin, api keys, analytics, observability`); update README Current Position.
+- [x] 6.10.1 [VERIFY] `cd backend && go build ./... && go vet ./... && go test ./...` green — **160 passed / 48 packages**, vet clean; smoke6 all-green against `make up`.
+- [x] 6.10.2 Committed per section (§1 `66f6399` … §5 `b86607d`/`f5052d6` … §6 `550144f` … §7 `b099d0e` … §8 `d259c46` … §9 `bf6988f`); README Current Position advanced to Phase 7.
 
 ---
 
 ## Definition of Done (Phase 6)
 
-- [ ] ADM-001..005, AUD-003, API-001..004, AN-001..002 (M) ticked; ADM-006 (S) optional.
-- [ ] `/admin` isolated from tenant mw + TOTP-gated; impersonation read-only + audited.
-- [ ] API-key auth path works, rate-limited, feeds usage; OpenAPI served + client-gen wired.
-- [ ] Analytics from rollups; Prometheus/Grafana observability in place.
-- [ ] E2E green; committed. README advanced to Phase 7.
+- [x] ADM-001..005, AUD-003, API-001..004, AN-001..002 (M) ticked; ADM-006 (feature flags) also done.
+- [x] `/admin` isolated from tenant mw + TOTP-gated; impersonation read-only + audited (dual identity).
+- [x] API-key auth path works, rate-limited, feeds usage; OpenAPI 3.1 served + `make gen-client` wired.
+- [x] Analytics from rollups; Prometheus histogram/counters/gauge + Grafana dashboards + audit:retention.
+- [x] E2E green (smoke6); committed per section. README advanced to Phase 7.
