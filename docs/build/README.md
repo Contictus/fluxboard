@@ -12,10 +12,11 @@ new session resumes with zero re-derivation.
 
 ## ▶ Current Position
 
-- **Phase:** 7 — Frontend (next up; Phase 6 COMPLETE)
-- **Next check:** open PHASE-7 (Next.js app wiring the ~55 sitemap routes to the API)
-- **Last verified commit:** `bf6988f` (Phase 6 §9 smoke6 + api-key list fix); §1 `66f6399`, §2 `3770b3a`, §3 `76ba018`, §4 `49943b2`, §5 `b86607d`+`f5052d6`, §6 `550144f`, §7 `b099d0e`, §8 `d259c46`
-- **Stack state:** migrations at `0016` (0015 admin DDL: `plans.monthly_price` + `api_keys`/`feature_flags`/`entitlement_overrides`; 0016 RLS on the three [T] tables); MODE=stub. Phase 6 DONE end-to-end (smoke6.ps1 ALL GREEN 2026-07-08):
+- **Phase:** 7 — Frontend (IN PROGRESS: sections 0–3 done; next §4 org shell + board)
+- **Next check:** PHASE-7 §4 (`/app/{orgSlug}` org shell — sidebar/topbar/role-aware nav)
+- **Last verified commit:** `a0a924e` (Phase 7 §3 account); §0 `e64737a`, §1 `aeaafbd`, §2 `b9b7f55`, §B backend `c6b45a4`
+- **Phase 7 progress:** §0 scaffold (Next 14 App Router, TS strict, pnpm, hand-written typed fetch client — OpenAPI too partial for codegen), §1 public/marketing, §2 auth flows (login/2fa/register/verify/reset/oauth/invite/logout), §B backend gap-fill (`/me` profile+avatar+delete; ADR-015), §3 account (profile/security/sessions/notifications/danger). All web gates green (`pnpm typecheck && lint && build`, 25 routes); backend `go build/vet/test` green (160/49). **Not yet run:** dockerized e2e for the new UI (build-verified only). Remaining: §4–§11 (org shell, projects/kanban, task detail, org settings, billing UI, SSE client, admin, analytics, verify+commit).
+- **Stack state:** backend migrations still at `0016` — §B added **no** migration (reused existing `users.avatar_key` from 0002 + `one_time_tokens.purpose='email_change'`; only sqlc query additions to `users.sql`). Next free migration: `0017`. New Go: `internal/usecase/useruc`, `handlers.UserHandlers`, `postgres.UserOwnerRepo`; `/me` surface wired under the authed+verified group. Phase 6 remains DONE end-to-end (smoke6.ps1 ALL GREEN 2026-07-08):
   platform-admin `/admin` router OUTSIDE tenant mw, gated by `PlatformAdminGuard`
   (platform_role=admin AND totp_enabled; impersonation tokens rejected). Cross-org
   admin reads + API-key by-hash auth run on the OWNER pool (`DATABASE_URL_MIGRATE`,
