@@ -58,8 +58,8 @@ api: ## Run the API with hot reload (in-stack)
 worker: ## Run the worker (in-stack)
 	$(COMPOSE) up worker
 
-web: ## Run the Next.js dev server (Phase 7 stub)
-	@echo "web: stub until the frontend is scaffolded (Phase 7)."
+web: ## Run the Next.js dev server (http://localhost:3000)
+	cd web && pnpm install && pnpm dev
 
 test: ## Run unit tests
 	cd backend && go test ./...

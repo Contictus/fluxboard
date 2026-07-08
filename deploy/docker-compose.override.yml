@@ -24,5 +24,20 @@ services:
       - ../backend:/src
       - gocache:/go
 
+  # Next.js dev server (Phase 7). Runs from source with hot reload; talks to the
+  # API on the host. WEB_ORIGIN in the api service already defaults to :3000 for CORS.
+  web:
+    image: node:22
+    working_dir: /web
+    command: ["sh", "-c", "corepack enable && pnpm install && pnpm dev"]
+    environment:
+      NEXT_PUBLIC_API_BASE: "http://localhost:8080/api/v1"
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    volumes:
+      - ../web:/web
+      - web_node_modules:/web/node_modules
+
 volumes:
   gocache:
+  web_node_modules:
