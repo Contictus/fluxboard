@@ -81,10 +81,10 @@
 
 ## Section 8 — Tests
 
-- [ ] 6.8.1 API-key hash/scope/rate-limit unit.
-- [ ] 6.8.2 Impersonation: writes → 403; dual-identity audit row asserted.
-- [ ] 6.8.3 Audit CSV export capped at 10k rows.
-- [ ] 6.8.4 Analytics correctness: rollup output matches a raw recompute on seeded data.
+- [x] 6.8.1 API-key: domain hash/scope (`apikey_test.go`, pre-existing) + `apikeyuc` Create one-time-plaintext/validation/audit + ResolveByKey (malformed/unknown/revoked → ErrUnauthorized, active touches last_used); rate-limit unit pre-existing (`ratelimit_test.go`). `APIKeyScopeGuard` read-key write→403 (`guards_test.go`).
+- [x] 6.8.2 Impersonation: `ImpersonationReadOnly` write→403 / read→200 (`guards_test.go`); `adminuc` StartImpersonation asserts one security audit row with actor==impersonator==admin + target org (`adminuc/service_test.go`).
+- [x] 6.8.3 Audit CSV export capped at `ExportCap` (10k): oversized + zero export limit both clamp; org viewer forces OrgID + default limit; empty org → ErrValidation (`audituc/service_test.go`).
+- [x] 6.8.4 Analytics: ProjectAnalytics totals + mean cycle equal a raw recompute on seeded rollup rows; default 30-day UTC window; empty rollup → zero (`analyticsuc/service_test.go`).
 
 ## Section 9 — E2E verify (dockerized)
 
