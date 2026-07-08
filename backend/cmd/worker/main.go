@@ -29,6 +29,7 @@ import (
 	redisx "github.com/mesutokul/fluxboard/backend/internal/infrastructure/redis"
 	stripex "github.com/mesutokul/fluxboard/backend/internal/infrastructure/stripe"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/jobs"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/billinguc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 )
 
@@ -121,6 +122,27 @@ func run(logger *slog.Logger) error {
 		Logger:      logger,
 	})
 
+	// Phase 6 §6: webhook:retry. The admin webhook browser enqueues a retry by
+	// event id; the handler reloads the stored Stripe event and re-runs the
+	// idempotent webhook consumer (billinguc.Service). Built with the same billing
+	// deps as the api so ProcessEvent's side effects and dedup are identical.
+	processedEventRepo := postgres.NewProcessedEventRepo(pool)
+	eventBus := redisx.NewEventBus(rdb, logger)
+	billingSvc := billinguc.New(billinguc.Deps{
+		Plans:    postgres.NewPlanRepo(pool),
+		Subs:     postgres.NewSubscriptionRepo(tenantPool),
+		Invoices: postgres.NewInvoiceRepo(tenantPool),
+		Events:   processedEventRepo,
+		Webhooks: postgres.NewWebhookRepo(tenantPool),
+		Usage:    postgres.NewUsageRepo(tenantPool),
+		Gateway:  stripeGW,
+		Cache:    redisx.NewEntitlementCache(rdb),
+		Bus:      eventBus,
+		Logger:   logger,
+		BaseURL:  cfg.WebOrigin,
+	})
+	webhookRetry := jobs.NewWebhookRetry(processedEventRepo, billingSvc, logger)
+
 	// Phase 5 §7: notification email delivery (send-time pref recheck) + the
 	// nightly project-stats rollup. Notify owns the shared email:send handler and
 	// delegates billing-shaped payloads to billingJobs.HandleEmailSend.
@@ -137,6 +159,7 @@ func run(logger *slog.Logger) error {
 	maintenance.Register(mux)
 	billingJobs.Register(mux)
 	notifyJobs.Register(mux)
+	webhookRetry.Register(mux)
 
 	if err := srv.Start(mux); err != nil {
 		return err

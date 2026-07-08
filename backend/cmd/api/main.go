@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -35,8 +37,13 @@ import (
 	httpx "github.com/mesutokul/fluxboard/backend/internal/interface/http"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/handlers"
 	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
+	"github.com/mesutokul/fluxboard/backend/internal/interface/jobs"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/aesgcm"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/adminuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/analyticsuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/apikeyuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/audituc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/billinguc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/notifyuc"
@@ -55,6 +62,10 @@ const (
 	loginRateLimit  = 10
 	loginRateWindow = 15 * time.Minute
 )
+
+// impersonationTTL bounds an admin impersonation token (docs/build/PHASE-6 §5,
+// FR-ADM-003). Short-lived: the admin re-mints when it lapses.
+const impersonationTTL = 15 * time.Minute
 
 // @title           Fluxboard API
 // @version         1.0
@@ -249,6 +260,68 @@ func run(logger *slog.Logger) error {
 		BaseURL:  cfg.WebOrigin,
 	})
 
+	// Phase 6 — platform admin, org API keys, analytics, audit viewer
+	// (docs/build/PHASE-6). Cross-org admin reads + API-key by-hash auth run on the
+	// OWNER pool, which bypasses the non-FORCE RLS the app role is subject to; the
+	// platform-admin guard (+ API-key scope guard) is the access control. When
+	// DATABASE_URL_MIGRATE is unset there is no owner pool, so these surfaces stay
+	// disabled (nil Deps ⇒ routes not mounted) rather than booting on the app role.
+	var (
+		apiKeyHandlers    *handlers.APIKeyHandlers
+		auditHandlers     *handlers.AuditHandlers
+		analyticsHandlers *handlers.AnalyticsHandlers
+		adminHandlers     *handlers.AdminHandlers
+		platformGuard     *mw.PlatformAdminGuard
+		apiKeyResolver    mw.APIKeyResolver
+	)
+	if cfg.DatabaseURLMigrate == "" {
+		logger.Warn("DATABASE_URL_MIGRATE not set; platform-admin + API-key surfaces disabled")
+	} else {
+		ownerPool, err := pgxpool.New(ctx, cfg.DatabaseURLMigrate)
+		if err != nil {
+			return err
+		}
+		defer ownerPool.Close()
+
+		asynqOpt := asynq.RedisClientOpt{Addr: cfg.RedisAddr}
+		asynqClient := asynq.NewClient(asynqOpt)
+		defer func() { _ = asynqClient.Close() }()
+		inspector := asynq.NewInspector(asynqOpt)
+		defer func() { _ = inspector.Close() }()
+
+		analyticsRepo := postgres.NewAnalyticsRepo(tenantPool)
+		apikeySvc := apikeyuc.New(apikeyuc.Deps{
+			Keys:   postgres.NewAPIKeyRepo(tenantPool, ownerPool),
+			Audit:  auditRepo,
+			Logger: logger,
+		})
+		analyticsSvc := analyticsuc.New(analyticsuc.Deps{
+			Stats: analyticsRepo,
+			Usage: analyticsRepo,
+			Subs:  postgres.NewSubscriptionRepo(tenantPool),
+			Plans: postgres.NewPlanRepo(pool),
+		})
+		auditSvc := audituc.New(audituc.Deps{Reader: postgres.NewAuditReadRepo(pool)})
+		adminSvc := adminuc.New(adminuc.Deps{
+			Tenants:   postgres.NewAdminRepo(ownerPool),
+			Flags:     postgres.NewFeatureFlagRepo(tenantPool),
+			Overrides: postgres.NewOverrideRepo(tenantPool),
+			Subs:      postgres.NewSubscriptionRepo(tenantPool),
+			Invoices:  postgres.NewInvoiceRepo(tenantPool),
+			Audit:     auditRepo,
+			Minter:    impersonationMinter{signer: signer, ttl: impersonationTTL},
+			Retrier:   webhookRetrier{client: asynqClient},
+			Logger:    logger,
+		})
+
+		apiKeyHandlers = handlers.NewAPIKeyHandlers(apikeySvc, logger)
+		auditHandlers = handlers.NewAuditHandlers(auditSvc, logger)
+		analyticsHandlers = handlers.NewAnalyticsHandlers(analyticsSvc, logger)
+		adminHandlers = handlers.NewAdminHandlers(adminSvc, auditSvc, jobsInspector{insp: inspector}, logger)
+		platformGuard = &mw.PlatformAdminGuard{Users: userRepo, Logger: logger}
+		apiKeyResolver = apikeySvc
+	}
+
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
 		Columns: columnRepo, Tasks: taskRepo, Events: eventBus, Logger: logger,
@@ -297,10 +370,18 @@ func run(logger *slog.Logger) error {
 		Webhooks:      webhookHandlers,
 		Events:        eventHandlers,
 		Notifications: notificationHandlers,
+		APIKeys:       apiKeyHandlers,
+		AuditView:     auditHandlers,
+		Analytics:     analyticsHandlers,
+		Admin:         adminHandlers,
+		OpenAPI:       handlers.NewOpenAPIHandlers(),
+		DevDocs:       !cfg.IsProd(),
 		Authenticator: authenticator,
 		Tenant:        tenantGuard,
 		Entitlement:   entitlementGuard,
 		RateLimit:     rateLimiter,
+		PlatformAdmin: platformGuard,
+		APIKeyResolver: apiKeyResolver,
 	})
 
 	srv := &http.Server{
@@ -432,6 +513,60 @@ func toUserRefs(us []postgres.DirUser) []notifyuc.UserRef {
 		out = append(out, notifyuc.UserRef{ID: u.ID, Email: u.Email, Name: u.Name})
 	}
 	return out
+}
+
+// impersonationMinter adapts jwtx.Signer to adminuc.ImpersonationMinter — it mints
+// a short-lived token carrying the `imp` claim (target org) under the admin's own
+// session id, so session revocation still applies (docs/build/PHASE-6 §5).
+type impersonationMinter struct {
+	signer *jwtx.Signer
+	ttl    time.Duration
+}
+
+func (m impersonationMinter) Mint(adminUserID, adminSID, targetOrg string) (string, time.Time, error) {
+	now := time.Now().UTC()
+	tok, err := m.signer.SignImpersonation(adminUserID, adminSID, targetOrg, now, m.ttl)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return tok, now.Add(m.ttl), nil
+}
+
+// webhookRetrier adapts asynq.Client to adminuc.WebhookRetrier — it enqueues a
+// webhook:retry task carrying the event id for the worker to replay.
+type webhookRetrier struct{ client *asynq.Client }
+
+func (r webhookRetrier) Enqueue(ctx context.Context, eventID string) error {
+	payload, err := json.Marshal(jobs.WebhookRetryPayload{EventID: eventID})
+	if err != nil {
+		return err
+	}
+	_, err = r.client.EnqueueContext(ctx, asynq.NewTask(jobs.TypeWebhookRetry, payload))
+	return err
+}
+
+// jobsInspector adapts asynq.Inspector to handlers.JobsInspector — it summarizes
+// each queue's task counts for the admin jobs view (docs/build/PHASE-6 §5).
+type jobsInspector struct{ insp *asynq.Inspector }
+
+func (j jobsInspector) Summary(_ context.Context) (map[string]any, error) {
+	names, err := j.insp.Queues()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]any, len(names))
+	for _, n := range names {
+		info, err := j.insp.GetQueueInfo(n)
+		if err != nil {
+			continue
+		}
+		out[n] = map[string]int{
+			"size": info.Size, "pending": info.Pending, "active": info.Active,
+			"scheduled": info.Scheduled, "retry": info.Retry, "archived": info.Archived,
+			"completed": info.Completed, "processed": info.Processed, "failed": info.Failed,
+		}
+	}
+	return out, nil
 }
 
 // redisPinger adapts *redis.Client to httpx.Pinger.

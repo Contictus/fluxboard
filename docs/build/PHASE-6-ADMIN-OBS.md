@@ -67,9 +67,9 @@
 
 ## Section 6 — Wiring
 
-- [ ] 6.6.1 `cmd/api/main.go`: mount admin router; wire `adminuc`/`apikeyuc`/`analyticsuc`/`audituc`.
-- [ ] 6.6.2 Insert API-key auth as an alternate branch in the security chain (session OR api-key resolves org context).
-- [ ] 6.6.3 `api_calls` INCR in rate-limit middleware → feeds usage metering (FR-API-004 → FR-BILL-007) + usage dashboard.
+- [x] 6.6.1 `cmd/api/main.go`: owner pool from `DATABASE_URL_MIGRATE` (gated — unset ⇒ admin/api-key surfaces disabled, not booted on the app role); wired `adminuc`/`apikeyuc`/`analyticsuc`/`audituc` + repos; adapters `impersonationMinter` (jwtx.SignImpersonation, 15m TTL), `webhookRetrier` (asynq `webhook:retry`), `jobsInspector` (asynq.Inspector); handlers + `PlatformAdminGuard{Users}` injected; `/admin` router mounts when Admin+PlatformAdmin non-nil. `NewOpenAPIHandlers()` + `DevDocs=!IsProd`. `cmd/adminctl grant <email>` (owner pool, idempotent). `cmd/worker` builds `billinguc.Service` + registers `webhook:retry` (reload stored event via `ProcessedEventRepo.StoredEvent` → `ProcessEvent`).
+- [x] 6.6.2 API-key auth as an alternate branch: `HybridAuth(Authenticator, APIKeyResolver)` swaps in when `APIKeyResolver` non-nil (else session-only). `apikeyuc.Service.ResolveByKey` is the resolver.
+- [x] 6.6.3 `api_calls` metering: `RateLimiter.Limit` calls `RecordRequest` (api_calls + active-member HLL) on every org call; the API-key path shares the same org route chain, so api-key requests are metered identically — no new code (FR-API-004 → FR-BILL-007 → usage dashboard).
 
 ## Section 7 — Observability (`docs/10-INFRA-DEVOPS.md`)
 

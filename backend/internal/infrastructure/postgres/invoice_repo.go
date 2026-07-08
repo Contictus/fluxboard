@@ -2,11 +2,15 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mesutokul/fluxboard/backend/internal/domain"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/billing"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/postgres/gen"
 )
@@ -99,6 +103,25 @@ func (r *ProcessedEventRepo) Record(ctx context.Context, e billing.ProcessedEven
 		return false, err
 	}
 	return n == 1, nil // rows-affected 0 ⇒ event_id already present (duplicate)
+}
+
+// StoredEvent reloads a processed Stripe event by id and decodes its payload back
+// into the domain StripeEvent (the payload was json.Marshal(StripeEvent) at
+// ingest — billinguc/webhook.go). Used by the webhook:retry job to reprocess a
+// previously-recorded event. domain.ErrNotFound when the event id is unknown.
+func (r *ProcessedEventRepo) StoredEvent(ctx context.Context, eventID string) (billing.StripeEvent, error) {
+	row, err := r.q.GetProcessedEventPayload(ctx, eventID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return billing.StripeEvent{}, domain.ErrNotFound
+		}
+		return billing.StripeEvent{}, err
+	}
+	var ev billing.StripeEvent
+	if err := json.Unmarshal(row.Payload, &ev); err != nil {
+		return billing.StripeEvent{}, fmt.Errorf("decode stored event %s: %w", eventID, err)
+	}
+	return ev, nil
 }
 
 // processedEventParams maps a domain ProcessedEvent to the insert params. Shared
