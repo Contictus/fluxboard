@@ -48,11 +48,11 @@
 
 ## Section 4 — Infra
 
-- [ ] 6.4.1 `postgres/api_key_repo.go` over TenantPool.
-- [ ] 6.4.2 `postgres/feature_flag_repo.go` + `override_repo.go`.
-- [ ] 6.4.3 `postgres/admin_repo.go`: tenant list with MRR aggregate (join subscriptions/plans), webhook events by customer.
-- [ ] 6.4.4 `postgres/audit_read_repo.go`: filtered reads + CSV streaming (bounded 10k).
-- [ ] 6.4.5 OpenAPI 3.1 generation per 6.0.3 → serve `/api/v1/openapi.json`; hook `make gen-client` for the frontend types. FR-API-003. Add queries `queries/{apikeys,admin,flags,audit_read}.sql`; `sqlc generate`.
+- [x] 6.4.1 `postgres/api_key_repo.go` — dual-pool: Create/List/Revoke via TenantPool ([T]/RLS); GetByHash/TouchLastUsed on the OWNER pool (auth path, pre-tenant; owner bypasses non-FORCE RLS; hash globally unique).
+- [x] 6.4.2 `postgres/feature_flag_repo.go` + `override_repo.go` over TenantPool.
+- [x] 6.4.3 `postgres/admin_repo.go` (OWNER pool): `ListTenants`/`GetTenant` with MRR aggregate (`SUM monthly_price` over entitled sub, join subscriptions/plans, member count) + `WebhookEventsForCustomer` (payload `#>>{data,object,customer}`). `analytics_repo.go`: rollup + usage reads via TenantPool.
+- [x] 6.4.4 `postgres/audit_read_repo.go`: hand-written dynamic filtered reads on the plain pool (org isolation via explicit org_id predicate), bounded at `ExportCap`.
+- [ ] 6.4.5 OpenAPI 3.1 (swaggo v2) → serve `/api/v1/openapi.json` + `/api/docs`; `make gen-client` hook. FR-API-003. Queries `queries/{apikeys,admin,flags,overrides,analytics}.sql` + `monthly_price` added to plans query; `sqlc generate` clean. **[OpenAPI serving moved to §5 — annotations live on the handlers.]**
 
 ## Section 5 — HTTP
 

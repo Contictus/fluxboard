@@ -59,6 +59,7 @@ func planFromRow(row gen.Plan) billing.Plan {
 		APIRatePerMin:         int(row.ApiRatePerMin),
 		AuditRetentionDays:    int(row.AuditRetentionDays),
 		Metered:               row.Metered,
+		MonthlyPrice:          row.MonthlyPrice,
 	}
 }
 

@@ -6,14 +6,14 @@
 -- name: GetPlan :one
 SELECT code, name, stripe_product_id, seat_price_id, metered_storage_price_id,
        metered_api_price_id, max_members, max_projects, max_storage_bytes,
-       api_rate_per_min, audit_retention_days, metered
+       api_rate_per_min, audit_retention_days, metered, monthly_price
 FROM plans
 WHERE code = @code;
 
 -- name: ListPlans :many
 SELECT code, name, stripe_product_id, seat_price_id, metered_storage_price_id,
        metered_api_price_id, max_members, max_projects, max_storage_bytes,
-       api_rate_per_min, audit_retention_days, metered
+       api_rate_per_min, audit_retention_days, metered, monthly_price
 FROM plans
 ORDER BY max_projects; -- free, pro, business by ascending caps (business = -1 sorts first, acceptable)
 

@@ -44,6 +44,12 @@ type Querier interface {
 	// [@day, @next_day) is the UTC day window (bounds computed by the caller).
 	CountTasksCreatedOnDay(ctx context.Context, arg CountTasksCreatedOnDayParams) (int64, error)
 	CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (int64, error)
+	// API keys — Phase 6 (docs/build/PHASE-6-ADMIN-OBS.md §4, FR-API-001/002).
+	// api_keys is [T] (RLS). Create/List/Revoke run under a tenant tx (TenantPool).
+	// GetByHash + TouchLastUsed authenticate an inbound key BEFORE any tenant context
+	// exists, so their repo methods run on the owner pool (RLS-bypassing); the hash is
+	// globally unique + unguessable, making the cross-org lookup safe.
+	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) error
 	// Attachments ([T], tenant-scoped) — FR-TASK-006 -----------------------------
 	// Insert the 'pending' row alongside minting a presigned PUT URL.
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) error
@@ -80,10 +86,14 @@ type Querier interface {
 	// The FK cascade on task_labels detaches this label from every task.
 	DeleteLabel(ctx context.Context, arg DeleteLabelParams) (int64, error)
 	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error)
+	DeleteOverride(ctx context.Context, arg DeleteOverrideParams) (int64, error)
 	DeleteSubtask(ctx context.Context, arg DeleteSubtaskParams) (int64, error)
 	// Clears any prior codes before a fresh batch is issued (activate / regenerate).
 	DeleteUserRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DetachLabel(ctx context.Context, arg DetachLabelParams) (int64, error)
+	// Auth-path lookup (owner pool). Revoked keys ARE returned so the caller maps them
+	// to 401 rather than a silent miss.
+	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
 	GetAttachment(ctx context.Context, arg GetAttachmentParams) (Attachment, error)
 	GetBoardByProject(ctx context.Context, arg GetBoardByProjectParams) (Board, error)
 	GetColumn(ctx context.Context, arg GetColumnParams) (BoardColumn, error)
@@ -103,6 +113,8 @@ type Querier interface {
 	// are [T] (RLS via TenantPool). The webhook consumer writes the global ledger and
 	// the [T] mirrors in one transaction (webhook_repo.go).
 	GetPlan(ctx context.Context, code string) (Plan, error)
+	// Backs webhook:retry — the worker replays this stored payload through the consumer.
+	GetProcessedEventPayload(ctx context.Context, eventID string) (GetProcessedEventPayloadRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
 	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (GetProjectMemberRow, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error)
@@ -116,6 +128,7 @@ type Querier interface {
 	GetSubtask(ctx context.Context, arg GetSubtaskParams) (Subtask, error)
 	// Live tasks only; trashed tasks are addressable through the Trash queries.
 	GetTask(ctx context.Context, arg GetTaskParams) (GetTaskRow, error)
+	GetTenantSummary(ctx context.Context, orgID uuid.UUID) (GetTenantSummaryRow, error)
 	GetTrashedTask(ctx context.Context, arg GetTrashedTaskParams) (GetTrashedTaskRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
@@ -131,6 +144,10 @@ type Querier interface {
 	// the tenant tx (webhook_repo) and on the plain pool (processed_event_repo).
 	InsertProcessedEvent(ctx context.Context, arg InsertProcessedEventParams) (int64, error)
 	InsertSlugHistory(ctx context.Context, arg InsertSlugHistoryParams) error
+	// Most recent recorded value for a metric on/before a day (point-in-time
+	// dimensions: seats, storage). ErrNoRows ⇒ caller treats as 0.
+	LatestUsageValue(ctx context.Context, arg LatestUsageValueParams) (int64, error)
+	ListAPIKeysByOrg(ctx context.Context, orgID uuid.UUID) ([]ApiKey, error)
 	// All non-deleted org ids (organizations has no RLS). Drives per-tenant
 	// maintenance jobs (trash purge, attachment GC) which then run under WithTenant.
 	ListActiveOrgIDs(ctx context.Context) ([]uuid.UUID, error)
@@ -141,6 +158,8 @@ type Querier interface {
 	ListAttachmentsByTask(ctx context.Context, arg ListAttachmentsByTaskParams) ([]Attachment, error)
 	ListColumnsByBoard(ctx context.Context, arg ListColumnsByBoardParams) ([]BoardColumn, error)
 	ListCommentsByTask(ctx context.Context, arg ListCommentsByTaskParams) ([]Comment, error)
+	// Feature flags — Phase 6 (FR-ADM-006). feature_flags is [T] (RLS via TenantPool).
+	ListFeatureFlags(ctx context.Context, orgID uuid.UUID) ([]FeatureFlag, error)
 	ListInvoicesByOrg(ctx context.Context, orgID uuid.UUID) ([]Invoice, error)
 	ListLabels(ctx context.Context, orgID uuid.UUID) ([]Label, error)
 	ListLabelsForTask(ctx context.Context, arg ListLabelsForTaskParams) ([]Label, error)
@@ -158,6 +177,9 @@ type Querier interface {
 	// Pending rows older than the cutoff (never PUT or never confirmed) — the nightly
 	// orphan GC removes their objects then their rows (per-tenant).
 	ListOrphanAttachments(ctx context.Context, arg ListOrphanAttachmentsParams) ([]Attachment, error)
+	// Entitlement overrides — Phase 6 (FR-ADM-002). entitlement_overrides is [T]
+	// (RLS via TenantPool).
+	ListOverrides(ctx context.Context, orgID uuid.UUID) ([]EntitlementOverride, error)
 	ListPendingInvitations(ctx context.Context, orgID uuid.UUID) ([]Invitation, error)
 	ListPlans(ctx context.Context) ([]Plan, error)
 	// Directory lookups — Phase 5 notification fan-out (notifyuc.Directory). Resolves
@@ -165,6 +187,9 @@ type Querier interface {
 	// Runs inside a tenant tx: project_members is RLS-scoped; users is global.
 	ListProjectMemberUsers(ctx context.Context, arg ListProjectMemberUsersParams) ([]ListProjectMemberUsersRow, error)
 	ListProjectMembers(ctx context.Context, arg ListProjectMembersParams) ([]ListProjectMembersRow, error)
+	// Analytics reads — Phase 6 (FR-AN-001/002). Rollup + usage aggregates only; both
+	// tables are [T] and read under a tenant tx (TenantPool). No live aggregation.
+	ListProjectStatsDaily(ctx context.Context, arg ListProjectStatsDailyParams) ([]ProjectStatsDaily, error)
 	// Visibility filter (FR-PROJ-002/003): see_all (org ADMIN+) returns every
 	// project; otherwise 'org'-visible plus 'private' ones the user is a member of.
 	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
@@ -178,6 +203,11 @@ type Querier interface {
 	ListSubtasksByTask(ctx context.Context, arg ListSubtasksByTaskParams) ([]Subtask, error)
 	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error)
 	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error)
+	// Platform admin cross-tenant reads — Phase 6 (FR-ADM-002/004). These span ALL
+	// orgs, so the repo runs them on the OWNER pool (table owner bypasses the ENABLE
+	// (non-FORCE) RLS on subscriptions/memberships). Gated by the platform-admin HTTP
+	// guard. MRR = the org's plan monthly_price when its subscription is entitled.
+	ListTenants(ctx context.Context, arg ListTenantsParams) ([]ListTenantsRow, error)
 	ListTrashedTasks(ctx context.Context, arg ListTrashedTasksParams) ([]ListTrashedTasksRow, error)
 	// Metered aggregates for a day not yet pushed to Stripe.
 	ListUsageForPush(ctx context.Context, arg ListUsageForPushParams) ([]UsageRecord, error)
@@ -201,6 +231,8 @@ type Querier interface {
 	// Restore only succeeds if the original (column_id, rank) slot is still free;
 	// the unique index otherwise raises a conflict the repo maps to 409.
 	RestoreTask(ctx context.Context, arg RestoreTaskParams) (int64, error)
+	// rows-affected 0 ⇒ absent or already revoked ⇒ caller returns ErrNotFound.
+	RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) (int64, error)
 	RevokeAllUserSessions(ctx context.Context, arg RevokeAllUserSessionsParams) error
 	RevokeInvitation(ctx context.Context, arg RevokeInvitationParams) (int64, error)
 	RevokeSessionByID(ctx context.Context, arg RevokeSessionByIDParams) error
@@ -227,6 +259,9 @@ type Querier interface {
 	SoftDeleteTask(ctx context.Context, arg SoftDeleteTaskParams) (int64, error)
 	// Total committed bytes for the org (storage-quota check, FR-TASK-006).
 	SumOrgAttachmentBytes(ctx context.Context, orgID uuid.UUID) (int64, error)
+	// Total of a metric over [from, to] (cumulative dimensions: api_calls).
+	SumUsageRange(ctx context.Context, arg SumUsageRangeParams) (int64, error)
+	TouchAPIKeyLastUsed(ctx context.Context, keyHash string) error
 	// Advance last_used_at for a live session head. Called by the auth middleware on
 	// the cache-miss backfill path (≤ once per cache TTL), not per request.
 	TouchSessionLastUsed(ctx context.Context, id uuid.UUID) error
@@ -241,8 +276,10 @@ type Querier interface {
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
+	UpsertFeatureFlag(ctx context.Context, arg UpsertFeatureFlagParams) error
 	UpsertInvoice(ctx context.Context, arg UpsertInvoiceParams) error
 	UpsertNotificationPref(ctx context.Context, arg UpsertNotificationPrefParams) error
+	UpsertOverride(ctx context.Context, arg UpsertOverrideParams) error
 	UpsertProjectStat(ctx context.Context, arg UpsertProjectStatParams) error
 	// Full desired state, keyed on org_id. The caller owns last_stripe_event_at:
 	// persistCustomer passes the row's existing value; the webhook passes the event
@@ -255,6 +292,10 @@ type Querier interface {
 	UpsertUsage(ctx context.Context, arg UpsertUsageParams) error
 	// Count how many of the given ids are live tasks in this org (bulk pre-check).
 	ValidateTaskIDs(ctx context.Context, arg ValidateTaskIDsParams) (int64, error)
+	// The global ledger is not org-tagged; link to an org via the Stripe customer id
+	// embedded in the event payload (present on subscription/invoice events). Events
+	// without a customer simply do not match.
+	WebhookEventsForCustomer(ctx context.Context, arg WebhookEventsForCustomerParams) ([]WebhookEventsForCustomerRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

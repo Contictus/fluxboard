@@ -12,6 +12,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApiKey struct {
+	ID         uuid.UUID          `json:"id"`
+	OrgID      uuid.UUID          `json:"org_id"`
+	Prefix     string             `json:"prefix"`
+	KeyHash    string             `json:"key_hash"`
+	Name       string             `json:"name"`
+	Scopes     []string           `json:"scopes"`
+	CreatedBy  pgtype.UUID        `json:"created_by"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
+
 type Attachment struct {
 	ID          uuid.UUID          `json:"id"`
 	OrgID       uuid.UUID          `json:"org_id"`
@@ -71,6 +84,21 @@ type Comment struct {
 	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
 	CreatedAt time.Time          `json:"created_at"`
 	UpdatedAt time.Time          `json:"updated_at"`
+}
+
+type EntitlementOverride struct {
+	OrgID     uuid.UUID   `json:"org_id"`
+	Key       string      `json:"key"`
+	Value     string      `json:"value"`
+	Note      string      `json:"note"`
+	CreatedBy pgtype.UUID `json:"created_by"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+type FeatureFlag struct {
+	OrgID   uuid.UUID `json:"org_id"`
+	Flag    string    `json:"flag"`
+	Enabled bool      `json:"enabled"`
 }
 
 type Invitation struct {
@@ -191,6 +219,7 @@ type Plan struct {
 	ApiRatePerMin         int32   `json:"api_rate_per_min"`
 	AuditRetentionDays    int32   `json:"audit_retention_days"`
 	Metered               bool    `json:"metered"`
+	MonthlyPrice          int64   `json:"monthly_price"`
 }
 
 type ProcessedStripeEvent struct {
