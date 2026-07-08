@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/response"
@@ -46,6 +47,9 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 			return
 		}
 		if limit := ent.APIRatePerMin; limit > 0 {
+			// Surface the plan's per-minute budget on every org response so API
+			// clients can self-throttle (FR-API-002).
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(limit))
 			allowed, err := rl.Counter.Allow(r.Context(), tc.OrgID, limit, now)
 			if err != nil {
 				rl.Logger.Error("rate limit: redis check failed; allowing", "org", tc.OrgID, "err", err)

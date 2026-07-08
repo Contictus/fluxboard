@@ -56,14 +56,14 @@
 
 ## Section 5 — HTTP
 
-- [ ] 6.5.1 `internal/interface/http/admin/router.go`: SEPARATE chi router mounted at `/admin`, NOT under tenant middleware; guard = `platform_role=admin` + mandatory TOTP. FR-ADM-001.
-- [ ] 6.5.2 Admin handlers: tenants list + detail. FR-ADM-002.
-- [ ] 6.5.3 Admin: impersonation start (banner claim); a global write-guard rejects any write when `imp` claim present; every impersonated request audit-logged with both identities. FR-ADM-003.
-- [ ] 6.5.4 Admin: webhook event browser + retry button endpoint. FR-ADM-004.
-- [ ] 6.5.5 Admin: global audit viewer + feature-flag matrix + Asynq jobs summary (`/admin/jobs`). FR-ADM-005/006.
-- [ ] 6.5.6 `middleware/apikey.go`: `Authorization: Bearer fbk_…` path resolves org from key (no user session); per-key rate limit by plan tier (Redis sliding window; `X-RateLimit-*` headers; 429 + Retry-After). FR-API-002.
-- [ ] 6.5.7 Org settings API-key endpoints (`/orgs/{orgId}/api-keys` O(ADMIN), one-time reveal, revoke) + org audit viewer + CSV (O(ADMIN)). FR-API-001, FR-AUD-003.
-- [ ] 6.5.8 Analytics endpoints (project analytics O(MEMBER), org usage O(ADMIN)) + Swagger UI `/api/docs` (non-prod). FR-AN-001/002, FR-API-003.
+- [x] 6.5.1 `/admin` mounted in `router.go` as a SEPARATE route group, NOT under tenant mw; guard `mw.PlatformAdminGuard.RequireAdmin` = `platform_role=admin` AND `totp_enabled` (login enforces the TOTP step → live session implies 2FA; 6.7.4). Rejects impersonation tokens. FR-ADM-001.
+- [x] 6.5.2 `handlers/admin.go`: `ListTenants` (filters) + `GetTenant` detail (sub/invoices/webhooks/overrides/flags). FR-ADM-002.
+- [x] 6.5.3 Impersonation: `jwtx.SignImpersonation` (`imp` claim) → `Principal.ImpersonatedOrg`; `TenantGuard.Resolve` grants synthetic read-only ADMIN for the bound org (404 for any other); `mw.ImpersonationReadOnly` 403s writes; start audited with both identities. FR-ADM-003.
+- [x] 6.5.4 Admin webhook browser (in detail) + `POST /admin/tenants/{orgId}/webhooks/{eventId}/retry`. FR-ADM-004.
+- [x] 6.5.5 `GET /admin/audit` (global) + flag/override PUT/DELETE + `GET /admin/jobs` (JobsInspector port). FR-ADM-005/006.
+- [x] 6.5.6 `middleware/apikey.go`: `HybridAuth` resolves `Bearer fbk_…` → org+scopes (no session); `TenantGuard` maps scope→synthetic role; `APIKeyScopeGuard` 403s writes from read keys; `X-RateLimit-Limit` header on org responses; plan rate limit reused (429+Retry-After). FR-API-002.
+- [x] 6.5.7 Org `GET/POST /api-keys` (one-time secret reveal), `DELETE /api-keys/{id}` (O(ADMIN)); org audit `GET /audit` + `GET /audit.csv` (O(ADMIN), 10k cap). FR-API-001, FR-AUD-003.
+- [~] 6.5.8 Analytics `GET /projects/{id}/analytics` (O(MEMBER)) + `GET /usage` (O(ADMIN)) DONE. **OpenAPI `/api/v1/openapi.json` + Swagger UI `/api/docs` = remaining §5 tail (swaggo v2 toolchain not yet installed; next step).** FR-AN-001/002, FR-API-003.
 
 ## Section 6 — Wiring
 

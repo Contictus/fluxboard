@@ -28,6 +28,10 @@ type Principal struct {
 	UserID        string
 	SID           string
 	EmailVerified bool
+	// ImpersonatedOrg is set (to the target org id) only for a platform-admin
+	// impersonation token (FR-ADM-003). When present, the tenant guard grants
+	// read-only access to that org and the write-guard rejects any mutation.
+	ImpersonatedOrg string
 }
 
 // WithPrincipal stores p in ctx.
@@ -73,7 +77,12 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 			response.Error(w, domain.ErrUnauthorized)
 			return
 		}
-		ctx := WithPrincipal(r.Context(), Principal{UserID: claims.Subject, SID: claims.SID, EmailVerified: claims.Ver})
+		ctx := WithPrincipal(r.Context(), Principal{
+			UserID:          claims.Subject,
+			SID:             claims.SID,
+			EmailVerified:   claims.Ver,
+			ImpersonatedOrg: claims.Imp,
+		})
 		ctx = reqmeta.WithActor(ctx, claims.Subject) // enrich audit entries with the actor
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

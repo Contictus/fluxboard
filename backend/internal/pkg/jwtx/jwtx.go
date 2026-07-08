@@ -36,6 +36,7 @@ type Claims struct {
 	SID   string `json:"sid,omitempty"`
 	Scope string `json:"scope,omitempty"`
 	Ver   bool   `json:"ver,omitempty"` // email verified at issue time (FR-AUTH-002 gate)
+	Imp   string `json:"imp,omitempty"` // impersonated org id (platform-admin read-only, FR-ADM-003)
 	jwt.RegisteredClaims
 }
 
@@ -106,6 +107,33 @@ func (s *Signer) SignPending2FA(subject string, now time.Time, ttl time.Duration
 	signed, err := tok.SignedString(s.key)
 	if err != nil {
 		return "", fmt.Errorf("jwtx sign pending: %w", err)
+	}
+	return signed, nil
+}
+
+// SignImpersonation issues a read-only impersonation access token (docs/11 §admin,
+// FR-ADM-003): subject = the platform admin, sid = the admin's live session (so
+// session revocation still applies), imp = the target org id. It is a normal access
+// token (empty scope) plus the imp claim; the tenant guard grants read-only access
+// to imp's org and a write-guard rejects any mutation carrying it.
+func (s *Signer) SignImpersonation(adminUserID, adminSID, targetOrg string, now time.Time, ttl time.Duration) (string, error) {
+	claims := Claims{
+		SID: adminSID,
+		Ver: true,
+		Imp: targetOrg,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    Issuer,
+			Subject:   adminUserID,
+			Audience:  jwt.ClaimStrings{Audience},
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+		},
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	tok.Header["kid"] = s.kid
+	signed, err := tok.SignedString(s.key)
+	if err != nil {
+		return "", fmt.Errorf("jwtx sign impersonation: %w", err)
 	}
 	return signed, nil
 }

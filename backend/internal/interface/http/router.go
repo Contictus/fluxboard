@@ -27,10 +27,16 @@ type Deps struct {
 	Webhooks      *handlers.WebhookHandlers
 	Events        *handlers.EventHandlers        // nil ⇒ SSE disabled (tests)
 	Notifications *handlers.NotificationHandlers // nil ⇒ notification center disabled (tests)
+	APIKeys       *handlers.APIKeyHandlers       // nil ⇒ API-key management disabled
+	AuditView     *handlers.AuditHandlers        // nil ⇒ org audit viewer disabled
+	Analytics     *handlers.AnalyticsHandlers    // nil ⇒ analytics disabled
+	Admin         *handlers.AdminHandlers        // nil ⇒ /admin surface disabled
 	Authenticator *mw.Authenticator
 	Tenant        *mw.TenantGuard
 	Entitlement   *mw.EntitlementGuard
-	RateLimit     *mw.RateLimiter // nil ⇒ no plan rate limiting (tests)
+	RateLimit     *mw.RateLimiter          // nil ⇒ no plan rate limiting (tests)
+	PlatformAdmin *mw.PlatformAdminGuard   // nil ⇒ /admin surface disabled
+	APIKeyResolver mw.APIKeyResolver       // nil ⇒ API-key auth path disabled (session only)
 }
 
 // NewRouter assembles the router. Infrastructure middleware wrap every route;
@@ -90,8 +96,15 @@ func NewRouter(d Deps) http.Handler {
 		// (resolve membership + RLS scope) and a per-route Casbin gate, in the
 		// order fixed by docs/03-ARCHITECTURE.md §2.
 		api.Group(func(sec chi.Router) {
-			sec.Use(d.Authenticator.Authenticate) // 5
-			sec.Use(mw.RequireVerified)           // FR-AUTH-002: block unverified email
+			// 5: authenticate. When the API-key path is wired, a Bearer fbk_… key
+			// resolves its org here instead of a session (FR-API-002); otherwise the
+			// session authenticator runs alone.
+			if d.APIKeyResolver != nil {
+				sec.Use(mw.HybridAuth(d.Authenticator, d.APIKeyResolver))
+			} else {
+				sec.Use(d.Authenticator.Authenticate)
+			}
+			sec.Use(mw.RequireVerified) // FR-AUTH-002: block unverified email (API keys are marked verified)
 
 			// Org root (no {orgId} — cannot resolve a tenant).
 			sec.Post("/orgs", d.Orgs.CreateOrg)
@@ -103,7 +116,9 @@ func NewRouter(d Deps) http.Handler {
 
 			// Org-scoped surface (docs/08 §4).
 			sec.Route("/orgs/{orgId}", func(o chi.Router) {
-				o.Use(d.Tenant.Resolve) // 6 (+ RLS scope inside usecases)
+				o.Use(d.Tenant.Resolve)         // 6 (+ RLS scope inside usecases)
+				o.Use(mw.ImpersonationReadOnly) // FR-ADM-003: block writes under an impersonation token
+				o.Use(mw.APIKeyScopeGuard)      // FR-API-002: block writes from read-scoped API keys
 				if d.RateLimit != nil {
 					o.Use(d.RateLimit.Limit) // 7: plan api_rate_per_min + usage counters (06 §5/§7)
 				}
@@ -221,9 +236,46 @@ func NewRouter(d Deps) http.Handler {
 					o.With(read(tenant.ObjOrg)).Get("/notifications/prefs", d.Notifications.GetPrefs)
 					o.With(read(tenant.ObjOrg)).Put("/notifications/prefs", d.Notifications.SetPref)
 				}
+
+				// Phase 6 — org settings API keys (ADMIN, FR-API-001), the org audit
+				// viewer + CSV (ADMIN, FR-AUD-003), and analytics (project = any
+				// member, usage = ADMIN; FR-AN-001/002).
+				if d.APIKeys != nil {
+					o.With(write(tenant.ObjAPIKeys)).Get("/api-keys", d.APIKeys.List)
+					o.With(write(tenant.ObjAPIKeys)).Post("/api-keys", d.APIKeys.Create)
+					o.With(write(tenant.ObjAPIKeys)).Delete("/api-keys/{id}", d.APIKeys.Revoke)
+				}
+				if d.AuditView != nil {
+					o.With(read(tenant.ObjAudit)).Get("/audit", d.AuditView.List)
+					o.With(read(tenant.ObjAudit)).Get("/audit.csv", d.AuditView.ExportCSV)
+				}
+				if d.Analytics != nil {
+					o.With(read(tenant.ObjOrg)).Get("/projects/{projectId}/analytics", d.Analytics.ProjectAnalytics)
+					o.With(read(tenant.ObjBilling)).Get("/usage", d.Analytics.Usage)
+				}
 			})
 		})
 	})
+
+	// Platform-admin surface (docs/build/PHASE-6 §5). A SEPARATE router, deliberately
+	// NOT under the tenant middleware: the platform-admin guard (platform_role=admin
+	// + 2FA) is the only gate, and adminuc reads cross-tenant on the owner pool.
+	if d.Admin != nil && d.PlatformAdmin != nil {
+		r.Route("/admin", func(a chi.Router) {
+			a.Use(d.Authenticator.Authenticate)
+			a.Use(d.PlatformAdmin.RequireAdmin)
+
+			a.Get("/tenants", d.Admin.ListTenants)
+			a.Get("/tenants/{orgId}", d.Admin.GetTenant)
+			a.Post("/tenants/{orgId}/impersonate", d.Admin.Impersonate)
+			a.Post("/tenants/{orgId}/webhooks/{eventId}/retry", d.Admin.RetryWebhook)
+			a.Put("/tenants/{orgId}/flags", d.Admin.SetFlag)
+			a.Put("/tenants/{orgId}/overrides", d.Admin.SetOverride)
+			a.Delete("/tenants/{orgId}/overrides/{key}", d.Admin.DeleteOverride)
+			a.Get("/audit", d.Admin.GlobalAudit)
+			a.Get("/jobs", d.Admin.Jobs)
+		})
+	}
 
 	return r
 }

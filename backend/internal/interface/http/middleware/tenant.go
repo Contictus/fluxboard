@@ -25,6 +25,10 @@ type TenantContext struct {
 	OrgID  string
 	UserID string
 	Role   tenant.OrgRole
+	// Impersonated is true when the caller is a platform admin impersonating this
+	// org (FR-ADM-003): role is a synthetic read-only grant, and the write-guard
+	// rejects any mutation.
+	Impersonated bool
 }
 
 // TenantFrom returns the TenantContext and whether one is present.
@@ -59,6 +63,36 @@ func (g *TenantGuard) Resolve(next http.Handler) http.Handler {
 			response.Error(w, domain.ErrNotFound)
 			return
 		}
+		// API key: bound to one org, no membership. A probe for any other org stays
+		// opaque (404). The scope maps to a synthetic role (write⇒ADMIN, read⇒MEMBER)
+		// so the existing route gates apply; APIKeyScopeGuard enforces write scope.
+		if info, ok := APIKeyFrom(r.Context()); ok {
+			if info.OrgID != orgID {
+				response.Error(w, domain.ErrNotFound)
+				return
+			}
+			role := tenant.RoleMember
+			if info.HasWrite() {
+				role = tenant.RoleAdmin
+			}
+			ctx := context.WithValue(r.Context(), ctxKeyTenant,
+				TenantContext{OrgID: orgID, UserID: p.UserID, Role: role})
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+		// Impersonation: the token is bound to one org. A probe for any other org
+		// stays opaque (404), and the impersonated caller gets a synthetic read-only
+		// ADMIN role instead of a membership lookup — the write-guard blocks writes.
+		if p.ImpersonatedOrg != "" {
+			if p.ImpersonatedOrg != orgID {
+				response.Error(w, domain.ErrNotFound)
+				return
+			}
+			ctx := context.WithValue(r.Context(), ctxKeyTenant,
+				TenantContext{OrgID: orgID, UserID: p.UserID, Role: tenant.RoleAdmin, Impersonated: true})
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
 		role, err := g.resolveRole(r.Context(), orgID, p.UserID)
 		if err != nil {
 			response.Error(w, err)
@@ -86,6 +120,26 @@ func (g *TenantGuard) resolveRole(ctx context.Context, orgID, userID string) (te
 		g.Logger.Warn("membership cache backfill failed", "err", err)
 	}
 	return m.Role, nil
+}
+
+// ImpersonationReadOnly rejects any mutating request (non GET/HEAD/OPTIONS) made
+// under an impersonation token (FR-ADM-003). It runs after Resolve so the
+// TenantContext carries the Impersonated flag. Non-impersonated requests pass
+// through untouched.
+func ImpersonationReadOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tc, ok := TenantFrom(r.Context())
+		if ok && tc.Impersonated {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				// read-only: allowed
+			default:
+				response.Error(w, domain.ErrForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Require enforces that the resolved role may perform (object, action). Deny →
