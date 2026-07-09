@@ -191,6 +191,71 @@ export interface CreateTaskInput {
   due_date?: string | null;
 }
 
+/** Payload for PATCH /orgs/{id}/tasks/{taskId}. UpdateTask replaces the whole set. */
+export interface UpdateTaskInput {
+  title: string;
+  description: string;
+  assignee_id?: string | null;
+  priority: Priority;
+  due_date?: string | null;
+}
+
+/** A subtask (GET .../tasks/{taskId}/subtasks -> { subtasks: [...] }). */
+export interface Subtask {
+  id: string;
+  title: string;
+  done: boolean;
+  rank: string;
+}
+
+/** A comment (GET .../tasks/{taskId}/comments -> { comments: [...] }). */
+export interface Comment {
+  id: string;
+  author_id: string;
+  /** Empty string when soft-deleted (server blanks the body). */
+  body: string;
+  edited: boolean;
+  deleted_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A task activity-log row (GET .../tasks/{taskId}/activity -> { activity: [...] }). */
+export interface Activity {
+  id: string;
+  actor_id: string;
+  field: string;
+  old_value?: string;
+  new_value?: string;
+  created_at: string;
+}
+
+/** Attachment upload status (domain/project). */
+export type AttachmentStatus = 'pending' | 'ready';
+
+/** An attachment (GET .../tasks/{taskId}/attachments -> { attachments: [...] }). */
+export interface Attachment {
+  id: string;
+  task_id: string;
+  uploader_id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  status: string;
+  created_at: string;
+  confirmed_at?: string;
+}
+
+/** An org member row (GET /orgs/{id}/members -> { items: [...], next_cursor }). */
+export interface OrgMember {
+  user_id: string;
+  email: string;
+  name: string;
+  avatar_key?: string;
+  role: Role;
+  created_at: string;
+}
+
 /** Bulk board action (POST /orgs/{id}/tasks/bulk). */
 export type BulkAction = 'assign' | 'move' | 'label';
 

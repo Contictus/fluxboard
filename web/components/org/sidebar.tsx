@@ -5,6 +5,9 @@ import { usePathname } from 'next/navigation';
 import {
   Home,
   FolderKanban,
+  CheckSquare,
+  Search,
+  Trash2,
   Users,
   Settings,
   CreditCard,
@@ -32,6 +35,9 @@ export function Sidebar() {
   const items: NavItem[] = [
     { href: base, label: 'Home', icon: Home, exact: true },
     { href: `${base}/projects`, label: 'Projects', icon: FolderKanban },
+    { href: `${base}/my-tasks`, label: 'My tasks', icon: CheckSquare },
+    { href: `${base}/search`, label: 'Search', icon: Search },
+    { href: `${base}/trash`, label: 'Trash', icon: Trash2 },
   ];
   if (isAdmin) {
     items.push(

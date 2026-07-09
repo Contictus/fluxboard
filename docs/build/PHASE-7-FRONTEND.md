@@ -63,13 +63,13 @@ pnpm build` green (no `go test`).
 - [x] 7.5.5 Board filters (text/priority/assignee — label filter impossible, board DTO carries no labels, ADR-017) + bulk multi-select (move/assign/unassign/add-label via `/tasks/bulk`). FR-TASK-008.
 - [x] 7.5.6 `/projects/{projectKey}/list` sortable table view + `/settings` (general → `updateProject`; columns add/rename/WIP/reorder via `rank.Between`/delete with `?target=`; archive/unarchive). FR-PROJ-003/004/006. ADMIN+ gated; project-member management deferred (needs org member list — §7).
 
-## Section 6 — Task detail + search/trash/my-tasks
+## Section 6 — Task detail + search/trash/my-tasks  ✅ (commit below)
 
-- [ ] 7.6.1 `/projects/{projectKey}/tasks/{taskNumber}` — intercepted route (modal over board, full page on direct load). 02 §4.
-- [ ] 7.6.2 Inline edit of every field + activity timeline. FR-TASK-001/002.
-- [ ] 7.6.3 Subtasks checklist + comments (markdown, 15-min edit marker, @mention autocomplete of project members). FR-TASK-003/005.
-- [ ] 7.6.4 Attachments UI — request-upload → presigned PUT (direct to MinIO) → confirm; download via presigned GET. FR-TASK-006.
-- [ ] 7.6.5 `/search?q=` results + filter sidebar, `/my-tasks`, `/trash` (restore/purge). FR-TASK-007/009.
+- [x] 7.6.1 `/projects/{projectKey}/tasks/{taskNumber}` — full page. 02 §4. Number→id resolved via the board projection (no by-number route / no `number` search filter — ADR-018); modal-over-board interception deferred to full page (ADR-018).
+- [x] 7.6.2 Inline edit of every field (title/description/assignee/priority/due/labels; UpdateTask replaces the whole set) + activity timeline. FR-TASK-001/002. Assignee/actor names hydrated from `GET /orgs/{id}/members` (`use-members.ts`) since task DTOs carry only ids.
+- [x] 7.6.3 Subtasks checklist + comments (15-min edit marker, author/LEAD delete, @mention autocomplete). FR-TASK-003/005. @mention lists **org** members (project-member subset deferred, ADR-018); bodies render pre-wrapped (no markdown renderer this section).
+- [x] 7.6.4 Attachments UI — request-upload → presigned PUT direct to MinIO (no auth header) → confirm; download via presigned GET. FR-TASK-006. 402 → storage-limit toast.
+- [x] 7.6.5 `/search?q=` (URL-bound q + project/assignee/priority/label facets, Suspense-wrapped) + `/my-tasks` (assignee=self, grouped by project) + `/trash` (org-level = per-project ListTrash fan-out; restore-only, no hard-purge endpoint — ADR-018). FR-TASK-007/009. Sidebar nav added for all three.
 
 ## Section 7 — Org settings
 
