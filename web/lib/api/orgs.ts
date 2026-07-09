@@ -12,6 +12,16 @@ export function createOrg(input: { name: string; slug: string }): Promise<Org> {
   return apiFetch('/orgs', { method: 'POST', body: input });
 }
 
+/** Full org by id — carries `deleted_at`/`logo_key` the membership list omits. */
+export function getOrg(orgId: string): Promise<Org> {
+  return apiFetch(`/orgs/${orgId}`);
+}
+
+/** Restore a soft-deleted org (204, OWNER-only). */
+export function restoreOrg(orgId: string): Promise<void> {
+  return apiFetch(`/orgs/${orgId}/restore`, { method: 'POST' });
+}
+
 /**
  * Slug availability check. GET /orgs/by-slug/{slug} resolves an existing org, so a
  * 404 means the slug is free; a 200 means it's taken.

@@ -1,9 +1,30 @@
 import { apiFetch } from './client';
-import type { NotificationPref } from './types';
+import type { Notification, NotificationPref } from './types';
 
-// Per-org notification preferences (docs/09 §3, FR-NTF-004). Prefs are scoped to
-// (org, user, category) by design — there is no global store (ADR-015), so the
-// account page composes these per selected org.
+// Per-org notification center + preferences (docs/09 §3, FR-NTF-002/004). Prefs
+// are scoped to (org, user, category) by design — there is no global store
+// (ADR-015), so the account page composes these per selected org.
+
+/** Caller's own notifications, newest-first (org-home "recent activity", ADR-016). */
+export async function listNotifications(
+  orgId: string,
+  opts: { unread?: boolean; limit?: number } = {},
+): Promise<Notification[]> {
+  const qs = new URLSearchParams();
+  if (opts.unread) qs.set('unread', '1');
+  if (opts.limit) qs.set('limit', String(opts.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await apiFetch<{ notifications: Notification[] }>(
+    `/orgs/${orgId}/notifications${suffix}`,
+  );
+  return res.notifications;
+}
+
+/** Unread badge count for the topbar bell. */
+export async function getUnreadCount(orgId: string): Promise<number> {
+  const res = await apiFetch<{ unread: number }>(`/orgs/${orgId}/notifications/unread-count`);
+  return res.unread;
+}
 
 export async function getPrefs(orgId: string): Promise<NotificationPref[]> {
   const res = await apiFetch<{ prefs: NotificationPref[] }>(

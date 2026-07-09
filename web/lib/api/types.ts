@@ -59,23 +59,103 @@ export interface Enroll2FAResponse {
   provisioning_uri: string;
 }
 
+/** Membership roles (domain/tenant/tenant.go). Note GUEST, not "VIEWER". */
+export type Role = 'OWNER' | 'ADMIN' | 'MEMBER' | 'GUEST';
+
 /** Org membership summary row (GET /orgs -> { items: [...] }). */
 export interface OrgSummary {
   org_id: string;
-  role: string;
+  role: Role;
   slug: string;
   name: string;
   created_at: string;
 }
 
-/** The created-org shape (POST /orgs). */
+/** Full org (GET /orgs/{id}, GET /orgs/by-slug/{slug}, POST /orgs). */
 export interface Org {
   id: string;
   slug: string;
   name: string;
   logo_key?: string;
+  /** Set while the org is soft-deleted and in its restore grace window. */
+  deleted_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+/** Plan entitlements embedded in the billing summary (docs/06 §2). */
+export interface Entitlements {
+  plan: string;
+  status: string;
+  max_members: number;
+  max_projects: number;
+  max_storage_bytes: number;
+  api_rate_per_min: number;
+  audit_retention_days: number;
+  metered: boolean;
+}
+
+/** Subscription status values (domain/billing/billing.go). */
+export type SubStatus =
+  | 'none'
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'unpaid'
+  | 'canceled';
+
+/** Billing summary (GET /orgs/{id}/billing/summary — ADMIN+ only). */
+export interface BillingSummary {
+  plan: string;
+  status: SubStatus;
+  current_period_end?: string;
+  cancel_at_period_end: boolean;
+  past_due_warning: boolean;
+  has_subscription: boolean;
+  entitlements: Entitlements;
+}
+
+/** A project (GET /orgs/{id}/projects -> { projects: [...] }). */
+export interface Project {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  color: string;
+  visibility: string;
+  archived_at?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A task row (GET /orgs/{id}/tasks/search -> { tasks: [...], total }). */
+export interface Task {
+  id: string;
+  project_id: string;
+  column_id: string;
+  number: number;
+  title: string;
+  description: string;
+  assignee_id?: string;
+  priority: string;
+  due_date?: string;
+  rank: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** An in-app notification row (GET /orgs/{id}/notifications -> { notifications }). */
+export interface Notification {
+  id: string;
+  category: string;
+  title: string;
+  body: string;
+  entity_type?: string;
+  entity_id?: string;
+  read_at?: string;
+  created_at: string;
 }
 
 /** The caller's account profile (GET /me). */

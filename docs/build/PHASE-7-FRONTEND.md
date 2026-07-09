@@ -48,11 +48,11 @@ pnpm build` green (no `go test`).
 - [x] 7.3.3 `/account/security` (password change, TOTP enroll/activate/disable + recovery codes) + `/account/sessions` (list + revoke + log-out-all). FR-AUTH-008/012/013.
 - [x] 7.3.4 `/account/notifications` prefs matrix — **per-org** with an org selector (global prefs not built; ADR-015) — + `/account/danger` (`DELETE /me`, 409 sole_owner_of block list). FR-NTF-004.
 
-## Section 4 — Org shell + home
+## Section 4 — Org shell + home  ✅ (commit below)
 
-- [ ] 7.4.1 `/app/{orgSlug}` layout — sidebar + topbar + org switcher; role-aware nav.
-- [ ] 7.4.2 Org home: assigned-to-me, recent activity, pinned projects. FR (org home).
-- [ ] 7.4.3 Edge states: `past_due` dismissable banner (OWNER/ADMIN); soft-delete grace full-screen restore/countdown. 02 §9.
+- [x] 7.4.1 `/app/{orgSlug}` layout — sidebar + topbar + org switcher; role-aware nav. Org context (`lib/org/context.tsx`) resolves slug via `GET /orgs` (role) + `GET /orgs/{id}` (deleted_at); unknown slug bounces to `/app`. Sidebar admin-only items (Members/Settings/Billing) link forward to §5–8 routes.
+- [x] 7.4.2 Org home: assigned-to-me (`tasks/search?assignee_id=<me>`), recent activity (own `/notifications` — no org-wide feed, ADR-016), projects (recent active from `/projects` — no pin concept, ADR-016). FR (org home).
+- [x] 7.4.3 Edge states: `past_due` dismissable banner — OWNER/ADMIN only, `billing/summary` is ADMIN+ gated (ADR-016); soft-delete grace full-screen restore CTA (OWNER restores; no live countdown — `purge_after` not exposed, ADR-016). 02 §9.
 
 ## Section 5 — Projects + Kanban board
 
