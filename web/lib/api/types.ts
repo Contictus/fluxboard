@@ -115,6 +115,67 @@ export interface BillingSummary {
   entitlements: Entitlements;
 }
 
+/** Paid plan codes (domain/billing/billing.go). `free` is the un-subscribed tier. */
+export type PlanCode = 'free' | 'pro' | 'business';
+
+/** A billing invoice mirror row (GET /orgs/{id}/billing/invoices -> { invoices: [...] }). */
+export interface Invoice {
+  id: string;
+  stripe_invoice_id: string;
+  number: string;
+  status: string;
+  amount_due: number;
+  amount_paid: number;
+  currency: string;
+  hosted_pdf_url?: string;
+  period_start?: string;
+  period_end?: string;
+  created_at: string;
+}
+
+/** Proration preview (POST /orgs/{id}/billing/preview-change -> { amount, currency }). */
+export interface ChangePreview {
+  amount: number;
+  currency: string;
+}
+
+/** Payload for POST /orgs/{id}/billing/checkout. */
+export interface CheckoutInput {
+  plan: PlanCode;
+  seats: number;
+}
+
+/** Org usage dashboard (GET /orgs/{id}/usage — ADMIN+). Money in minor units. */
+export interface UsageDashboard {
+  period_start: string;
+  period_end: string;
+  seats: number;
+  storage_bytes: number;
+  api_calls: number;
+  estimated_total: number;
+  plan: string;
+}
+
+/** One day of a project's rollup analytics (analytics series entry). */
+export interface DailyStat {
+  day: string; // YYYY-MM-DD
+  created_count: number;
+  completed_count: number;
+  column_snapshot: Record<string, number>;
+  avg_cycle_seconds?: number;
+}
+
+/** Project analytics (GET /orgs/{id}/projects/{projectId}/analytics). */
+export interface ProjectAnalytics {
+  project_id: string;
+  from: string;
+  to: string;
+  total_created: number;
+  total_completed: number;
+  avg_cycle_seconds?: number;
+  series: DailyStat[];
+}
+
 /** Project visibility (domain/project/project.go). */
 export type Visibility = 'org' | 'private';
 

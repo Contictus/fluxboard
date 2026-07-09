@@ -78,13 +78,13 @@ pnpm build` green (no `go test`).
 - [x] 7.7.3 `/settings/labels` CRUD (inline name/color edit, add-row, delete-confirm). FR-TASK-004.
 - [x] 7.7.4 `/settings/api-keys` (create form, scope read/read+write, **one-time secret reveal + copy**, revoke), `/settings/audit-log` (actor/action/severity/since/until filters + **CSV via authed Blob**), `/settings/danger` (ownership transfer + soft-delete, both typed-confirm, OWNER-only). FR-API-001, FR-AUD-003, FR-TEN-008. ADR-019.
 
-## Section 8 — Billing
+## Section 8 — Billing  ✅ (commit below)
 
-- [ ] 7.8.1 `/billing` overview (plan card, seats, renewal, payment method last4, past_due banner). FR-BILL-001.
-- [ ] 7.8.2 `/billing/plans` (upgrade/downgrade, proration-preview dialog). FR-BILL-002/003.
-- [ ] 7.8.3 Checkout redirect → `/billing/checkout/success` polls summary until webhook lands ("finalizing…", 60s timeout) + `/checkout/cancelled`. FR-BILL-002, 06 §3.
-- [ ] 7.8.4 `/billing/usage` dashboard (Recharts meters/30d charts, invoice estimate, FR-AN-002) + `/billing/invoices` (status/amount/PDF) + "manage payment method" → Billing Portal redirect. FR-BILL-006/008.
-- [ ] 7.8.5 Shared 402 upgrade modal (reads `limit` field) mounted app-wide. FR-BILL-009, 02 §9.
+- [x] 7.8.1 `/billing` overview (plan card, seats used/limit, renews/ends date, cancel/resume, past_due banner). FR-BILL-001. **No payment-method last4** in the summary DTO → "Manage payment method" routes to the Stripe Portal instead (ADR-020). ADMIN+ gated layout.
+- [x] 7.8.2 `/billing/plans` (plan reference cards free/pro/business from `lib/billing/plans.ts`; upgrade → Checkout when un-subscribed, proration-preview dialog + ApplyChange when subscribed; downgrade-to-free → cancel at period end). FR-BILL-002/003. **No public plan-catalog/pricing endpoint** — limits mirror the domain plan table for display, the *authoritative* switch cost comes from `preview-change`, checkout amount from Stripe (ADR-020).
+- [x] 7.8.3 `/billing/checkout/success` polls `billing/summary` every 2s until `has_subscription` (webhook source of truth), "finalizing…" spinner, 60s timeout → manual "check again" + `/billing/checkout/cancelled`. FR-BILL-002, 06 §3.
+- [x] 7.8.4 `/billing/usage` (usage-vs-limit meters + Recharts API-calls bar + estimated total; **snapshot not 30-day series** — `/usage` returns current-period aggregates, ADR-020) + `/billing/invoices` (number/date/status/amount/hosted PDF) + "Manage payment method" → Portal redirect. FR-BILL-006/008, FR-AN-002.
+- [x] 7.8.5 Shared 402 upgrade modal (`components/upgrade-modal.tsx`) now links to `/billing/plans` (org slug derived from pathname since it mounts above org context) with per-`limit`-key copy. FR-BILL-009, 02 §9.
 
 ## Section 9 — Notifications + SSE client
 
