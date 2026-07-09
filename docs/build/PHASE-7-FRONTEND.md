@@ -71,12 +71,12 @@ pnpm build` green (no `go test`).
 - [x] 7.6.4 Attachments UI — request-upload → presigned PUT direct to MinIO (no auth header) → confirm; download via presigned GET. FR-TASK-006. 402 → storage-limit toast.
 - [x] 7.6.5 `/search?q=` (URL-bound q + project/assignee/priority/label facets, Suspense-wrapped) + `/my-tasks` (assignee=self, grouped by project) + `/trash` (org-level = per-project ListTrash fan-out; restore-only, no hard-purge endpoint — ADR-018). FR-TASK-007/009. Sidebar nav added for all three.
 
-## Section 7 — Org settings
+## Section 7 — Org settings  ✅ (commit below)
 
-- [ ] 7.7.1 `/settings` general (name, slug with redirect warning, logo). FR-TEN-007.
-- [ ] 7.7.2 `/settings/members` (role dropdowns, remove, pending-invites tab) + `/members/invite` (multi-email, seat-limit CTA on 402). FR-TEN-004/005.
-- [ ] 7.7.3 `/settings/labels` CRUD. FR-TASK-004.
-- [ ] 7.7.4 `/settings/api-keys` (create dialog one-time reveal, revoke), `/settings/audit-log` (+CSV), `/settings/danger` (ownership transfer, soft-delete). FR-API-001, FR-AUD-003, FR-TEN-008.
+- [x] 7.7.1 `/settings` general (name, slug with redirect warning). FR-TEN-007. **Logo upload deferred** — no org-logo upload endpoint exists (only `/me/avatar/*`), ADR-019. Slug edit OWNER-only (re-gated in handler) + live `isSlugAvailable` + redirect warning + `router.replace` to new slug.
+- [x] 7.7.2 `/settings/members` (role dropdowns ADMIN/MEMBER/GUEST, remove, pending-invites section w/ revoke+resend) + `/members/invite` (multi-email fan-out — one POST/address, per-email outcome, **402 seat-limit → Billing CTA**). FR-TEN-004/005. OWNER assigned only via transfer; owner/self rows locked (ADR-019).
+- [x] 7.7.3 `/settings/labels` CRUD (inline name/color edit, add-row, delete-confirm). FR-TASK-004.
+- [x] 7.7.4 `/settings/api-keys` (create form, scope read/read+write, **one-time secret reveal + copy**, revoke), `/settings/audit-log` (actor/action/severity/since/until filters + **CSV via authed Blob**), `/settings/danger` (ownership transfer + soft-delete, both typed-confirm, OWNER-only). FR-API-001, FR-AUD-003, FR-TEN-008. ADR-019.
 
 ## Section 8 — Billing
 

@@ -275,6 +275,66 @@ export interface Label {
   color: string;
 }
 
+/** Payload for PATCH /orgs/{id}. All fields optional; slug is OWNER-only server-side. */
+export interface UpdateOrgInput {
+  name?: string;
+  logo_key?: string;
+  slug?: string;
+}
+
+/** A pending invitation (GET /orgs/{id}/invitations -> { items: [...] }). */
+export interface Invitation {
+  id: string;
+  email: string;
+  role: Role;
+  invited_by: string;
+  expires_at: string;
+  created_at: string;
+}
+
+/** Payload for POST /orgs/{id}/invitations (one email per call). */
+export interface CreateInvitationInput {
+  email: string;
+  role: Role;
+}
+
+/** API-key scope (domain/apikey). `write` implies `read`. */
+export type ApiKeyScope = 'read' | 'write';
+
+/** An org API key (GET /orgs/{id}/api-keys -> { api_keys: [...] }). Secret never here. */
+export interface ApiKey {
+  id: string;
+  prefix: string;
+  name: string;
+  scopes: ApiKeyScope[];
+  last_used_at?: string;
+  revoked_at?: string;
+  created_at: string;
+}
+
+/** POST /orgs/{id}/api-keys response — `secret` is shown exactly once. */
+export interface CreateApiKeyResult {
+  api_key: ApiKey;
+  secret: string;
+}
+
+/** Audit severity (domain/audit). */
+export type AuditSeverity = 'info' | 'notice' | 'warning' | 'critical';
+
+/** An org audit-log row (GET /orgs/{id}/audit -> { entries: [...] }). */
+export interface AuditEntry {
+  org_id?: string;
+  actor_user_id?: string;
+  impersonator_user_id?: string;
+  action: string;
+  target_type?: string;
+  target_id?: string;
+  metadata?: Record<string, unknown>;
+  ip?: string;
+  severity: string;
+  created_at: string;
+}
+
 /** A task row (GET /orgs/{id}/tasks/search -> { tasks: [...], total }). */
 export interface Task {
   id: string;
