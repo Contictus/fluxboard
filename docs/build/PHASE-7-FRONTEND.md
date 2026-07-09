@@ -86,11 +86,11 @@ pnpm build` green (no `go test`).
 - [x] 7.8.4 `/billing/usage` (usage-vs-limit meters + Recharts API-calls bar + estimated total; **snapshot not 30-day series** — `/usage` returns current-period aggregates, ADR-020) + `/billing/invoices` (number/date/status/amount/hosted PDF) + "Manage payment method" → Portal redirect. FR-BILL-006/008, FR-AN-002.
 - [x] 7.8.5 Shared 402 upgrade modal (`components/upgrade-modal.tsx`) now links to `/billing/plans` (org slug derived from pathname since it mounts above org context) with per-`limit`-key copy. FR-BILL-009, 02 §9.
 
-## Section 9 — Notifications + SSE client
+## Section 9 — Notifications + SSE client  ✅ (commit below)
 
-- [ ] 7.9.1 `web/lib/sse.ts` — EventSource wrapper: reconnect backoff 1→2→5→10s +jitter, `Last-Event-ID`, `resync` handling. FR-NTF-001, 09 §1.
-- [ ] 7.9.2 Per-event surgical TanStack cache updates (e.g. `task.moved` moves the card, not blanket invalidate); skip `actor_id === me`.
-- [ ] 7.9.3 `/notifications` center (unread/all tabs, mark read/all-read) + topbar unread badge. FR-NTF-002.
+- [x] 7.9.1 `web/lib/sse.ts` — **fetch + ReadableStream** SSE client (NOT native EventSource — it can't carry the in-memory bearer, ADR-021): reconnect backoff 1→2→5→10s +jitter, `Last-Event-ID` header on reconnect, 401→silent refresh→retry, `resync` handling, heartbeat/comment skip. FR-NTF-001, 09 §1.
+- [x] 7.9.2 `components/org/realtime.tsx` (mounted in `OrgShell`) — per-event **surgical** invalidations keyed off the event payload's `project_id`/`task_id` (task.* → `['board', projectId]` (+ `['task']`/`['activity']` on update); comment.created → comments+activity; member.* → org-members+orgs; notification.created (targeted `user_id`) → unread-count+notifications+home-activity; billing.status_changed → billing-summary+usage); **skips `actor_id === me`** (optimistic update already applied); `resync` → full invalidate.
+- [x] 7.9.3 `/notifications` center (unread/all tabs, per-row + mark-all-read) wired to `POST /{id}/read` + `/read-all`; topbar unread badge (`['unread-count']`) already present and now live via the SSE bridge. FR-NTF-002.
 
 ## Section 10 — Platform admin `(admin)` + analytics
 

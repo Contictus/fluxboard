@@ -37,6 +37,19 @@ export function setPref(orgId: string, pref: NotificationPref): Promise<void> {
   return apiFetch(`/orgs/${orgId}/notifications/prefs`, { method: 'PUT', body: pref });
 }
 
+/** Stamp one notification read (204). */
+export function markNotificationRead(orgId: string, id: string): Promise<void> {
+  return apiFetch(`/orgs/${orgId}/notifications/${id}/read`, { method: 'POST' });
+}
+
+/** Stamp every unread notification read; returns how many were affected. */
+export async function markAllNotificationsRead(orgId: string): Promise<number> {
+  const res = await apiFetch<{ marked: number }>(`/orgs/${orgId}/notifications/read-all`, {
+    method: 'POST',
+  });
+  return res.marked;
+}
+
 /** User-configurable categories (transactional auth categories are excluded). */
 export const NOTIFICATION_CATEGORIES: { key: string; label: string }[] = [
   { key: 'task_assigned', label: 'Task assigned to me' },
