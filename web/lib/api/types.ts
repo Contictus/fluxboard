@@ -115,6 +115,12 @@ export interface BillingSummary {
   entitlements: Entitlements;
 }
 
+/** Project visibility (domain/project/project.go). */
+export type Visibility = 'org' | 'private';
+
+/** Task priority (domain/project/project.go). */
+export type Priority = 'urgent' | 'high' | 'medium' | 'low' | 'none';
+
 /** A project (GET /orgs/{id}/projects -> { projects: [...] }). */
 export interface Project {
   id: string;
@@ -122,11 +128,86 @@ export interface Project {
   name: string;
   description: string;
   color: string;
-  visibility: string;
+  visibility: Visibility;
   archived_at?: string;
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+/** Payload for POST /orgs/{id}/projects. */
+export interface CreateProjectInput {
+  key: string;
+  name: string;
+  description: string;
+  color: string;
+  visibility: Visibility;
+}
+
+/** Payload for PATCH /orgs/{id}/projects/{projectId}. */
+export interface UpdateProjectInput {
+  name: string;
+  description: string;
+  color: string;
+  visibility: Visibility;
+}
+
+/** A board column (GET .../board). */
+export interface Column {
+  id: string;
+  name: string;
+  rank: string;
+  wip_limit?: number;
+}
+
+/** A card in the board projection (columns[].tasks[]). */
+export interface TaskCard {
+  id: string;
+  number: number;
+  title: string;
+  priority: Priority;
+  assignee_id?: string;
+  rank: string;
+}
+
+/** One column with its cards in the board projection. */
+export interface BoardColumn extends Column {
+  tasks: TaskCard[];
+}
+
+/** The kanban projection (GET .../projects/{projectId}/board). */
+export interface Board {
+  board_id: string;
+  columns: BoardColumn[];
+}
+
+/** Payload for POST .../projects/{projectId}/tasks. */
+export interface CreateTaskInput {
+  column_id: string;
+  title: string;
+  description: string;
+  assignee_id?: string | null;
+  priority: Priority;
+  due_date?: string | null;
+}
+
+/** Bulk board action (POST /orgs/{id}/tasks/bulk). */
+export type BulkAction = 'assign' | 'move' | 'label';
+
+/** Payload for the bulk endpoint; fields beyond `action`/`task_ids` are per-action. */
+export interface BulkActionInput {
+  action: BulkAction;
+  task_ids: string[];
+  assignee_id?: string | null;
+  column_id?: string;
+  label_id?: string;
+}
+
+/** An org label (GET /orgs/{id}/labels -> { labels: [...] }). */
+export interface Label {
+  id: string;
+  name: string;
+  color: string;
 }
 
 /** A task row (GET /orgs/{id}/tasks/search -> { tasks: [...], total }). */

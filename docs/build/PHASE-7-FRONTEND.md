@@ -54,14 +54,14 @@ pnpm build` green (no `go test`).
 - [x] 7.4.2 Org home: assigned-to-me (`tasks/search?assignee_id=<me>`), recent activity (own `/notifications` — no org-wide feed, ADR-016), projects (recent active from `/projects` — no pin concept, ADR-016). FR (org home).
 - [x] 7.4.3 Edge states: `past_due` dismissable banner — OWNER/ADMIN only, `billing/summary` is ADMIN+ gated (ADR-016); soft-delete grace full-screen restore CTA (OWNER restores; no live countdown — `purge_after` not exposed, ADR-016). 02 §9.
 
-## Section 5 — Projects + Kanban board
+## Section 5 — Projects + Kanban board  ✅ (commit below)
 
-- [ ] 7.5.1 `/projects` list/grid + active/archived filters + create button. FR-PROJ-001/006.
-- [ ] 7.5.2 `/projects/new` (name, key, visibility, template). FR-PROJ-001/002.
-- [ ] 7.5.3 `/projects/{projectKey}` Kanban board — dnd-kit columns + cards, WIP indicators. FR-PROJ-004/005.
-- [ ] 7.5.4 Drag-drop → LexoRank move with optimistic update + rollback on 409. FR-PROJ-005.
-- [ ] 7.5.5 Board filters + bulk multi-select actions (move/assign/label). FR-TASK-008.
-- [ ] 7.5.6 `/projects/{projectKey}/list` table view + `/settings` (general, columns reorder/WIP, members, archive/delete). FR-PROJ-003/004/006.
+- [x] 7.5.1 `/projects` list/grid + active/archived filters + create button. FR-PROJ-001/006. NOTE: archived filter reuses `?archived=true` (which includes actives) then filters to `archived_at`-set client-side.
+- [x] 7.5.2 `/projects/new` (name, key auto-suggest, color, visibility). FR-PROJ-001/002. Template field dropped — `CreateProject` seeds fixed `DefaultColumns`, no template param (ADR-017). 402 → plan-limit + Billing CTA, 409 → key taken, 422 → field errors.
+- [x] 7.5.3 `/projects/{projectKey}` Kanban board — dnd-kit columns + cards, WIP indicators (amber at limit). FR-PROJ-004/005. Key→UUID resolved client-side (no by-key route, ADR-017); inline add-task; add-column for ADMIN+.
+- [x] 7.5.4 Drag-drop → LexoRank move with optimistic `setQueryData` + rollback + toast on 409. FR-PROJ-005. Client rank via `lib/board/rank.ts` (faithful port of `pkg/rank`, torture-tested).
+- [x] 7.5.5 Board filters (text/priority/assignee — label filter impossible, board DTO carries no labels, ADR-017) + bulk multi-select (move/assign/unassign/add-label via `/tasks/bulk`). FR-TASK-008.
+- [x] 7.5.6 `/projects/{projectKey}/list` sortable table view + `/settings` (general → `updateProject`; columns add/rename/WIP/reorder via `rank.Between`/delete with `?target=`; archive/unarchive). FR-PROJ-003/004/006. ADMIN+ gated; project-member management deferred (needs org member list — §7).
 
 ## Section 6 — Task detail + search/trash/my-tasks
 
