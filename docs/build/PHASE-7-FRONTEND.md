@@ -92,13 +92,13 @@ pnpm build` green (no `go test`).
 - [x] 7.9.2 `components/org/realtime.tsx` (mounted in `OrgShell`) — per-event **surgical** invalidations keyed off the event payload's `project_id`/`task_id` (task.* → `['board', projectId]` (+ `['task']`/`['activity']` on update); comment.created → comments+activity; member.* → org-members+orgs; notification.created (targeted `user_id`) → unread-count+notifications+home-activity; billing.status_changed → billing-summary+usage); **skips `actor_id === me`** (optimistic update already applied); `resync` → full invalidate.
 - [x] 7.9.3 `/notifications` center (unread/all tabs, per-row + mark-all-read) wired to `POST /{id}/read` + `/read-all`; topbar unread badge (`['unread-count']`) already present and now live via the SSE bridge. FR-NTF-002.
 
-## Section 10 — Platform admin `(admin)` + analytics
+## Section 10 — Platform admin `(admin)` + analytics  ✅ (commit below)
 
-- [ ] 7.10.1 `/admin` route group (separate dark layout, PA guard) + KPI dashboard. FR-ADM-001.
-- [ ] 7.10.2 `/admin/tenants` + `/admin/tenants/{orgId}` (subscription timeline, overrides, impersonate button) + `/admin/users`. FR-ADM-002/003.
-- [ ] 7.10.3 `/admin/webhooks` (payload viewer + retry), `/admin/audit-log`, `/admin/flags`, `/admin/jobs`. FR-ADM-004/005/006.
-- [ ] 7.10.4 Impersonation banner (read-only session) shown app-wide when `imp` active. FR-ADM-003.
-- [ ] 7.10.5 `/projects/{projectKey}/analytics` project analytics (Recharts: completed/week, cumulative flow, cycle time, per-assignee). FR-AN-001.
+- [x] 7.10.1 `(admin)` route group — separate dark chrome, gated on `platform_role==='admin'` via `/me` (backend also enforces 2FA per call) → non-admins bounced to `/app`. `/admin` KPI dashboard **derived client-side** from the tenant list (no dedicated KPI endpoint, ADR-022): org count, total MRR, paying orgs, members, plan/status breakdowns. FR-ADM-001.
+- [x] 7.10.2 `/admin/tenants` (search + plan/status filters) + `/admin/tenants/{orgId}` (subscription, invoices, **feature-flag toggle**, **entitlement-override CRUD**, **webhook retry**, **impersonate** button). FR-ADM-002/003. **`/admin/users` dropped** — no admin users endpoint exists (ADR-022).
+- [x] 7.10.3 Webhook retry + feature flags live **inside the tenant detail** (no standalone `/admin/webhooks` or `/admin/flags` endpoints — flags/webhooks are per-tenant, ADR-022) + `/admin/audit-log` (global, actor/action/severity/since/until, impersonator marker) + `/admin/jobs` (Asynq summary, generic render, 10s poll). FR-ADM-004/005/006.
+- [x] 7.10.4 `components/impersonation-banner.tsx` mounted in the `(app)` layout — shows when the token carries `imp`; "Exit" refreshes the session cookie back to the admin token + clears the cache. FR-ADM-003. Start = adopt the read-only token from the tenant-detail impersonate button → navigate to the tenant's org shell.
+- [x] 7.10.5 `/projects/{projectKey}/analytics` (Recharts throughput created-vs-completed line, cumulative-flow stacked area from `column_snapshot`, cycle-time line) + Analytics tab in the project header. FR-AN-001. **No per-assignee chart** — the rollup aggregates by day/column, not assignee (ADR-022).
 
 ## Section 11 — Verify & commit
 

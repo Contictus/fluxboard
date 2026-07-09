@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Bell, ChevronsUpDown, Plus, User, LogOut, Check } from 'lucide-react';
+import { Building2, Bell, ChevronsUpDown, Plus, User, LogOut, Check, Shield } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useOrg } from '@/lib/org/context';
 import { listMyOrgs } from '@/lib/api/orgs';
 import { getUnreadCount } from '@/lib/api/notifications';
+import { getMe } from '@/lib/api/user';
 
 export function Topbar() {
   const { org, slug, role } = useOrg();
@@ -140,6 +141,9 @@ function NotificationBell({ slug }: { slug: string }) {
 }
 
 function AccountMenu() {
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: getMe });
+  const isPlatformAdmin = me?.platform_role === 'admin';
+
   return (
     <Menu
       align="right"
@@ -158,6 +162,15 @@ function AccountMenu() {
           >
             <User className="h-4 w-4" /> Account
           </Link>
+          {isPlatformAdmin ? (
+            <Link
+              href="/admin"
+              onClick={close}
+              className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary"
+            >
+              <Shield className="h-4 w-4" /> Platform admin
+            </Link>
+          ) : null}
           <Link
             href="/logout"
             onClick={close}

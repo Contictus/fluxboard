@@ -15,7 +15,7 @@ export interface AuditFilter {
   limit?: number;
 }
 
-function toQuery(filter: AuditFilter): string {
+export function toQuery(filter: AuditFilter): string {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(filter)) {
     if (v !== undefined && v !== '' && v !== null) qs.set(k, String(v));

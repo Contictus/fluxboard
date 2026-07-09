@@ -443,3 +443,87 @@ export interface NotificationPref {
   email: boolean;
   in_app: boolean;
 }
+
+// ---- Platform admin (docs/build/PHASE-6 §5) --------------------------------
+// NOTE: the admin tenant *list* uses a snake_case DTO, but the tenant *detail*
+// endpoint serializes raw domain structs (no json tags) → PascalCase keys. The
+// types below match the wire verbatim (ADR-022).
+
+/** One row of the admin tenant list (GET /admin/tenants -> { tenants: [...] }). */
+export interface AdminTenant {
+  org_id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  status: string;
+  member_count: number;
+  mrr: number; // minor units
+  created_at: string;
+}
+
+/** Raw domain override (admin detail, PascalCase). */
+export interface AdminOverride {
+  OrgID: string;
+  Key: string;
+  Value: string;
+  Note: string;
+  CreatedBy: string;
+  CreatedAt: string;
+}
+
+/** Raw domain feature flag (admin detail, PascalCase). */
+export interface AdminFlag {
+  OrgID: string;
+  Flag: string;
+  Enabled: boolean;
+}
+
+/** Raw domain webhook event (admin detail, PascalCase). */
+export interface AdminWebhook {
+  EventID: string;
+  Type: string;
+  Handled: boolean;
+  Error: string;
+  ProcessedAt: string;
+}
+
+/** Raw domain subscription (admin detail, PascalCase). */
+export interface AdminSubscription {
+  ID: string;
+  OrgID: string;
+  PlanCode: string;
+  Status: string;
+  CurrentPeriodEnd?: string;
+  CancelAtPeriodEnd: boolean;
+  CreatedAt: string;
+  UpdatedAt: string;
+}
+
+/** Raw domain invoice (admin detail, PascalCase). */
+export interface AdminInvoice {
+  ID: string;
+  Number: string;
+  Status: string;
+  AmountDue: number;
+  Currency: string;
+  CreatedAt: string;
+}
+
+/** Tenant detail composite (GET /admin/tenants/{orgId}). */
+export interface AdminTenantDetail {
+  tenant: AdminTenant;
+  subscription?: AdminSubscription;
+  invoices: AdminInvoice[];
+  webhooks: AdminWebhook[];
+  overrides: AdminOverride[];
+  flags: AdminFlag[];
+}
+
+/** Filters for the admin tenant list. */
+export interface AdminTenantFilter {
+  search?: string;
+  plan?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}
