@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -23,15 +24,20 @@
     "tailwind-merge": "2.5.4"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6",
+    "@testing-library/react": "^16",
     "@types/node": "22.7.4",
     "@types/react": "18.3.11",
     "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "^4",
     "autoprefixer": "10.4.20",
     "eslint": "8.57.1",
     "eslint-config-next": "14.2.15",
+    "jsdom": "^25",
     "postcss": "8.4.47",
     "prettier": "3.3.3",
     "tailwindcss": "3.4.13",
-    "typescript": "5.6.2"
+    "typescript": "5.6.2",
+    "vitest": "^2"
   }
 }
