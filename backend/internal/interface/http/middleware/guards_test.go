@@ -47,6 +47,36 @@ func TestImpersonationReadOnly(t *testing.T) {
 	}
 }
 
+// FR-ADM-003: an impersonation token is read-only everywhere, keyed off the
+// Principal's `imp` claim — so it also guards the org-independent secured routes.
+func TestRejectImpersonationWrite(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		imp    string
+		want   int
+	}{
+		{"imp GET allowed", http.MethodGet, "org1", http.StatusOK},
+		{"imp POST blocked", http.MethodPost, "org1", http.StatusForbidden},
+		{"imp PATCH blocked", http.MethodPatch, "org1", http.StatusForbidden},
+		{"imp DELETE blocked", http.MethodDelete, "org1", http.StatusForbidden},
+		{"non-imp POST allowed", http.MethodPost, "", http.StatusOK},
+		{"no principal passes", http.MethodPost, "\x00none", http.StatusOK},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest(tc.method, "/me", nil)
+			if tc.imp != "\x00none" {
+				r = r.WithContext(WithPrincipal(r.Context(), Principal{UserID: "admin", ImpersonatedOrg: tc.imp}))
+			}
+			rec := runGuard(RejectImpersonationWrite, r)
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d", rec.Code, tc.want)
+			}
+		})
+	}
+}
+
 // FR-API-002: a read-scoped API key may read but never write; a write key may do both.
 func TestAPIKeyScopeGuard(t *testing.T) {
 	readKey := APIKeyInfo{OrgID: "org1", Scopes: []apikey.Scope{apikey.ScopeRead}}

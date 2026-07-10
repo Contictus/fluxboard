@@ -6,6 +6,7 @@ import { Loader2, XCircle } from 'lucide-react';
 
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { setAccessToken } from '@/lib/api/client';
+import { sanitizeNext } from '@/lib/nav/safe-next';
 
 // The backend OAuth callback redirects here as
 //   /oauth/google/callback?next=<path>#access_token=<jwt>
@@ -20,7 +21,7 @@ export default function OAuthCallbackPage() {
       ? window.location.hash.slice(1)
       : window.location.hash;
     const token = new URLSearchParams(hash).get('access_token');
-    const next = new URLSearchParams(window.location.search).get('next') ?? '/app';
+    const next = sanitizeNext(new URLSearchParams(window.location.search).get('next'));
 
     if (!token) {
       setFailed(true);

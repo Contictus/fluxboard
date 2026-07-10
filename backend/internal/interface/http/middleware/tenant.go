@@ -142,6 +142,29 @@ func ImpersonationReadOnly(next http.Handler) http.Handler {
 	})
 }
 
+// RejectImpersonationWrite rejects any mutating request (non GET/HEAD/OPTIONS)
+// carried by a platform-admin impersonation token, keyed off the Principal's
+// `imp` claim rather than a resolved TenantContext. It therefore also guards the
+// org-independent secured routes (/me, POST /orgs, invitation accept) that the
+// org-subtree-only ImpersonationReadOnly cannot see — an impersonation token must
+// never mutate the admin's own account or create orgs (FR-ADM-003). Mount after
+// Authenticate. Non-impersonated requests pass through untouched.
+func RejectImpersonationWrite(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := PrincipalFrom(r.Context())
+		if ok && p.ImpersonatedOrg != "" {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				// read-only: allowed
+			default:
+				response.Error(w, domain.ErrForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Require enforces that the resolved role may perform (object, action). Deny →
 // 403. Mount per route: r.With(guard.Require(tenant.ObjMembers, tenant.ActWrite)).
 func (g *TenantGuard) Require(object, action string) func(http.Handler) http.Handler {

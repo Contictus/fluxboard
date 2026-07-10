@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
 )
@@ -76,6 +77,21 @@ func RateLimited(w http.ResponseWriter, perMin int) {
 		Code:      "rate_limited",
 		Message:   "API rate limit exceeded",
 		Details:   map[string]any{"limit": "api_rate_per_min", "max": perMin},
+		RequestID: w.Header().Get("X-Request-ID"),
+	}})
+}
+
+// AuthThrottled writes the 429 rate_limited envelope for an unauthenticated auth
+// endpoint (register / password-reset / email-verify), throttled per client IP to
+// blunt enumeration and email-bomb abuse. retryAfterSecs is the suggested backoff.
+func AuthThrottled(w http.ResponseWriter, retryAfterSecs int) {
+	if retryAfterSecs < 1 {
+		retryAfterSecs = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfterSecs))
+	JSON(w, http.StatusTooManyRequests, Envelope{Error: ErrorBody{
+		Code:      "rate_limited",
+		Message:   "too many requests; please try again later",
 		RequestID: w.Header().Get("X-Request-ID"),
 	}})
 }

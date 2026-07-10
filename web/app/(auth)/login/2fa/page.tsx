@@ -12,11 +12,12 @@ import { verify2FA } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/context';
 import { PENDING_2FA_KEY } from '@/lib/auth/pending';
+import { sanitizeNext } from '@/lib/nav/safe-next';
 
 function TwoFactorForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') ?? '/app';
+  const next = sanitizeNext(params.get('next'));
   const { adopt } = useAuth();
 
   const [pending, setPending] = useState<string | null>(null);

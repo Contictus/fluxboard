@@ -20,11 +20,12 @@ import { API_BASE, ApiError } from '@/lib/api/client';
 import { isTwoFactorRequired } from '@/lib/api/types';
 import { useAuth } from '@/lib/auth/context';
 import { PENDING_2FA_KEY } from '@/lib/auth/pending';
+import { sanitizeNext } from '@/lib/nav/safe-next';
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') ?? '/app';
+  const next = sanitizeNext(params.get('next'));
   const { adopt } = useAuth();
 
   const [email, setEmail] = useState('');

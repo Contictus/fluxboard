@@ -174,6 +174,7 @@ func (v *Verifier) Verify(tokenStr string) (*Claims, error) {
 		jwt.WithValidMethods([]string{"ES256"}),
 		jwt.WithIssuer(Issuer),
 		jwt.WithAudience(Audience),
+		jwt.WithExpirationRequired(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("jwtx verify: %w", err)
@@ -202,6 +203,7 @@ func (v *Verifier) VerifyPending2FA(tokenStr string) (userID string, err error) 
 		jwt.WithValidMethods([]string{"ES256"}),
 		jwt.WithIssuer(Issuer),
 		jwt.WithAudience(Audience),
+		jwt.WithExpirationRequired(),
 	)
 	if err != nil {
 		return "", fmt.Errorf("jwtx verify pending: %w", err)

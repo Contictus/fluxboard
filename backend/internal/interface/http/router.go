@@ -37,6 +37,7 @@ type Deps struct {
 	Authenticator *mw.Authenticator
 	Tenant        *mw.TenantGuard
 	Entitlement   *mw.EntitlementGuard
+	AuthThrottle  *mw.AuthThrottle         // nil ⇒ public auth endpoints unthrottled (tests)
 	RateLimit     *mw.RateLimiter          // nil ⇒ no plan rate limiting (tests)
 	PlatformAdmin *mw.PlatformAdminGuard   // nil ⇒ /admin surface disabled
 	APIKeyResolver mw.APIKeyResolver       // nil ⇒ API-key auth path disabled (session only)
@@ -83,21 +84,32 @@ func NewRouter(d Deps) http.Handler {
 
 		// Auth surface (docs/04-AUTH.md §5) — no org context.
 		api.Route("/auth", func(a chi.Router) {
+			// Per-IP throttle for the unauthenticated abuse-prone endpoints. Login
+			// is throttled by the usecase on (email, IP); these have no trusted
+			// email to key on. No-op passthrough when the throttle is unwired.
+			throttle := func(tag string) func(http.Handler) http.Handler {
+				if d.AuthThrottle == nil {
+					return func(next http.Handler) http.Handler { return next }
+				}
+				return d.AuthThrottle.PerIP(tag)
+			}
+
 			// Public (no access token).
-			a.Post("/register", d.Auth.Register)
+			a.With(throttle("register")).Post("/register", d.Auth.Register)
 			a.Post("/login", d.Auth.Login)
 			a.Post("/refresh", d.Auth.Refresh)
 			a.Post("/2fa/verify", d.Auth.Verify2FA)
-			a.Post("/verify-email/request", d.Auth.VerifyEmailRequest)
+			a.With(throttle("verify_email")).Post("/verify-email/request", d.Auth.VerifyEmailRequest)
 			a.Post("/verify-email/confirm", d.Auth.VerifyEmailConfirm)
-			a.Post("/password/forgot", d.Auth.PasswordForgot)
-			a.Post("/password/reset", d.Auth.PasswordReset)
+			a.With(throttle("password_forgot")).Post("/password/forgot", d.Auth.PasswordForgot)
+			a.With(throttle("password_reset")).Post("/password/reset", d.Auth.PasswordReset)
 			a.Get("/oauth/google/start", d.Auth.OAuthGoogleStart)
 			a.Get("/oauth/google/callback", d.Auth.OAuthGoogleCallback)
 
 			// Authenticated auth endpoints.
 			a.Group(func(pr chi.Router) {
 				pr.Use(d.Authenticator.Authenticate)
+				pr.Use(mw.RejectImpersonationWrite) // FR-ADM-003: no self-account mutation under an impersonation token
 				pr.Post("/logout", d.Auth.Logout)
 				pr.Post("/logout-all", d.Auth.LogoutAll)
 				pr.Post("/password/change", d.Auth.PasswordChange)
@@ -122,7 +134,8 @@ func NewRouter(d Deps) http.Handler {
 			} else {
 				sec.Use(d.Authenticator.Authenticate)
 			}
-			sec.Use(mw.RequireVerified) // FR-AUTH-002: block unverified email (API keys are marked verified)
+			sec.Use(mw.RequireVerified)           // FR-AUTH-002: block unverified email (API keys are marked verified)
+			sec.Use(mw.RejectImpersonationWrite) // FR-ADM-003: an impersonation token is read-only everywhere, incl. /me and POST /orgs
 
 			// Account self-service (docs/08 §3, FR-AUTH-014). User-scoped, org-independent.
 			if d.User != nil {

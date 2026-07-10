@@ -65,6 +65,14 @@ const (
 	loginRateWindow = 15 * time.Minute
 )
 
+// Per-IP throttle budget for the unauthenticated auth endpoints (register,
+// email-verify, password forgot/reset) — blunts enumeration + email-bombing
+// without locking out legitimate retries. Keyed per endpoint tag + IP.
+const (
+	authThrottleLimit  = 20
+	authThrottleWindow = 15 * time.Minute
+)
+
 // impersonationTTL bounds an admin impersonation token (docs/build/PHASE-6 §5,
 // FR-ADM-003). Short-lived: the admin re-mints when it lapses.
 const impersonationTTL = 15 * time.Minute
@@ -134,6 +142,7 @@ func run(logger *slog.Logger) error {
 	auditRepo := postgres.NewAuditRepo(pool)
 	sessionCache := redisx.NewSessionCache(rdb)
 	limiter := redisx.NewLoginRateLimiter(rdb, loginRateLimit, loginRateWindow)
+	authThrottleLimiter := redisx.NewLoginRateLimiter(rdb, authThrottleLimit, authThrottleWindow)
 	oauthStates := redisx.NewOAuthStateStore(rdb)
 
 	mail := mailer.New(mailer.Config{
@@ -400,6 +409,7 @@ func run(logger *slog.Logger) error {
 		Authenticator: authenticator,
 		Tenant:        tenantGuard,
 		Entitlement:   entitlementGuard,
+		AuthThrottle:  &mw.AuthThrottle{Limiter: authThrottleLimiter, Logger: logger},
 		RateLimit:     rateLimiter,
 		PlatformAdmin: platformGuard,
 		APIKeyResolver: apiKeyResolver,
