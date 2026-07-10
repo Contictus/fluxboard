@@ -137,7 +137,10 @@ function RevealBox({ result, onDismiss }: { result: CreateApiKeyResult; onDismis
   const [copied, setCopied] = useState(false);
 
   function copy() {
-    navigator.clipboard?.writeText(result.secret).then(
+    // navigator.clipboard is undefined in insecure contexts; guard so the `.then`
+    // doesn't throw synchronously on `undefined`.
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(result.secret).then(
       () => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);

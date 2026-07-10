@@ -168,8 +168,9 @@ func (s *Service) CreateProject(ctx context.Context, orgID, userID string, in Cr
 		return nil, domain.ErrValidation
 	}
 
-	// TODO(phase4): enforce the plan project-limit (FR-PROJ-001) via the billing
-	// entitlement service before creating; billing lands in Phase 4.
+	// Plan project-limit (FR-PROJ-001) is enforced at the route via
+	// EntitlementGuard.RequireProjects() (interface/http/router.go), so no
+	// usecase-level check is needed here.
 
 	p := &project.Project{
 		ID: newID(), OrgID: orgID, Key: in.Key, Name: in.Name,

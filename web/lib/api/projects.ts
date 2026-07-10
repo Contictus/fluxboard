@@ -14,10 +14,6 @@ export async function listProjects(
   return res.projects;
 }
 
-export function getProject(orgId: string, projectId: string): Promise<Project> {
-  return apiFetch(`/orgs/${orgId}/projects/${projectId}`);
-}
-
 export function createProject(orgId: string, input: CreateProjectInput): Promise<Project> {
   return apiFetch(`/orgs/${orgId}/projects`, { method: 'POST', body: input });
 }
