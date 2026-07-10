@@ -93,12 +93,14 @@ Guard legend: **P** public · **A** authenticated · **V** authenticated+verifie
 |-----|-------|------|
 | `/admin` | PA | KPIs: tenants, MRR, signups (30d), failed webhooks, error rate |
 | `/admin/tenants` | PA | Tenant table: search, plan/status filters |
-| `/admin/tenants/{orgId}` | PA | Tenant detail: subscription timeline, members, entitlement overrides, impersonate button |
-| `/admin/users` | PA | User search (email), sessions, lock/unlock account |
-| `/admin/webhooks` | PA | Stripe event browser: status, payload viewer, retry (FR-ADM-004) |
+| `/admin/tenants/{orgId}` | PA | Tenant detail: subscription timeline, members, entitlement overrides, impersonate button; **per-tenant webhook retry + feature-flag matrix live here** |
 | `/admin/audit-log` | PA | Global audit viewer |
-| `/admin/flags` | PA | Feature flag matrix per org |
 | `/admin/jobs` | PA | Asynq queue stats (embed asynqmon or custom summary) |
+
+> Standalone `/admin/users`, `/admin/webhooks`, and `/admin/flags` pages were **dropped**
+> (ADR-022): there are no cross-tenant user-directory / global-webhook / global-flag
+> endpoints, and webhook retry + flag editing already exist per-tenant inside
+> `/admin/tenants/{orgId}`. Add them back only alongside the backing endpoints.
 
 ## 8. System / Non-HTML Routes (Go API serves these; listed for completeness)
 
