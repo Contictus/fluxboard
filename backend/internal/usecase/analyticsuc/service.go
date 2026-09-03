@@ -8,6 +8,8 @@ import (
 	"errors"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/analytics"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/billing"
@@ -85,26 +87,45 @@ func (s *Service) UsageDashboard(ctx context.Context, orgID string) (analytics.U
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	today := now.Truncate(24 * time.Hour)
 
-	seats, err := s.usage.Latest(ctx, orgID, analytics.MetricActiveMembers, today)
-	if err != nil {
-		return analytics.UsageDashboard{}, err
-	}
-	storage, err := s.usage.Latest(ctx, orgID, analytics.MetricStorageBytes, today)
-	if err != nil {
-		return analytics.UsageDashboard{}, err
-	}
-	apiCalls, err := s.usage.SumRange(ctx, orgID, analytics.MetricAPICalls, monthStart, today)
-	if err != nil {
+	var (
+		seats    int64
+		storage  int64
+		apiCalls int64
+		sub      *billing.Subscription
+		subErr   error
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		seats, err = s.usage.Latest(gctx, orgID, analytics.MetricActiveMembers, today)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		storage, err = s.usage.Latest(gctx, orgID, analytics.MetricStorageBytes, today)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		apiCalls, err = s.usage.SumRange(gctx, orgID, analytics.MetricAPICalls, monthStart, today)
+		return err
+	})
+	g.Go(func() error {
+		sub, subErr = s.subs.Get(gctx, orgID)
+		if subErr != nil && !errors.Is(subErr, domain.ErrNotFound) {
+			return subErr
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
 		return analytics.UsageDashboard{}, err
 	}
 
 	planCode := billing.PlanFree
-	if sub, err := s.subs.Get(ctx, orgID); err == nil && sub != nil {
+	if subErr == nil && sub != nil {
 		if billing.SubStatus(sub.Status).Entitled() {
 			planCode = sub.PlanCode
 		}
-	} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
-		return analytics.UsageDashboard{}, err
 	}
 	var estimate int64
 	if p, err := s.plans.Get(ctx, planCode); err == nil && p != nil {

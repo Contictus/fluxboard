@@ -15,6 +15,8 @@ export function Providers({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 30_000,
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
             retry: (failureCount, error) => {
               // Don't retry auth/permission/validation failures — only transient ones.
               if (error instanceof ApiError && error.status < 500) return false;

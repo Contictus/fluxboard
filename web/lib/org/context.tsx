@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 
-import { getOrg, listMyOrgs } from '@/lib/api/orgs';
+import { listMyOrgs, resolveOrgBySlug } from '@/lib/api/orgs';
 import type { Org, Role } from '@/lib/api/types';
 
 interface OrgContextValue {
@@ -24,10 +24,9 @@ const OrgContext = createContext<OrgContextValue | null>(null);
 
 /**
  * Resolves the `[orgSlug]` route param into an org context. The membership list
- * (`GET /orgs`) is the only source of the caller's role, and `GET /orgs/{id}`
- * the only source of `deleted_at` — no single endpoint carries both (ADR-016),
- * so the shell composes the two. A slug the caller isn't a member of bounces to
- * the org switcher.
+ * (`GET /orgs`) is the only source of the caller's role, and the slug resolver
+ * carries full org data. Both requests run in parallel. A slug the caller
+ * isn't a member of bounces to the org switcher.
  */
 export function OrgProvider({ slug, children }: { slug: string; children: ReactNode }) {
   const router = useRouter();
@@ -36,9 +35,8 @@ export function OrgProvider({ slug, children }: { slug: string; children: ReactN
   const membership = memberships.data?.find((m) => m.slug === slug);
 
   const org = useQuery({
-    queryKey: ['org', membership?.org_id],
-    queryFn: () => getOrg(membership!.org_id),
-    enabled: Boolean(membership),
+    queryKey: ['org-by-slug', slug],
+    queryFn: () => resolveOrgBySlug(slug),
   });
 
   // Not a member of this slug → back to the switcher (once the list has loaded).
@@ -46,7 +44,7 @@ export function OrgProvider({ slug, children }: { slug: string; children: ReactN
     if (memberships.isSuccess && !membership) router.replace('/app');
   }, [memberships.isSuccess, membership, router]);
 
-  if (memberships.isLoading || (membership && org.isLoading)) {
+  if (memberships.isLoading || org.isLoading) {
     return <ShellLoading />;
   }
 
@@ -61,6 +59,11 @@ export function OrgProvider({ slug, children }: { slug: string; children: ReactN
 
   if (org.isError || !org.data) {
     return <ShellError message="Couldn't load this organization." />;
+  }
+
+  // Membership data remains authority for caller role and access to slug.
+  if (org.data.id !== membership.org_id) {
+    return <ShellError message="Organization membership changed. Please reload." />;
   }
 
   const role = membership.role;

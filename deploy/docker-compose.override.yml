@@ -29,9 +29,10 @@ services:
   web:
     image: node:22
     working_dir: /web
-    command: ["sh", "-c", "corepack enable && pnpm install && pnpm dev"]
+    command: ["sh", "-c", "corepack enable && if [ ! -x node_modules/.bin/next ]; then pnpm install --frozen-lockfile; fi && node scripts/dev-entry.mjs"]
     environment:
       NEXT_PUBLIC_API_BASE: "http://localhost:8080/api/v1"
+      NEXT_DIST_DIR: ".next-dev"
     ports:
       - "${WEB_HOST_PORT:-3000}:3000"
     volumes:

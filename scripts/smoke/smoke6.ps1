@@ -129,7 +129,8 @@ Info "grant platform admin via cmd/adminctl"
 $env:DATABASE_URL = 'postgres://fluxboard_app:app_pw@localhost:5432/fluxboard?sslmode=disable'
 $env:REDIS_ADDR = 'localhost:6379'
 $env:DATABASE_URL_MIGRATE = $OwnerDSN
-$backendDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'backend'
+$repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$backendDir = Join-Path $repoRoot 'backend'
 Push-Location $backendDir
 $grantOut = & go run ./cmd/adminctl grant $adminEmail 2>&1
 $grantOk = $?

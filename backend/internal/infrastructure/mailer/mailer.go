@@ -40,7 +40,7 @@ func New(cfg Config, logger *slog.Logger) *Mailer {
 
 // SendEmailVerify emails the 24h verification link (docs/04-AUTH.md §2).
 func (m *Mailer) SendEmailVerify(ctx context.Context, to, rawToken string) error {
-	link := m.link("/verify-email", rawToken)
+	link := m.link("/verify-email/confirm", rawToken)
 	return m.send(ctx, to, "Verify your Fluxboard email",
 		"Welcome to Fluxboard. Confirm your address:\n\n"+link+
 			"\n\nThis link expires in 24 hours. If you did not sign up, ignore this email.")

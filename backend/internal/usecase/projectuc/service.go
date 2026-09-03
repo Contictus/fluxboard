@@ -291,12 +291,19 @@ func (s *Service) GetBoard(ctx context.Context, orgID, userID, projectID string,
 		return nil, err
 	}
 	view := &BoardView{Board: *board}
+	tasks, err := s.tasks.ListByProject(ctx, orgID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	tasksByColumn := make(map[string][]project.Task, len(cols))
 	for _, c := range cols {
-		tasks, err := s.tasks.ListByColumn(ctx, orgID, c.ID)
-		if err != nil {
-			return nil, err
-		}
-		view.Columns = append(view.Columns, ColumnView{Column: c, Tasks: tasks})
+		tasksByColumn[c.ID] = make([]project.Task, 0)
+	}
+	for _, t := range tasks {
+		tasksByColumn[t.ColumnID] = append(tasksByColumn[t.ColumnID], t)
+	}
+	for _, c := range cols {
+		view.Columns = append(view.Columns, ColumnView{Column: c, Tasks: tasksByColumn[c.ID]})
 	}
 	return view, nil
 }

@@ -43,6 +43,11 @@ export function getOrg(orgId: string): Promise<Org> {
   return apiFetch(`/orgs/${orgId}`);
 }
 
+/** Resolve route slug directly, without waiting for membership list resolution. */
+export function resolveOrgBySlug(slug: string): Promise<Org> {
+  return apiFetch(`/orgs/by-slug/${encodeURIComponent(slug)}`);
+}
+
 /** Restore a soft-deleted org (204, OWNER-only). */
 export function restoreOrg(orgId: string): Promise<void> {
   return apiFetch(`/orgs/${orgId}/restore`, { method: 'POST' });
