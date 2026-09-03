@@ -18,7 +18,7 @@
 | grafana | grafana/grafana | 3001 | provisioned datasource + dashboards from `deploy/grafana/` |
 | asynqmon | hibiken/asynqmon | 8082 | queue introspection UI |
 
-Backend Dockerfile: multi-stage — `golang:1.22` build (CGO_ENABLED=0,
+Backend Dockerfile: multi-stage — `golang:1.25` build (CGO_ENABLED=0,
 `-ldflags "-s -w -X main.version=$GIT_SHA"`) → `gcr.io/distroless/static`
 runtime, nonroot user. Two targets (api/worker) from one build stage.
 `docker-compose.override.yml` mounts source + runs `air` for dev; base file

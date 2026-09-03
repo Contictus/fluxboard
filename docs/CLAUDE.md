@@ -26,7 +26,7 @@ project demonstrating senior-level backend engineering.
 
 ## Tech Stack (FIXED — do not substitute)
 
-- **Backend:** Go 1.22+, chi router, sqlc (NOT GORM), pgx/v5, golang-migrate
+- **Backend:** Go 1.25, chi router, sqlc (NOT GORM), pgx/v5, golang-migrate
 - **Auth:** Custom JWT (golang-jwt/jwt/v5), Argon2id (alexedwards/argon2id), OAuth2 (golang.org/x/oauth2), Casbin v2
 - **Database:** PostgreSQL 16 with Row-Level Security
 - **Cache/Queue:** Redis 7 (go-redis/v9), Asynq for background jobs
@@ -76,7 +76,10 @@ Do NOT start a phase before the previous phase's acceptance criteria
 
 ### Git
 - Conventional commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
-- One phase = one or more feature branches merged to `main` via PR.
+- **Never commit directly to `main`.** Every change lands on a feature branch
+  (or a git worktree) and merges via PR. See `AGENTS.md` at the repo root for
+  the full workflow AI agents must follow.
+- One phase = one or more feature branches; keep commits single-concern.
 
 ## Non-Negotiable Invariants
 
