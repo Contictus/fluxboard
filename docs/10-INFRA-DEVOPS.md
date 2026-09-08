@@ -36,16 +36,18 @@ Secrets never logged; config struct implements a redacting `String()`.
 ## 3. Makefile Targets
 
 ```
-make up / down / logs          compose lifecycle
+make up                        start the full stack and recreate images
+make down                      stop the stack and remove its volumes
+make logs                      tail all service logs
 make migrate / migrate-down    golang-migrate against DATABASE_URL_MIGRATE
 make sqlc                      regenerate query code
-make gen-client                openapi.json → web/lib/api/gen (openapi-typescript)
-make seed                      demo data (12 §5)
-make stripe-seed               idempotent product/price bootstrap → plans table
+make gen-client                print the current client-generation guidance
+make seed                      print the not-yet-implemented seed notice
+make stripe-seed                print the not-yet-implemented Stripe seed notice
 make api / worker / web        dev processes
-make test / test-integration   unit / testcontainers suites
-make lint                      golangci-lint + go-arch-lint + eslint
-make audit                     govulncheck + npm audit
+make test / test-integration   Go unit / integration-tag suites
+make lint                      golangci-lint + go-arch-lint
+make audit                     govulncheck (backend only)
 ```
 
 ## 4. CI (GitHub Actions — `.github/workflows/ci.yml`)
