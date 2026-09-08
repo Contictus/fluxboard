@@ -26,7 +26,7 @@ Full spec lives in [`docs/`](docs/); start with
 - **6 — Admin + observability** — platform-admin surface, audit-log viewer, org
   API keys, project analytics, Prometheus + Grafana.
 - **7 — Frontend** — every page in `docs/02-SITEMAP.md` wired to the API
-  (Next.js 14 App Router, TypeScript strict, 56 routes).
+  (Next.js 14 App Router, TypeScript strict, 55 `page.tsx` route files).
 
 Per-phase scope and the resumable build checklist are in
 [`docs/build/`](docs/build/). Deferred, non-blocking follow-ups: dockerized
