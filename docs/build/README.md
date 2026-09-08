@@ -1,12 +1,11 @@
-# Build Tracker — Remaining Phases (4–7)
+# Build Tracker — Phase Completion and Follow-ups
 
-Persistent, resumable checklist for the rest of the Fluxboard backend + frontend
-build. It exists because sessions hit context limits mid-phase; this file plus the
-per-phase checklists are the **single source of truth for "where are we"** so any
-new session resumes with zero re-derivation.
+Persistent record of the Fluxboard backend + frontend build. The implementation
+phases are complete; this file tracks verified state and intentionally deferred
+follow-ups so historical phase checklists are not mistaken for unfinished work.
 
-> Phases 0–3 are DONE (auth, tenancy/RBAC, core domain + 3b attachments/search/
-> bulk/trash). This tracker covers Phase 4 onward.
+> Phases 0–7 are DONE. The phase files remain the implementation record;
+> follow-ups below are intentionally outside the completed phase gates.
 
 ---
 
@@ -14,8 +13,8 @@ new session resumes with zero re-derivation.
 
 - **Phase:** 7 — Frontend (**COMPLETE**: sections 0–11 done). **Build complete — all phases done.**
 - **Next check:** none — Phase 7 is the last phase. Only deferred follow-ups remain (see below), none blocking: run the dockerized e2e smoke of the new UI against the running API (build-verified only so far); add the org-logo upload endpoint (ADR-019); give the admin tenant-detail DTOs json tags for snake_case consistency (ADR-022); task-notification deep-linking + modal-over-board interception (ADR-018).
-- **Last verified commit:** Phase 7 §11 verify + `feat(web): phase 7 — frontend wired to API` (this commit); §10 `5058d9e`, §9 `4987807`, §8 `fab760f`, §7 `3a8a856`, §6 `c400ab5`, §5 `7ed8bee`, §4 `9342df3`, §3 `a0a924e`, §0 `e64737a`, §1 `aeaafbd`, §2 `b9b7f55`, §B backend `c6b45a4`
-- **Phase 7 progress:** §0 scaffold (Next 14 App Router, TS strict, pnpm, hand-written typed fetch client — OpenAPI too partial for codegen), §1 public/marketing, §2 auth flows, §B backend gap-fill (`/me`; ADR-015), §3 account, §4 org shell (ADR-016), §5 projects + kanban (dnd-kit board, optimistic LexoRank move + 409 rollback, filters + bulk, list view, settings; ADR-017), §6 task detail + org task views (search/my-tasks/trash; ADR-018), §7 org settings (general/members+invite/labels/api-keys/audit/danger; ADR-019), §8 billing (overview/plans+proration/checkout success-poll/usage Recharts/invoices/shared 402 modal; ADR-020), §9 notifications + realtime (`lib/sse.ts` fetch-stream SSE — not EventSource, bearer is memory-only; surgical cache invalidation; `/notifications` center; ADR-021), §10 platform admin `(admin)` group (KPI dashboard, tenants list+detail w/ flags/overrides/webhook-retry/impersonate, global audit, jobs) + impersonation banner + project analytics Recharts (ADR-022), §11 verify. All web gates green (`pnpm typecheck && lint && build`, **56 routes**); backend `go build/vet/test` green (160/49). **Not yet run:** dockerized e2e for the new UI (build-verified only — deferred follow-up).
+- **Last verified commit:** Phase 7 §11 verify + `feat(web): phase 7 — frontend wired to API`; later maintenance commits may update documentation without changing this implementation milestone.
+- **Phase 7 progress:** §0 scaffold (Next 14 App Router, TS strict, pnpm, hand-written typed fetch client — OpenAPI too partial for codegen), §1 public/marketing, §2 auth flows, §B backend gap-fill (`/me`; ADR-015), §3 account, §4 org shell (ADR-016), §5 projects + kanban (dnd-kit board, optimistic LexoRank move + 409 rollback, filters + bulk, list view, settings; ADR-017), §6 task detail + org task views (search/my-tasks/trash; ADR-018), §7 org settings (general/members+invite/labels/api-keys/audit/danger; ADR-019), §8 billing (overview/plans+proration/checkout success-poll/usage Recharts/invoices/shared 402 modal; ADR-020), §9 notifications + realtime (`lib/sse.ts` fetch-stream SSE — not EventSource, bearer is memory-only; surgical cache invalidation; `/notifications` center; ADR-021), §10 platform admin `(admin)` group (KPI dashboard, tenants list+detail w/ flags/overrides/webhook-retry/impersonate, global audit, jobs) + impersonation banner + project analytics Recharts (ADR-022), §11 verify. All web gates green (`pnpm typecheck && lint && build`, **55 route files**); backend `go build/vet/test` green (160/49). **Not yet run:** dockerized e2e for the new UI (build-verified only — deferred follow-up).
 - **Stack state:** backend migrations still at `0016` — §B added **no** migration (reused existing `users.avatar_key` from 0002 + `one_time_tokens.purpose='email_change'`; only sqlc query additions to `users.sql`). Next free migration: `0017`. New Go: `internal/usecase/useruc`, `handlers.UserHandlers`, `postgres.UserOwnerRepo`; `/me` surface wired under the authed+verified group. Phase 6 remains DONE end-to-end (smoke6.ps1 ALL GREEN 2026-07-08):
   platform-admin `/admin` router OUTSIDE tenant mw, gated by `PlatformAdminGuard`
   (platform_role=admin AND totp_enabled; impersonation tokens rejected). Cross-org

@@ -18,7 +18,7 @@
 | grafana | grafana/grafana | 3001 | provisioned datasource + dashboards from `deploy/grafana/` |
 | asynqmon | hibiken/asynqmon | 8082 | queue introspection UI |
 
-Backend Dockerfile: multi-stage — `golang:1.22` build (CGO_ENABLED=0,
+Backend Dockerfile: multi-stage — `golang:1.25` build (CGO_ENABLED=0,
 `-ldflags "-s -w -X main.version=$GIT_SHA"`) → `gcr.io/distroless/static`
 runtime, nonroot user. Two targets (api/worker) from one build stage.
 `docker-compose.override.yml` mounts source + runs `air` for dev; base file
@@ -36,31 +36,34 @@ Secrets never logged; config struct implements a redacting `String()`.
 ## 3. Makefile Targets
 
 ```
-make up / down / logs          compose lifecycle
+make up                        start the full stack and recreate images
+make down                      stop the stack and remove its volumes
+make logs                      tail all service logs
 make migrate / migrate-down    golang-migrate against DATABASE_URL_MIGRATE
 make sqlc                      regenerate query code
-make gen-client                openapi.json → web/lib/api/gen (openapi-typescript)
-make seed                      demo data (12 §5)
-make stripe-seed               idempotent product/price bootstrap → plans table
+make gen-client                print the current client-generation guidance
+make seed                      print the not-yet-implemented seed notice
+make stripe-seed                print the not-yet-implemented Stripe seed notice
 make api / worker / web        dev processes
-make test / test-integration   unit / testcontainers suites
-make lint                      golangci-lint + go-arch-lint + eslint
-make audit                     govulncheck + npm audit
+make test / test-integration   Go unit / integration-tag suites
+make lint                      golangci-lint + go-arch-lint
+make audit                     govulncheck (backend only)
 ```
 
 ## 4. CI (GitHub Actions — `.github/workflows/ci.yml`)
 
 Jobs (parallel where independent):
 
-1. **lint:** golangci-lint, go-arch-lint (dependency rule 03 §3), `sqlc diff`
-   (generated code current), eslint + tsc --noEmit
-2. **test-backend:** unit tests; integration tests with service containers
-   (postgres, redis, minio) — includes RLS isolation suite and webhook replay
-   suite as REQUIRED checks
-3. **test-web:** vitest + Playwright smoke (login → create org → create task)
-   against compose stack
-4. **build:** docker build both images, tag `sha-…`; push to GHCR on main
-5. **security:** govulncheck, npm audit --audit-level=high, gitleaks
+1. **lint:** golangci-lint, go-arch-lint (dependency rule 03 §3), and `sqlc diff`
+   (generated code current).
+2. **test-backend:** unit and integration-tag tests with PostgreSQL, Redis, and
+   MinIO service containers.
+3. **build:** Docker-build both backend images with the commit SHA tag.
+4. **web:** frozen pnpm install, TypeScript check, ESLint, Vitest, and Next.js
+   production build.
+5. **security:** govulncheck and gitleaks. npm audit and Playwright smoke are
+   not currently workflow steps; the dockerized UI smoke remains a deferred
+   follow-up tracked in `docs/build/README.md`.
 
 Branch protection: PRs to main require jobs 1–3 green.
 
@@ -115,9 +118,10 @@ refresh_reuse > 0 (info-level security alert), queue depth > 1000.
   dependency blips.
 - **Migrations:** run as a separate step/job (never on api boot in prod
   shape); `migrate-down` tested in CI for the last 3 migrations.
-- **Backups (documented posture):** `pg_dump` nightly in compose via sidecar
-  to MinIO bucket `backups/` + restore runbook in `docs/runbooks/restore.md`
-  (portfolio artifact: an actually-tested restore, with the transcript).
+- **Backups (documented posture):** automated nightly `pg_dump` to the MinIO
+  `backups/` bucket is planned but is not currently provisioned by Compose.
+  The manual validation procedure is in `docs/runbooks/restore.md`; it must be
+  exercised against a real dump before being described as a tested DR control.
 
 ## 7. Production-Shape Notes (documented, not required to deploy)
 
