@@ -118,9 +118,10 @@ refresh_reuse > 0 (info-level security alert), queue depth > 1000.
   dependency blips.
 - **Migrations:** run as a separate step/job (never on api boot in prod
   shape); `migrate-down` tested in CI for the last 3 migrations.
-- **Backups (documented posture):** `pg_dump` nightly in compose via sidecar
-  to MinIO bucket `backups/` + restore runbook in `docs/runbooks/restore.md`
-  (portfolio artifact: an actually-tested restore, with the transcript).
+- **Backups (documented posture):** automated nightly `pg_dump` to the MinIO
+  `backups/` bucket is planned but is not currently provisioned by Compose.
+  The manual validation procedure is in `docs/runbooks/restore.md`; it must be
+  exercised against a real dump before being described as a tested DR control.
 
 ## 7. Production-Shape Notes (documented, not required to deploy)
 
