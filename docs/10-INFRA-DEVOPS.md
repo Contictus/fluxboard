@@ -54,15 +54,16 @@ make audit                     govulncheck (backend only)
 
 Jobs (parallel where independent):
 
-1. **lint:** golangci-lint, go-arch-lint (dependency rule 03 §3), `sqlc diff`
-   (generated code current), eslint + tsc --noEmit
-2. **test-backend:** unit tests; integration tests with service containers
-   (postgres, redis, minio) — includes RLS isolation suite and webhook replay
-   suite as REQUIRED checks
-3. **test-web:** vitest + Playwright smoke (login → create org → create task)
-   against compose stack
-4. **build:** docker build both images, tag `sha-…`; push to GHCR on main
-5. **security:** govulncheck, npm audit --audit-level=high, gitleaks
+1. **lint:** golangci-lint, go-arch-lint (dependency rule 03 §3), and `sqlc diff`
+   (generated code current).
+2. **test-backend:** unit and integration-tag tests with PostgreSQL, Redis, and
+   MinIO service containers.
+3. **build:** Docker-build both backend images with the commit SHA tag.
+4. **web:** frozen pnpm install, TypeScript check, ESLint, Vitest, and Next.js
+   production build.
+5. **security:** govulncheck and gitleaks. npm audit and Playwright smoke are
+   not currently workflow steps; the dockerized UI smoke remains a deferred
+   follow-up tracked in `docs/build/README.md`.
 
 Branch protection: PRs to main require jobs 1–3 green.
 
