@@ -6,6 +6,7 @@ monolith (api + worker), PostgreSQL with RLS, Redis, MinIO, Stripe.
 
 Full spec lives in [`docs/`](docs/); start with
 [`docs/CLAUDE.md`](docs/CLAUDE.md) and read in the order listed there.
+Local operation procedures are collected in [`docs/runbooks/`](docs/runbooks/).
 
 ## Status
 
