@@ -1,6 +1,6 @@
 // Package project models the Phase 3 core domain: Project, Board, Column, Task,
 // Subtask, Label, Comment and the per-task activity log, plus their ports.
-// Stdlib-only (docs/03-ARCHITECTURE.md ADR-001). Ordering keys are computed by
+// Stdlib-only; no external deps per ADR-001 (docs/03-ARCHITECTURE.md ADR-001). Ordering keys are computed by
 // internal/pkg/rank (ADR-009); tenant isolation is enforced one layer down by
 // RLS on org_id.
 package project
