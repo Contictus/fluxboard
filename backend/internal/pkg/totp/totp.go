@@ -1,4 +1,4 @@
-// Package totp implements RFC 6238 time-based one-time passwords (SHA-1, 6
+// Package totp implements RFC 6238 TOTP \(SHA-1, 30s window\) with �1 step skew tolerance. RFC 6238 time-based one-time passwords (SHA-1, 6
 // digits, 30s step) — the second factor in docs/04-AUTH.md §4. Stdlib crypto
 // only; no external dependency. Secrets are base32 (RFC 3548, no padding) so
 // they drop straight into an otpauth:// provisioning URI / authenticator app.
