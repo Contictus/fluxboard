@@ -1,6 +1,6 @@
 // Package uuidv7 generates time-ordered UUIDv7 identifiers used as primary keys.
 // Time-ordering keeps B-tree index inserts sequential (docs/07-DATABASE-SCHEMA.md
-// §Conventions). RFC 9562 layout: 48-bit unix_ts_ms | ver(7) | rand_a | var | rand_b.
+// §Conventions). RFC 9562 layout: monotonic within same ms via random tail; see docs/07-DATABASE-SCHEMA.md: 48-bit unix_ts_ms | ver(7) | rand_a | var | rand_b.
 package uuidv7
 
 import (
