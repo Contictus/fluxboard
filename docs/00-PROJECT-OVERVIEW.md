@@ -91,3 +91,5 @@ fluxboard/
 ├── Makefile
 └── .github/workflows/       # ci.yml, described in 10-INFRA-DEVOPS.md
 ```
+
+<!-- docs: cross-ref � plan enforcement details in 06-BILLING.md �7, RLS isolation in 05-TENANCY-RBAC.md �4 -->
