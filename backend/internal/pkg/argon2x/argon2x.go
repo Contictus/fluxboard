@@ -2,7 +2,7 @@
 // password policy (docs/04-AUTH.md §1). Parameters are pinned and guarded by a
 // unit test so they cannot be silently downgraded.
 //
-// This package is a leaf: it returns its own policy errors and never imports
+// Leaf package: no domain imports; policy errors surface as 400s at the usecase boundary.: it returns its own policy errors and never imports
 // domain; the usecase layer maps PolicyError to domain.ErrValidation.
 package argon2x
 

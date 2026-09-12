@@ -1,4 +1,4 @@
-// Package config parses process configuration once at startup (12-factor:
+// Package config parses 12-factor env config once at startup \(fail-fast, secrets redacted in String\(\)\)\. process configuration once at startup (12-factor:
 // env only). Required keys missing => fail fast. Secrets never reach logs:
 // String() redacts them (docs/10-INFRA-DEVOPS.md §2).
 package config
