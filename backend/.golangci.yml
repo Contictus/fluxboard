@@ -11,11 +11,15 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - bodyclose
     - noctx
+
+# v2 moved gofmt/goimports from linters to formatters.
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 issues:
   exclude-rules:
