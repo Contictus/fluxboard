@@ -304,6 +304,21 @@ type SlugHistory struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+type Sprint struct {
+	ID             uuid.UUID          `json:"id"`
+	OrgID          uuid.UUID          `json:"org_id"`
+	ProjectID      uuid.UUID          `json:"project_id"`
+	Name           string             `json:"name"`
+	Goal           string             `json:"goal"`
+	Status         string             `json:"status"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	EndedAt        pgtype.Timestamptz `json:"ended_at"`
+	CompletedTotal int32              `json:"completed_total"`
+	CompletedDone  int32              `json:"completed_done"`
+	CreatedBy      uuid.UUID          `json:"created_by"`
+	CreatedAt      time.Time          `json:"created_at"`
+}
+
 type Subscription struct {
 	ID                   uuid.UUID          `json:"id"`
 	OrgID                uuid.UUID          `json:"org_id"`
@@ -346,6 +361,7 @@ type Task struct {
 	UpdatedAt    time.Time          `json:"updated_at"`
 	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
 	SearchVector interface{}        `json:"search_vector"`
+	SprintID     pgtype.UUID        `json:"sprint_id"`
 }
 
 type TaskActivity struct {

@@ -26,6 +26,7 @@ type Querier interface {
 	// Atomically mark up to @lim undrained rows drained and return them. FOR UPDATE
 	// SKIP LOCKED lets concurrent drainers make progress without contending.
 	ClaimOutboxBatch(ctx context.Context, arg ClaimOutboxBatchParams) ([]Outbox, error)
+	ClearProjectSprints(ctx context.Context, arg ClearProjectSprintsParams) (int64, error)
 	// Current open (non-trashed) task count per column for a project.
 	ColumnOpenCounts(ctx context.Context, arg ColumnOpenCountsParams) ([]ColumnOpenCountsRow, error)
 	// Flip a pending row to committed (idempotency: no-op if already committed via
@@ -80,6 +81,8 @@ type Querier interface {
 	CreateProject(ctx context.Context, arg CreateProjectParams) error
 	CreateRecoveryCode(ctx context.Context, arg CreateRecoveryCodeParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
+	// Sprints ([T], tenant-scoped, FR-SPRINT) ----------------------------------
+	CreateSprint(ctx context.Context, arg CreateSprintParams) error
 	// Subtasks ([T], tenant-scoped, FR-TASK-003) --------------------------------
 	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) error
 	// Tasks ([T], tenant-scoped) ------------------------------------------------
@@ -94,6 +97,7 @@ type Querier interface {
 	DeleteLabel(ctx context.Context, arg DeleteLabelParams) (int64, error)
 	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error)
 	DeleteOverride(ctx context.Context, arg DeleteOverrideParams) (int64, error)
+	DeleteSprint(ctx context.Context, arg DeleteSprintParams) (int64, error)
 	DeleteSubtask(ctx context.Context, arg DeleteSubtaskParams) (int64, error)
 	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
 	// Hard-deletes the account (docs/08 §3 DELETE /me). Memberships/sessions cascade
@@ -105,6 +109,7 @@ type Querier interface {
 	// Auth-path lookup (owner pool). Revoked keys ARE returned so the caller maps them
 	// to 401 rather than a silent miss.
 	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
+	GetActiveSprint(ctx context.Context, arg GetActiveSprintParams) (Sprint, error)
 	GetAttachment(ctx context.Context, arg GetAttachmentParams) (Attachment, error)
 	GetAutomationRule(ctx context.Context, arg GetAutomationRuleParams) (AutomationRule, error)
 	GetBoardByProject(ctx context.Context, arg GetBoardByProjectParams) (Board, error)
@@ -133,6 +138,7 @@ type Querier interface {
 	GetSessionByTokenHashForUpdate(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashForUpdateRow, error)
 	// Resolve a stale slug to its org within the 30-day 301 window (FR-TEN-007).
 	GetSlugRedirect(ctx context.Context, oldSlug string) (uuid.UUID, error)
+	GetSprint(ctx context.Context, arg GetSprintParams) (Sprint, error)
 	// free, pro, business by ascending caps (business = -1 sorts first, acceptable)
 	GetSubscription(ctx context.Context, orgID uuid.UUID) (Subscription, error)
 	// Staleness read for the out-of-order webhook guard (06 §4). ErrNoRows = no row.
@@ -220,6 +226,7 @@ type Querier interface {
 	// Orgs the user solely owns (blocks account deletion, docs/08 §3). Cross-org read:
 	// run on the owner pool (memberships RLS is non-FORCE, table owner bypasses it).
 	ListSoleOwnerOrgs(ctx context.Context, userID uuid.UUID) ([]ListSoleOwnerOrgsRow, error)
+	ListSprintsByProject(ctx context.Context, arg ListSprintsByProjectParams) ([]Sprint, error)
 	ListSubtasksByTask(ctx context.Context, arg ListSubtasksByTaskParams) ([]Subtask, error)
 	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error)
 	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error)
@@ -271,6 +278,7 @@ type Querier interface {
 	SearchTasks(ctx context.Context, arg SearchTasksParams) ([]SearchTasksRow, error)
 	SetColumnRank(ctx context.Context, arg SetColumnRankParams) (int64, error)
 	SetProjectArchived(ctx context.Context, arg SetProjectArchivedParams) (int64, error)
+	SetTaskSprint(ctx context.Context, arg SetTaskSprintParams) (int64, error)
 	// Sets (or clears, via empty secret) the encrypted TOTP secret and its enabled
 	// flag together (docs/04-AUTH.md §4 TOTP step).
 	SetUserTOTP(ctx context.Context, arg SetUserTOTPParams) error
@@ -296,6 +304,7 @@ type Querier interface {
 	UpdateOrgProfile(ctx context.Context, arg UpdateOrgProfileParams) error
 	UpdateOrgSlug(ctx context.Context, arg UpdateOrgSlugParams) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (int64, error)
+	UpdateSprint(ctx context.Context, arg UpdateSprintParams) (int64, error)
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
 	// Sets (or clears, via empty string) the MinIO object key for the user's avatar.
