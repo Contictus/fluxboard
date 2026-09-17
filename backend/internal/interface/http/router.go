@@ -237,10 +237,16 @@ func NewRouter(d Deps) http.Handler {
 					t.With(read(tenant.ObjOrg)).Post("/comments", d.Tasks.AddComment)
 					t.With(read(tenant.ObjOrg)).Patch("/comments/{commentId}", d.Tasks.EditComment)
 					t.With(read(tenant.ObjOrg)).Delete("/comments/{commentId}", d.Tasks.DeleteComment)
-					t.With(read(tenant.ObjOrg)).Get("/labels", d.Tasks.ListTaskLabels)
-					t.With(read(tenant.ObjOrg)).Post("/labels", d.Tasks.AttachLabel)
-					t.With(read(tenant.ObjOrg)).Delete("/labels/{labelId}", d.Tasks.DetachLabel)
-				})
+				t.With(read(tenant.ObjOrg)).Get("/labels", d.Tasks.ListTaskLabels)
+				t.With(read(tenant.ObjOrg)).Post("/labels", d.Tasks.AttachLabel)
+				t.With(read(tenant.ObjOrg)).Delete("/labels/{labelId}", d.Tasks.DetachLabel)
+				// Time tracking (docs/08, FR-TIME). Fine-grained gates in taskuc.
+				t.With(read(tenant.ObjOrg)).Get("/time", d.Tasks.ListTimeEntries)
+				t.With(read(tenant.ObjOrg)).Post("/time/start", d.Tasks.StartTimer)
+				t.With(read(tenant.ObjOrg)).Post("/time", d.Tasks.LogTime)
+				t.With(read(tenant.ObjOrg)).Post("/time/{entryId}/stop", d.Tasks.StopTimer)
+				t.With(read(tenant.ObjOrg)).Delete("/time/{entryId}", d.Tasks.DeleteTimeEntry)
+			})
 
 				// Org-scoped labels (docs/01 §TASK FR-TASK-004). Writes need the
 				// write:labels gate (MEMBER+); reads under read:org.

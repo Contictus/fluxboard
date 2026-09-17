@@ -251,6 +251,7 @@ func run(logger *slog.Logger) error {
 	activityRepo := postgres.NewActivityRepo(tenantPool)
 	attachmentRepo := postgres.NewAttachmentRepo(tenantPool)
 	automationRepo := postgres.NewAutomationRepo(tenantPool)
+	timeEntryRepo := postgres.NewTimeEntryRepo(tenantPool)
 	objectStore := loadObjectStore(ctx, cfg, logger) // FR-TASK-006; nil disables attachments
 
 	// Phase 4 — billing wiring (docs/06). Built before taskSvc so the storage
@@ -369,7 +370,7 @@ func run(logger *slog.Logger) error {
 		Tasks: taskRepo, Subtasks: subtaskRepo, Labels: labelRepo, Comments: commentRepo,
 		Activity: activityRepo, Attachments: attachmentRepo, Projects: projectRepo,
 		Members: projectMemberRepo, Boards: boardRepo, Columns: columnRepo,
-		Store: objectStore, Entitlements: billingSvc,
+		Store: objectStore, Entitlements: billingSvc, TimeEntries: timeEntryRepo,
 		Events: eventBus, Notifier: notifySvc, Automation: automationSvc, Logger: logger,
 	})
 	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)

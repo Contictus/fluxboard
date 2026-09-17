@@ -239,6 +239,31 @@ type Comment struct {
 	UpdatedAt time.Time
 }
 
+// TimeEntry is one timer run or manual entry on a task (FR-TIME). EndedAt
+// nil means the timer is running.
+type TimeEntry struct {
+	ID        string
+	OrgID     string
+	TaskID    string
+	UserID    string
+	StartedAt time.Time
+	EndedAt   *time.Time
+	Note      string
+	CreatedAt time.Time
+}
+
+// Seconds returns the entry length against now for running timers.
+func (e *TimeEntry) Seconds(now time.Time) int64 {
+	end := now
+	if e.EndedAt != nil {
+		end = *e.EndedAt
+	}
+	s := int64(end.Sub(e.StartedAt).Seconds())
+	if s < 0 {
+		return 0
+	}
+	return s
+}
 // Deleted reports whether the comment is soft-deleted.
 func (c *Comment) Deleted() bool { return c.DeletedAt != nil }
 
