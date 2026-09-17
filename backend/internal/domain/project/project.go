@@ -359,6 +359,18 @@ type SearchResult struct {
 	Total int
 }
 
+// TaskLink is a directed dependency edge (FR-LINKS): TaskID is blocked by
+// LinkedTaskID. Only the "blocks" relation exists in v1.
+type TaskLink struct {
+	TaskID       string
+	LinkedTaskID string
+	Title        string
+	Number       int
+	ColumnID     string
+	ProjectID    string
+	CreatedAt    time.Time
+}
+
 // Custom field types (FR-FIELDS).
 const (
 	FieldText   = "text"

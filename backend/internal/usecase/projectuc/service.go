@@ -37,6 +37,7 @@ type Deps struct {
 	Subtasks   project.SubtaskRepository      // optional; nil ⇒ board cards carry no subtask progress
 	Comments   project.CommentRepository      // optional; nil ⇒ board cards carry no comment counts
 	Automation automation.Evaluator           // automation rules; nil ⇒ no evaluation
+	Links      project.TaskLinkRepository  // dependency guard on moves; nil ⇒ no guard
 	Events     notify.EventBus                // realtime publish; nil ⇒ no SSE events
 	Logger     *slog.Logger
 	Now        func() time.Time // injectable for tests; defaults to time.Now
@@ -55,6 +56,7 @@ type Service struct {
 	subtasks   project.SubtaskRepository
 	comments   project.CommentRepository
 	automation automation.Evaluator
+	links      project.TaskLinkRepository
 	events     notify.EventBus
 	logger     *slog.Logger
 	now        func() time.Time
@@ -73,11 +75,43 @@ func New(d Deps) *Service {
 	return &Service{
 		projects: d.Projects, members: d.Members, boards: d.Boards,
 		columns: d.Columns, tasks: d.Tasks, sprints: d.Sprints, fields: d.Fields, labels: d.Labels, subtasks: d.Subtasks,
-		comments: d.Comments, automation: d.Automation, events: d.Events, logger: logger, now: now,
+		comments: d.Comments, automation: d.Automation, links: d.Links, events: d.Events, logger: logger, now: now,
 	}
 }
 
 func newID() string { return uuidv7.New().String() }
+
+// checkBlockers enforces the dependency guard: when columnID is the final
+// column of boardID, every blocker of taskID must already sit in its own
+// final column, else ErrConflict. Nil links repo ⇒ no guard.
+func (s *Service) checkBlockers(ctx context.Context, orgID, boardID, columnID, taskID string) error {
+	if s.links == nil {
+		return nil
+	}
+	cols, err := s.columns.ListByBoard(ctx, orgID, boardID)
+	if err != nil || len(cols) == 0 {
+		return err
+	}
+	if cols[len(cols)-1].ID != columnID {
+		return nil // only the final column is guarded
+	}
+	blockers, err := s.links.Blockers(ctx, orgID, taskID)
+	if err != nil {
+		return err
+	}
+	finalByProject := make(map[string]string)
+	for _, b := range blockers {
+		final, ok := finalByProject[b.ProjectID]
+		if !ok {
+			final = s.finalColumnID(ctx, orgID, b.ProjectID)
+			finalByProject[b.ProjectID] = final
+		}
+		if b.ColumnID != final {
+			return domain.ErrConflict
+		}
+	}
+	return nil
+}
 
 // automate evaluates automation rules best-effort (nil ⇒ disabled). It never
 // fails the write that triggered it.
@@ -472,6 +506,11 @@ func (s *Service) MoveTask(ctx context.Context, orgID, userID, taskID, columnID,
 	}
 	if col.BoardID != board.ID {
 		return domain.ErrValidation
+	}
+	// Dependency guard (FR-LINKS): moving into the final column fails while
+	// open blockers exist. Open = blocker not in its own final column.
+	if err := s.checkBlockers(ctx, orgID, board.ID, columnID, taskID); err != nil {
+		return err
 	}
 	fromColumn := t.ColumnID
 	if err := s.tasks.Move(ctx, orgID, taskID, columnID, newRank); err != nil {

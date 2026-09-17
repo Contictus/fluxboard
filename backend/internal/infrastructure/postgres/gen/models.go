@@ -403,6 +403,13 @@ type TaskLabel struct {
 	OrgID   uuid.UUID `json:"org_id"`
 }
 
+type TaskLink struct {
+	TaskID       uuid.UUID `json:"task_id"`
+	LinkedTaskID uuid.UUID `json:"linked_task_id"`
+	OrgID        uuid.UUID `json:"org_id"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type TimeEntry struct {
 	ID        uuid.UUID          `json:"id"`
 	OrgID     uuid.UUID          `json:"org_id"`

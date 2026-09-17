@@ -247,7 +247,7 @@ func NewRouter(d Deps) http.Handler {
 					t.With(read(tenant.ObjOrg)).Delete("/subtasks/{subtaskId}", d.Tasks.DeleteSubtask)
 					t.With(read(tenant.ObjOrg)).Get("/comments", d.Tasks.ListComments)
 					t.With(read(tenant.ObjOrg)).Post("/comments", d.Tasks.AddComment)
-					t.With(read(tenant.ObjOrg)).Patch("/comments/{commentId}", d.Tasks.EditComment)
+				t.With(read(tenant.ObjOrg)).Patch("/comments/{commentId}", d.Tasks.EditComment)
 				t.With(read(tenant.ObjOrg)).Delete("/comments/{commentId}", d.Tasks.DeleteComment)
 				t.With(read(tenant.ObjOrg)).Get("/labels", d.Tasks.ListTaskLabels)
 				t.With(read(tenant.ObjOrg)).Post("/labels", d.Tasks.AttachLabel)
@@ -256,6 +256,10 @@ func NewRouter(d Deps) http.Handler {
 				t.With(read(tenant.ObjOrg)).Get("/fields", d.Projects.TaskFieldValues)
 				t.With(read(tenant.ObjOrg)).Put("/fields/{fieldId}", d.Projects.SetFieldValue)
 				t.With(read(tenant.ObjOrg)).Delete("/fields/{fieldId}", d.Projects.ClearFieldValue)
+				// Dependencies (docs/08, FR-LINKS). Fine-grained gates in taskuc.
+				t.With(read(tenant.ObjOrg)).Get("/links", d.Tasks.ListTaskLinks)
+				t.With(read(tenant.ObjOrg)).Post("/links", d.Tasks.AddTaskLink)
+				t.With(read(tenant.ObjOrg)).Delete("/links/{linkedId}", d.Tasks.RemoveTaskLink)
 				// Time tracking (docs/08, FR-TIME). Fine-grained gates in taskuc.
 				t.With(read(tenant.ObjOrg)).Get("/time", d.Tasks.ListTimeEntries)
 				t.With(read(tenant.ObjOrg)).Post("/time/start", d.Tasks.StartTimer)

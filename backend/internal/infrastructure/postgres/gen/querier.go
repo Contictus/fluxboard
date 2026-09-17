@@ -89,6 +89,8 @@ type Querier interface {
 	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) error
 	// Tasks ([T], tenant-scoped) ------------------------------------------------
 	CreateTask(ctx context.Context, arg CreateTaskParams) error
+	// Task links ([T], tenant-scoped, FR-LINKS) ----------------------------------
+	CreateTaskLink(ctx context.Context, arg CreateTaskLinkParams) error
 	// Time entries ([T], tenant-scoped, FR-TIME) -------------------------------
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) error
@@ -103,6 +105,7 @@ type Querier interface {
 	DeleteSprint(ctx context.Context, arg DeleteSprintParams) (int64, error)
 	DeleteSubtask(ctx context.Context, arg DeleteSubtaskParams) (int64, error)
 	DeleteTaskCustomValue(ctx context.Context, arg DeleteTaskCustomValueParams) (int64, error)
+	DeleteTaskLink(ctx context.Context, arg DeleteTaskLinkParams) (int64, error)
 	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
 	// Hard-deletes the account (docs/08 §3 DELETE /me). Memberships/sessions cascade
 	// via ON DELETE CASCADE. Callers MUST enforce the sole-owner guard first.
@@ -234,6 +237,8 @@ type Querier interface {
 	ListSoleOwnerOrgs(ctx context.Context, userID uuid.UUID) ([]ListSoleOwnerOrgsRow, error)
 	ListSprintsByProject(ctx context.Context, arg ListSprintsByProjectParams) ([]Sprint, error)
 	ListSubtasksByTask(ctx context.Context, arg ListSubtasksByTaskParams) ([]Subtask, error)
+	ListTaskBlocked(ctx context.Context, arg ListTaskBlockedParams) ([]ListTaskBlockedRow, error)
+	ListTaskBlockers(ctx context.Context, arg ListTaskBlockersParams) ([]ListTaskBlockersRow, error)
 	ListTaskCustomValues(ctx context.Context, arg ListTaskCustomValuesParams) ([]ListTaskCustomValuesRow, error)
 	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error)
 	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error)
