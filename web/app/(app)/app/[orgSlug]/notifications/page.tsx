@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, Check, CheckCheck } from 'lucide-react';
+import { ArrowUpRight, Bell, Check, CheckCheck } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,9 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/lib/api/notifications';
+import { getTask } from '@/lib/api/tasks';
+import { listProjects } from '@/lib/api/projects';
+import { getBoard } from '@/lib/api/board';
 import type { Notification } from '@/lib/api/types';
 
 type Tab = 'unread' | 'all';
@@ -30,10 +34,12 @@ function timeAgo(iso: string): string {
 }
 
 export default function NotificationsPage() {
-  const { orgId } = useOrg();
+  const { orgId, slug } = useOrg();
+  const router = useRouter();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('unread');
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: ['notifications', orgId, tab],
@@ -58,6 +64,33 @@ export default function NotificationsPage() {
     },
     onError: () => toast({ title: 'Couldn’t mark all read', variant: 'error' }),
   });
+
+  // Deep-link a task notification to its pretty task URL (ADR-018 follow-up):
+  // the row carries only the task UUID, so resolve project + number through
+  // the same cached projections the board uses, then navigate.
+  async function openNotification(n: Notification) {
+    if (n.entity_type !== 'task' || !n.entity_id) return;
+    setOpeningId(n.id);
+    try {
+      const t = await getTask(orgId, n.entity_id);
+      const [projects, board] = await Promise.all([
+        qc.fetchQuery({ queryKey: ['projects', orgId], queryFn: () => listProjects(orgId) }),
+        qc.fetchQuery({
+          queryKey: ['board', t.project_id],
+          queryFn: () => getBoard(orgId, t.project_id),
+        }),
+      ]);
+      const project = projects.find((p) => p.id === t.project_id);
+      const card = board.columns.flatMap((c) => c.tasks).find((c) => c.id === t.id);
+      if (!project || !card) throw new Error('not found');
+      markRead.mutate(n.id);
+      router.push(`/app/${slug}/projects/${project.key}/tasks/${card.number}`);
+    } catch {
+      toast({ title: 'Couldn’t open that task', variant: 'error' });
+    } finally {
+      setOpeningId(null);
+    }
+  }
 
   const items = list.data ?? [];
 
@@ -109,6 +142,8 @@ export default function NotificationsPage() {
               n={n}
               onMarkRead={() => markRead.mutate(n.id)}
               pending={markRead.isPending}
+              opening={openingId === n.id}
+              onOpen={() => void openNotification(n)}
             />
           ))}
         </ul>
@@ -121,12 +156,17 @@ function NotificationRow({
   n,
   onMarkRead,
   pending,
+  opening,
+  onOpen,
 }: {
   n: Notification;
   onMarkRead: () => void;
   pending: boolean;
+  opening: boolean;
+  onOpen: () => void;
 }) {
   const unread = !n.read_at;
+  const linkable = n.entity_type === 'task' && !!n.entity_id;
   return (
     <li className={cn('flex items-start gap-3 p-4', unread && 'bg-secondary/30')}>
       <span
@@ -143,6 +183,18 @@ function NotificationRow({
           <span className="capitalize">{n.category.replace(/_/g, ' ')}</span> · {timeAgo(n.created_at)}
         </p>
       </div>
+      {linkable ? (
+        <button
+          onClick={onOpen}
+          disabled={opening}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50"
+          aria-label="Open task"
+          title="Open task"
+        >
+          <ArrowUpRight className="h-4 w-4" />
+          {opening ? 'Opening…' : 'Open'}
+        </button>
+      ) : null}
       {unread ? (
         <button
           onClick={onMarkRead}
