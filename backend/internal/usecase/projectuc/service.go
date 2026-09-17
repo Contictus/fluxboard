@@ -30,6 +30,7 @@ type Deps struct {
 	Boards   project.BoardRepository
 	Columns  project.ColumnRepository
 	Tasks    project.TaskRepository
+	Labels   project.LabelRepository // optional; nil ⇒ board cards carry no labels
 	Events   notify.EventBus // realtime publish; nil ⇒ no SSE events
 	Logger   *slog.Logger
 	Now      func() time.Time // injectable for tests; defaults to time.Now
@@ -42,6 +43,7 @@ type Service struct {
 	boards   project.BoardRepository
 	columns  project.ColumnRepository
 	tasks    project.TaskRepository
+	labels   project.LabelRepository
 	events   notify.EventBus
 	logger   *slog.Logger
 	now      func() time.Time
@@ -59,7 +61,7 @@ func New(d Deps) *Service {
 	}
 	return &Service{
 		projects: d.Projects, members: d.Members, boards: d.Boards,
-		columns: d.Columns, tasks: d.Tasks, events: d.Events, logger: logger, now: now,
+		columns: d.Columns, tasks: d.Tasks, labels: d.Labels, events: d.Events, logger: logger, now: now,
 	}
 }
 
@@ -95,10 +97,12 @@ type UpdateProjectInput struct {
 	Visibility  project.Visibility
 }
 
-// ColumnView is a board column together with its ordered tasks.
+// ColumnView is a board column together with its ordered tasks. Labels maps
+// task ID to that task's labels (empty when the Labels dep is nil).
 type ColumnView struct {
 	Column project.Column
 	Tasks  []project.Task
+	Labels map[string][]project.Label
 }
 
 // BoardView is the kanban projection: the default board and its columns+tasks.
@@ -302,8 +306,16 @@ func (s *Service) GetBoard(ctx context.Context, orgID, userID, projectID string,
 	for _, t := range tasks {
 		tasksByColumn[t.ColumnID] = append(tasksByColumn[t.ColumnID], t)
 	}
+	labelsByTask := make(map[string][]project.Label)
+	if s.labels != nil {
+		if lb, err := s.labels.ListForProject(ctx, orgID, projectID); err == nil {
+			labelsByTask = lb
+		} else {
+			s.logger.Warn("board labels enrichment failed", "err", err, "project", projectID)
+		}
+	}
 	for _, c := range cols {
-		view.Columns = append(view.Columns, ColumnView{Column: c, Tasks: tasksByColumn[c.ID]})
+		view.Columns = append(view.Columns, ColumnView{Column: c, Tasks: tasksByColumn[c.ID], Labels: labelsByTask})
 	}
 	return view, nil
 }

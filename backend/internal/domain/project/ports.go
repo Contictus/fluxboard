@@ -170,6 +170,9 @@ type LabelRepository interface {
 	Detach(ctx context.Context, orgID, taskID, labelID string) error
 	// ListForTask returns a task's labels.
 	ListForTask(ctx context.Context, orgID, taskID string) ([]Label, error)
+	// ListForProject returns every label attachment in a project, grouped by
+	// task ID, in a single query (board projection enrichment).
+	ListForProject(ctx context.Context, orgID, projectID string) (map[string][]Label, error)
 }
 
 // CommentRepository persists task comments (FR-TASK-005).

@@ -7,6 +7,7 @@ package gen
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -131,6 +132,58 @@ func (q *Queries) ListLabels(ctx context.Context, orgID uuid.UUID) ([]Label, err
 	for rows.Next() {
 		var i Label
 		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.Name,
+			&i.Color,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLabelsForProject = `-- name: ListLabelsForProject :many
+SELECT tl.task_id, l.id, l.org_id, l.name, l.color, l.created_at, l.updated_at
+FROM task_labels tl
+JOIN labels l ON l.id = tl.label_id
+JOIN tasks t ON t.id = tl.task_id
+WHERE tl.org_id = $1 AND t.project_id = $2
+ORDER BY l.name
+`
+
+type ListLabelsForProjectParams struct {
+	OrgID     uuid.UUID `json:"org_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+}
+
+type ListLabelsForProjectRow struct {
+	TaskID    uuid.UUID `json:"task_id"`
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	Name      string    `json:"name"`
+	Color     string    `json:"color"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) ListLabelsForProject(ctx context.Context, arg ListLabelsForProjectParams) ([]ListLabelsForProjectRow, error) {
+	rows, err := q.db.Query(ctx, listLabelsForProject, arg.OrgID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLabelsForProjectRow
+	for rows.Next() {
+		var i ListLabelsForProjectRow
+		if err := rows.Scan(
+			&i.TaskID,
 			&i.ID,
 			&i.OrgID,
 			&i.Name,

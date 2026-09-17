@@ -353,7 +353,7 @@ func run(logger *slog.Logger) error {
 
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
-		Columns: columnRepo, Tasks: taskRepo, Events: eventBus, Logger: logger,
+		Columns: columnRepo, Tasks: taskRepo, Labels: labelRepo, Events: eventBus, Logger: logger,
 	})
 	taskSvc := taskuc.New(taskuc.Deps{
 		Tasks: taskRepo, Subtasks: subtaskRepo, Labels: labelRepo, Comments: commentRepo,

@@ -165,6 +165,7 @@ type Querier interface {
 	ListFeatureFlags(ctx context.Context, orgID uuid.UUID) ([]FeatureFlag, error)
 	ListInvoicesByOrg(ctx context.Context, orgID uuid.UUID) ([]Invoice, error)
 	ListLabels(ctx context.Context, orgID uuid.UUID) ([]Label, error)
+	ListLabelsForProject(ctx context.Context, arg ListLabelsForProjectParams) ([]ListLabelsForProjectRow, error)
 	ListLabelsForTask(ctx context.Context, arg ListLabelsForTaskParams) ([]Label, error)
 	ListMembers(ctx context.Context, orgID uuid.UUID) ([]ListMembersRow, error)
 	// Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role
