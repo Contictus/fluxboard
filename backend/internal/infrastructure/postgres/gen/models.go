@@ -99,6 +99,18 @@ type Comment struct {
 	UpdatedAt time.Time          `json:"updated_at"`
 }
 
+type CustomField struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	Options   []byte    `json:"options"`
+	Position  int32     `json:"position"`
+	CreatedBy uuid.UUID `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type EntitlementOverride struct {
 	OrgID     uuid.UUID   `json:"org_id"`
 	Key       string      `json:"key"`
@@ -373,6 +385,16 @@ type TaskActivity struct {
 	OldValue  *string   `json:"old_value"`
 	NewValue  *string   `json:"new_value"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type TaskCustomValue struct {
+	TaskID      uuid.UUID          `json:"task_id"`
+	FieldID     uuid.UUID          `json:"field_id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ValueText   *string            `json:"value_text"`
+	ValueNumber pgtype.Numeric     `json:"value_number"`
+	ValueDate   pgtype.Timestamptz `json:"value_date"`
+	UpdatedAt   time.Time          `json:"updated_at"`
 }
 
 type TaskLabel struct {

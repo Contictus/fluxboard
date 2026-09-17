@@ -358,3 +358,45 @@ type SearchResult struct {
 	Tasks []Task
 	Total int
 }
+
+// Custom field types (FR-FIELDS).
+const (
+	FieldText   = "text"
+	FieldNumber = "number"
+	FieldDate   = "date"
+	FieldSelect = "select"
+)
+
+// ValidFieldType reports whether t is a known custom-field type.
+func ValidFieldType(t string) bool {
+	switch t {
+	case FieldText, FieldNumber, FieldDate, FieldSelect:
+		return true
+	}
+	return false
+}
+
+// CustomField is a project-scoped typed attribute (FR-FIELDS). Options holds
+// the select choices.
+type CustomField struct {
+	ID        string
+	OrgID     string
+	ProjectID string
+	Name      string
+	Type      string
+	Options   []string
+	Position  int
+	CreatedBy string
+	CreatedAt time.Time
+}
+
+// CustomValue is one task's value for a field. Only the column matching the
+// field type is set.
+type CustomValue struct {
+	FieldID string
+	Name    string
+	Type    string
+	Text    *string
+	Number  *float64
+	Date    *time.Time
+}
