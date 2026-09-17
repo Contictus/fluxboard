@@ -41,9 +41,9 @@ func (q *Queries) BulkAssignTasks(ctx context.Context, arg BulkAssignTasksParams
 const createTask = `-- name: CreateTask :exec
 
 INSERT INTO tasks (id, org_id, project_id, column_id, number, title, description,
-                   assignee_id, priority, due_date, rank, created_by)
+                   assignee_id, priority, start_date, due_date, rank, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
-        $8, $9, $10, $11, $12)
+        $8, $9, $10, $11, $12, $13)
 `
 
 type CreateTaskParams struct {
@@ -56,6 +56,7 @@ type CreateTaskParams struct {
 	Description string             `json:"description"`
 	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Priority    string             `json:"priority"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	Rank        string             `json:"rank"`
 	CreatedBy   uuid.UUID          `json:"created_by"`
@@ -73,6 +74,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
 		arg.Description,
 		arg.AssigneeID,
 		arg.Priority,
+		arg.StartDate,
 		arg.DueDate,
 		arg.Rank,
 		arg.CreatedBy,
@@ -82,7 +84,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
 
 const getTask = `-- name: GetTask :one
 SELECT id, org_id, project_id, column_id, number, title, description,
-       assignee_id, priority, due_date, sprint_id, rank, created_by, created_at, updated_at
+       assignee_id, priority, start_date, due_date, sprint_id, rank, created_by, created_at, updated_at
 FROM tasks
 WHERE org_id = $1 AND id = $2 AND deleted_at IS NULL
 `
@@ -102,6 +104,7 @@ type GetTaskRow struct {
 	Description string             `json:"description"`
 	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Priority    string             `json:"priority"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	SprintID    pgtype.UUID        `json:"sprint_id"`
 	Rank        string             `json:"rank"`
@@ -124,6 +127,7 @@ func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (GetTaskRow, e
 		&i.Description,
 		&i.AssigneeID,
 		&i.Priority,
+		&i.StartDate,
 		&i.DueDate,
 		&i.SprintID,
 		&i.Rank,
@@ -136,7 +140,7 @@ func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (GetTaskRow, e
 
 const getTrashedTask = `-- name: GetTrashedTask :one
 SELECT id, org_id, project_id, column_id, number, title, description,
-       assignee_id, priority, due_date, sprint_id, rank, created_by, created_at, updated_at
+       assignee_id, priority, start_date, due_date, sprint_id, rank, created_by, created_at, updated_at
 FROM tasks
 WHERE org_id = $1 AND id = $2 AND deleted_at IS NOT NULL
 `
@@ -156,6 +160,7 @@ type GetTrashedTaskRow struct {
 	Description string             `json:"description"`
 	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Priority    string             `json:"priority"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	SprintID    pgtype.UUID        `json:"sprint_id"`
 	Rank        string             `json:"rank"`
@@ -177,6 +182,7 @@ func (q *Queries) GetTrashedTask(ctx context.Context, arg GetTrashedTaskParams) 
 		&i.Description,
 		&i.AssigneeID,
 		&i.Priority,
+		&i.StartDate,
 		&i.DueDate,
 		&i.SprintID,
 		&i.Rank,
@@ -189,7 +195,7 @@ func (q *Queries) GetTrashedTask(ctx context.Context, arg GetTrashedTaskParams) 
 
 const listTasksByColumn = `-- name: ListTasksByColumn :many
 SELECT id, org_id, project_id, column_id, number, title, description,
-       assignee_id, priority, due_date, sprint_id, rank, created_by, created_at, updated_at
+       assignee_id, priority, start_date, due_date, sprint_id, rank, created_by, created_at, updated_at
 FROM tasks
 WHERE org_id = $1 AND column_id = $2 AND deleted_at IS NULL
 ORDER BY rank
@@ -210,6 +216,7 @@ type ListTasksByColumnRow struct {
 	Description string             `json:"description"`
 	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Priority    string             `json:"priority"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	SprintID    pgtype.UUID        `json:"sprint_id"`
 	Rank        string             `json:"rank"`
@@ -237,6 +244,7 @@ func (q *Queries) ListTasksByColumn(ctx context.Context, arg ListTasksByColumnPa
 			&i.Description,
 			&i.AssigneeID,
 			&i.Priority,
+			&i.StartDate,
 			&i.DueDate,
 			&i.SprintID,
 			&i.Rank,
@@ -256,7 +264,7 @@ func (q *Queries) ListTasksByColumn(ctx context.Context, arg ListTasksByColumnPa
 
 const listTasksByProject = `-- name: ListTasksByProject :many
 SELECT t.id, t.org_id, t.project_id, t.column_id, t.number, t.title, t.description,
-       t.assignee_id, t.priority, t.due_date, t.sprint_id, t.rank, t.created_by, t.created_at, t.updated_at
+       t.assignee_id, t.priority, t.start_date, t.due_date, t.sprint_id, t.rank, t.created_by, t.created_at, t.updated_at
 FROM tasks t
 JOIN board_columns c ON c.id = t.column_id
 WHERE t.org_id = $1 AND t.project_id = $2 AND t.deleted_at IS NULL
@@ -278,6 +286,7 @@ type ListTasksByProjectRow struct {
 	Description string             `json:"description"`
 	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Priority    string             `json:"priority"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	SprintID    pgtype.UUID        `json:"sprint_id"`
 	Rank        string             `json:"rank"`
@@ -305,6 +314,7 @@ func (q *Queries) ListTasksByProject(ctx context.Context, arg ListTasksByProject
 			&i.Description,
 			&i.AssigneeID,
 			&i.Priority,
+			&i.StartDate,
 			&i.DueDate,
 			&i.SprintID,
 			&i.Rank,
@@ -324,7 +334,7 @@ func (q *Queries) ListTasksByProject(ctx context.Context, arg ListTasksByProject
 
 const listTrashedTasks = `-- name: ListTrashedTasks :many
 SELECT id, org_id, project_id, column_id, number, title, description,
-       assignee_id, priority, due_date, sprint_id, rank, created_by, created_at, updated_at
+       assignee_id, priority, start_date, due_date, sprint_id, rank, created_by, created_at, updated_at
 FROM tasks
 WHERE org_id = $1 AND project_id = $2 AND deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
@@ -345,6 +355,7 @@ type ListTrashedTasksRow struct {
 	Description string             `json:"description"`
 	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Priority    string             `json:"priority"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	SprintID    pgtype.UUID        `json:"sprint_id"`
 	Rank        string             `json:"rank"`
@@ -372,6 +383,7 @@ func (q *Queries) ListTrashedTasks(ctx context.Context, arg ListTrashedTasksPara
 			&i.Description,
 			&i.AssigneeID,
 			&i.Priority,
+			&i.StartDate,
 			&i.DueDate,
 			&i.SprintID,
 			&i.Rank,
@@ -458,7 +470,7 @@ func (q *Queries) RestoreTask(ctx context.Context, arg RestoreTaskParams) (int64
 const searchTasks = `-- name: SearchTasks :many
 
 SELECT t.id, t.org_id, t.project_id, t.column_id, t.number, t.title, t.description,
-       t.assignee_id, t.priority, t.due_date, t.sprint_id, t.rank, t.created_by,
+       t.assignee_id, t.priority, t.start_date, t.due_date, t.sprint_id, t.rank, t.created_by,
        t.created_at, t.updated_at,
        count(*) OVER() AS total_count
 FROM tasks t
@@ -505,6 +517,7 @@ type SearchTasksRow struct {
 	Description string             `json:"description"`
 	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Priority    string             `json:"priority"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	SprintID    pgtype.UUID        `json:"sprint_id"`
 	Rank        string             `json:"rank"`
@@ -552,6 +565,7 @@ func (q *Queries) SearchTasks(ctx context.Context, arg SearchTasksParams) ([]Sea
 			&i.Description,
 			&i.AssigneeID,
 			&i.Priority,
+			&i.StartDate,
 			&i.DueDate,
 			&i.SprintID,
 			&i.Rank,
@@ -595,8 +609,8 @@ const updateTask = `-- name: UpdateTask :execrows
 UPDATE tasks
 SET title = $1, description = $2,
     assignee_id = $3, priority = $4,
-    due_date = $5
-WHERE org_id = $6 AND id = $7 AND deleted_at IS NULL
+    start_date = $5, due_date = $6
+WHERE org_id = $7 AND id = $8 AND deleted_at IS NULL
 `
 
 type UpdateTaskParams struct {
@@ -604,6 +618,7 @@ type UpdateTaskParams struct {
 	Description string             `json:"description"`
 	AssigneeID  pgtype.UUID        `json:"assignee_id"`
 	Priority    string             `json:"priority"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
 	DueDate     pgtype.Timestamptz `json:"due_date"`
 	OrgID       uuid.UUID          `json:"org_id"`
 	ID          uuid.UUID          `json:"id"`
@@ -615,6 +630,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 		arg.Description,
 		arg.AssigneeID,
 		arg.Priority,
+		arg.StartDate,
 		arg.DueDate,
 		arg.OrgID,
 		arg.ID,

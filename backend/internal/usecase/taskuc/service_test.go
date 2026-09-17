@@ -82,6 +82,7 @@ func TestAccess(t *testing.T) {
 
 func TestDiffTask(t *testing.T) {
 	due := time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 	alice := "alice"
 	base := &project.Task{
 		Title: "old", Description: "d", AssigneeID: nil,
@@ -89,14 +90,14 @@ func TestDiffTask(t *testing.T) {
 	}
 	in := UpdateTaskInput{
 		Title: "new", Description: "d", AssigneeID: &alice,
-		Priority: project.PriorityHigh, DueDate: &due,
+		Priority: project.PriorityHigh, StartDate: &start, DueDate: &due,
 	}
 	changes := diffTask(base, in)
 	fields := map[string]bool{}
 	for _, c := range changes {
 		fields[c.field] = true
 	}
-	for _, want := range []string{"title", "assignee", "priority", "due_date"} {
+	for _, want := range []string{"title", "assignee", "priority", "start_date", "due_date"} {
 		if !fields[want] {
 			t.Errorf("expected a %q change", want)
 		}
@@ -104,7 +105,24 @@ func TestDiffTask(t *testing.T) {
 	if fields["description"] {
 		t.Error("description did not change; should not be logged")
 	}
-	if len(changes) != 4 {
-		t.Errorf("got %d changes, want 4", len(changes))
+	if len(changes) != 5 {
+		t.Errorf("got %d changes, want 5", len(changes))
+	}
+}
+
+func TestCheckDateRange(t *testing.T) {
+	early := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	late := time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC)
+	if err := checkDateRange(&early, &late); err != nil {
+		t.Errorf("ordered pair: %v", err)
+	}
+	if err := checkDateRange(nil, &late); err != nil {
+		t.Errorf("nil start: %v", err)
+	}
+	if err := checkDateRange(&early, nil); err != nil {
+		t.Errorf("nil due: %v", err)
+	}
+	if err := checkDateRange(&late, &early); err != domain.ErrValidation {
+		t.Errorf("start after due: err = %v, want ErrValidation", err)
 	}
 }

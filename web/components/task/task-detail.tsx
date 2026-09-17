@@ -30,6 +30,7 @@ function toInput(t: Task, patch: Partial<UpdateTaskInput>): UpdateTaskInput {
     description: t.description,
     assignee_id: t.assignee_id ?? null,
     priority: t.priority as Priority,
+    start_date: t.start_date ?? null,
     due_date: t.due_date ?? null,
     ...patch,
   };
@@ -229,6 +230,23 @@ export function TaskDetail({
             </select>
           ) : (
             <span className="text-sm">{priorityLabel(task.priority as Priority)}</span>
+          )}
+        </Field>
+
+        <Field label="Start date">
+          {canEdit ? (
+            <input
+              type="date"
+              value={dateInputValue(task.start_date)}
+              onChange={(e) =>
+                patch.mutate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null })
+              }
+                className="w-full rounded-xl border-0 bg-secondary/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          ) : (
+            <span className="text-sm">
+              {task.start_date ? new Date(task.start_date).toLocaleDateString() : '—'}
+            </span>
           )}
         </Field>
 

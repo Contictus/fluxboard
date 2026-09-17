@@ -228,6 +228,7 @@ export interface TaskCard {
   title: string;
   priority: Priority;
   assignee_id?: string;
+  start_date?: string | null;
   due_date?: string | null;
   labels: Label[];
   comment_count: number;
@@ -256,6 +257,7 @@ export interface CreateTaskInput {
   description: string;
   assignee_id?: string | null;
   priority: Priority;
+  start_date?: string | null;
   due_date?: string | null;
 }
 
@@ -265,6 +267,7 @@ export interface UpdateTaskInput {
   description: string;
   assignee_id?: string | null;
   priority: Priority;
+  start_date?: string | null;
   due_date?: string | null;
 }
 
@@ -413,6 +416,7 @@ export interface Task {
   description: string;
   assignee_id?: string;
   priority: string;
+  start_date?: string;
   due_date?: string;
   rank: string;
   created_by: string;

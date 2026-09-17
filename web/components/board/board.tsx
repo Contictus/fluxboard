@@ -136,6 +136,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
         description: '',
         priority: v.priority,
         assignee_id: v.assignee_id,
+        start_date: v.start_date,
         due_date: v.due_date,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: boardKey }),

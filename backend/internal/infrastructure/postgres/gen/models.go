@@ -388,6 +388,7 @@ type Task struct {
 	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
 	SearchVector interface{}        `json:"search_vector"`
 	SprintID     pgtype.UUID        `json:"sprint_id"`
+	StartDate    pgtype.Timestamptz `json:"start_date"`
 }
 
 type TaskActivity struct {

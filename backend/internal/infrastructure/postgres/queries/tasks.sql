@@ -2,27 +2,27 @@
 
 -- name: CreateTask :exec
 INSERT INTO tasks (id, org_id, project_id, column_id, number, title, description,
-                   assignee_id, priority, due_date, rank, created_by)
+                   assignee_id, priority, start_date, due_date, rank, created_by)
 VALUES (@id, @org_id, @project_id, @column_id, @number, @title, @description,
-        sqlc.narg('assignee_id'), @priority, sqlc.narg('due_date'), @rank, @created_by);
+        sqlc.narg('assignee_id'), @priority, sqlc.narg('start_date'), sqlc.narg('due_date'), @rank, @created_by);
 
 -- name: GetTask :one
 -- Live tasks only; trashed tasks are addressable through the Trash queries.
 SELECT id, org_id, project_id, column_id, number, title, description,
-       assignee_id, priority, due_date, sprint_id, rank, created_by, created_at, updated_at
+       assignee_id, priority, start_date, due_date, sprint_id, rank, created_by, created_at, updated_at
 FROM tasks
 WHERE org_id = @org_id AND id = @id AND deleted_at IS NULL;
 
 -- name: ListTasksByColumn :many
 SELECT id, org_id, project_id, column_id, number, title, description,
-       assignee_id, priority, due_date, sprint_id, rank, created_by, created_at, updated_at
+       assignee_id, priority, start_date, due_date, sprint_id, rank, created_by, created_at, updated_at
 FROM tasks
 WHERE org_id = @org_id AND column_id = @column_id AND deleted_at IS NULL
 ORDER BY rank;
 
 -- name: ListTasksByProject :many
 SELECT t.id, t.org_id, t.project_id, t.column_id, t.number, t.title, t.description,
-       t.assignee_id, t.priority, t.due_date, t.sprint_id, t.rank, t.created_by, t.created_at, t.updated_at
+       t.assignee_id, t.priority, t.start_date, t.due_date, t.sprint_id, t.rank, t.created_by, t.created_at, t.updated_at
 FROM tasks t
 JOIN board_columns c ON c.id = t.column_id
 WHERE t.org_id = @org_id AND t.project_id = @project_id AND t.deleted_at IS NULL
@@ -32,7 +32,7 @@ ORDER BY c.rank, t.rank;
 UPDATE tasks
 SET title = @title, description = @description,
     assignee_id = sqlc.narg('assignee_id'), priority = @priority,
-    due_date = sqlc.narg('due_date')
+    start_date = sqlc.narg('start_date'), due_date = sqlc.narg('due_date')
 WHERE org_id = @org_id AND id = @id AND deleted_at IS NULL;
 
 -- name: MoveTask :execrows
@@ -55,13 +55,13 @@ WHERE org_id = @org_id AND id = @id AND deleted_at IS NOT NULL;
 
 -- name: GetTrashedTask :one
 SELECT id, org_id, project_id, column_id, number, title, description,
-       assignee_id, priority, due_date, sprint_id, rank, created_by, created_at, updated_at
+       assignee_id, priority, start_date, due_date, sprint_id, rank, created_by, created_at, updated_at
 FROM tasks
 WHERE org_id = @org_id AND id = @id AND deleted_at IS NOT NULL;
 
 -- name: ListTrashedTasks :many
 SELECT id, org_id, project_id, column_id, number, title, description,
-       assignee_id, priority, due_date, sprint_id, rank, created_by, created_at, updated_at
+       assignee_id, priority, start_date, due_date, sprint_id, rank, created_by, created_at, updated_at
 FROM tasks
 WHERE org_id = @org_id AND project_id = @project_id AND deleted_at IS NOT NULL
 ORDER BY deleted_at DESC;
@@ -81,7 +81,7 @@ WHERE org_id = @org_id AND deleted_at IS NOT NULL AND deleted_at < @cutoff;
 -- the unpaged total for pagination; the label filter pins one label_id per row so
 -- DISTINCT is unnecessary.
 SELECT t.id, t.org_id, t.project_id, t.column_id, t.number, t.title, t.description,
-       t.assignee_id, t.priority, t.due_date, t.sprint_id, t.rank, t.created_by,
+       t.assignee_id, t.priority, t.start_date, t.due_date, t.sprint_id, t.rank, t.created_by,
        t.created_at, t.updated_at,
        count(*) OVER() AS total_count
 FROM tasks t
