@@ -5,8 +5,10 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 import type { TaskCard } from '@/lib/api/types';
-import { priorityClass, priorityLabel } from '@/lib/board/priority';
+import { priorityLabel } from '@/lib/board/priority';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Avatar } from '@/components/ui/avatar';
 
 // A single kanban card. Sortable (drag handle = whole card). In select mode a
 // checkbox replaces drag interaction and toggles bulk selection.
@@ -38,9 +40,10 @@ export function Card({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'rounded-md border bg-card p-2.5 text-sm shadow-sm',
-        isDragging && 'opacity-40',
+        'rounded-lg border bg-card p-3 text-sm shadow-sm transition-all duration-200',
+        isDragging && 'opacity-50 shadow-xl scale-105',
         selected && 'ring-2 ring-primary',
+        !isDragging && !selectMode && 'hover:shadow-md hover:-translate-y-0.5',
       )}
       {...(selectMode ? {} : attributes)}
       {...(selectMode ? {} : listeners)}
@@ -51,7 +54,7 @@ export function Card({
             type="checkbox"
             checked={selected}
             onChange={() => onToggle(task.id)}
-            className="mt-0.5 h-4 w-4"
+            className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
             aria-label={`Select task ${task.title}`}
           />
         ) : null}
@@ -62,26 +65,28 @@ export function Card({
             <Link
               href={href}
               onClick={(e) => e.stopPropagation()}
-              className="truncate font-medium hover:underline"
+              className="truncate font-medium hover:text-primary transition-colors"
             >
               {task.title}
             </Link>
           )}
-          <div className="mt-1.5 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2">
             <span className="font-mono text-xs text-muted-foreground">#{task.number}</span>
             {task.priority !== 'none' ? (
-              <span
-                className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', priorityClass(task.priority))}
+              <Badge
+                variant={
+                  task.priority === 'urgent' || task.priority === 'high'
+                    ? 'destructive'
+                    : task.priority === 'medium'
+                      ? 'warning'
+                      : 'secondary'
+                }
               >
                 {priorityLabel(task.priority)}
-              </span>
+              </Badge>
             ) : null}
             {task.assignee_id ? (
-              <span
-                className="ml-auto h-5 w-5 shrink-0 rounded-full bg-secondary"
-                title="Assigned"
-                aria-label="Assigned"
-              />
+              <Avatar name={task.assignee_id} size="sm" className="ml-auto" />
             ) : null}
           </div>
         </div>

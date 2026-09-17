@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Check } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -7,38 +7,45 @@ import { plans, formatPrice } from '@/lib/marketing/plans';
 
 export function PricingTable() {
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="stagger-children grid gap-6 md:grid-cols-3">
       {plans.map((plan) => (
         <div
           key={plan.key}
           className={cn(
-            'flex flex-col rounded-lg border bg-card p-6',
-            plan.highlighted && 'border-primary shadow-md ring-1 ring-primary',
+            'group relative flex flex-col rounded-xl border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl',
+            plan.highlighted && 'border-primary/50 shadow-lg glow-primary',
           )}
         >
+          {plan.highlighted ? (
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-md">
+              <Sparkles className="h-3 w-3" />
+              Most popular
+            </span>
+          ) : null}
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">{plan.name}</h3>
-            {plan.highlighted ? (
-              <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                Popular
-              </span>
-            ) : null}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
-          <p className="mt-4">
-            <span className="text-3xl font-bold">{formatPrice(plan.priceCents)}</span>
+          <p className="mt-5">
+            <span className="text-4xl font-bold tracking-tight">{formatPrice(plan.priceCents)}</span>
             <span className="text-sm text-muted-foreground">/mo</span>
           </p>
-          <ul className="mt-6 flex-1 space-y-2">
+          <ul className="mt-6 flex-1 space-y-2.5">
             {plan.features.map((f) => (
-              <li key={f} className="flex items-start gap-2 text-sm">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <li key={f} className="flex items-start gap-2.5 text-sm">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                 <span>{f}</span>
               </li>
             ))}
           </ul>
-          <Link href="/register" className="mt-6">
-            <Button className="w-full" variant={plan.highlighted ? 'default' : 'outline'}>
+          <Link href="/register" className="mt-8">
+            <Button
+              className={cn(
+                'w-full',
+                plan.highlighted && 'shadow-md',
+              )}
+              variant={plan.highlighted ? 'default' : 'outline'}
+            >
               Get started
             </Button>
           </Link>

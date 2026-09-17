@@ -2,22 +2,62 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Bell, ChevronsUpDown, Plus, User, LogOut, Check, Shield } from 'lucide-react';
+import {
+  Building2,
+  Bell,
+  ChevronsUpDown,
+  Plus,
+  User,
+  LogOut,
+  Check,
+  Shield,
+  Menu,
+  ChevronRight,
+  Search,
+} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useOrg } from '@/lib/org/context';
 import { listMyOrgs } from '@/lib/api/orgs';
 import { getUnreadCount } from '@/lib/api/notifications';
 import { getMe } from '@/lib/api/user';
+import { Avatar } from '@/components/ui/avatar';
 
-export function Topbar() {
+export function Topbar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void }) {
   const { org, slug, role } = useOrg();
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 backdrop-blur-sm px-4">
+      {/* Mobile hamburger */}
+      {onMobileMenuToggle ? (
+        <button
+          type="button"
+          onClick={onMobileMenuToggle}
+          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary md:hidden"
+          aria-label="Open sidebar"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      ) : null}
+
       <OrgSwitcher currentSlug={slug} currentName={org.name} role={role} />
-      <div className="flex items-center gap-1">
+
+      {/* Breadcrumb */}
+      <Breadcrumb slug={slug} />
+
+      <div className="ml-auto flex items-center gap-1">
+        {/* Global search hint */}
+        <button
+          type="button"
+          className="hidden items-center gap-2 rounded-md border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary sm:flex"
+          aria-label="Search"
+        >
+          <Search className="h-3 w-3" />
+          <span>Search…</span>
+          <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">⌘K</kbd>
+        </button>
         <NotificationBell slug={slug} />
         <AccountMenu />
       </div>
@@ -25,8 +65,33 @@ export function Topbar() {
   );
 }
 
+/** Breadcrumb derived from pathname */
+function Breadcrumb({ slug }: { slug: string }) {
+  const pathname = usePathname();
+  const base = `/app/${slug}`;
+  const relative = pathname.replace(base, '').replace(/^\//, '');
+  if (!relative) return null;
+
+  const parts = relative.split('/').filter(Boolean);
+  // Capitalize first letter
+  const labels = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).replace(/-/g, ' '));
+
+  return (
+    <div className="hidden items-center gap-1 text-sm text-muted-foreground md:flex">
+      {labels.map((label, i) => (
+        <span key={i} className="flex items-center gap-1">
+          <ChevronRight className="h-3 w-3" />
+          <span className={cn(i === labels.length - 1 && 'text-foreground font-medium')}>
+            {label}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Lightweight click-outside dropdown (no external dep). */
-function Menu({
+function DropdownMenu({
   button,
   children,
   align = 'left',
@@ -46,7 +111,7 @@ function Menu({
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
           <div
             className={cn(
-              'absolute top-full z-20 mt-1 min-w-56 rounded-md border bg-background p-1 shadow-md',
+              'absolute top-full z-20 mt-1.5 min-w-56 rounded-lg border bg-popover p-1 shadow-xl animate-scale-in',
               align === 'right' ? 'right-0' : 'left-0',
             )}
           >
@@ -70,50 +135,50 @@ function OrgSwitcher({
   const { data: orgs } = useQuery({ queryKey: ['orgs'], queryFn: listMyOrgs });
 
   return (
-    <Menu
+    <DropdownMenu
       button={() => (
-        <span className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-secondary">
-          <span className="flex h-6 w-6 items-center justify-center rounded bg-secondary">
+        <span className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Building2 className="h-3.5 w-3.5" />
           </span>
-          <span className="font-medium">{currentName}</span>
-          <span className="text-xs text-muted-foreground">{role.toLowerCase()}</span>
+          <span className="hidden font-medium sm:block">{currentName}</span>
+          <span className="hidden text-xs text-muted-foreground sm:block">{role.toLowerCase()}</span>
           <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
         </span>
       )}
     >
       {(close) => (
         <>
-          <p className="px-2 py-1.5 text-xs text-muted-foreground">Organizations</p>
+          <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Organizations</p>
           {orgs?.map((o) => (
             <Link
               key={o.org_id}
               href={`/app/${o.slug}`}
               onClick={close}
-              className="flex items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary"
+              className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
             >
               <span className="truncate">{o.name}</span>
-              {o.slug === currentSlug ? <Check className="h-4 w-4 shrink-0" /> : null}
+              {o.slug === currentSlug ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
             </Link>
           ))}
-          <div className="my-1 border-t" />
+          <div className="my-1 h-px bg-border" />
           <Link
             href="/app/new-organization"
             onClick={close}
-            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
           >
             <Plus className="h-4 w-4" /> New organization
           </Link>
           <Link
             href="/app"
             onClick={close}
-            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-secondary"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary"
           >
             All organizations
           </Link>
         </>
       )}
-    </Menu>
+    </DropdownMenu>
   );
 }
 
@@ -127,12 +192,12 @@ function NotificationBell({ slug }: { slug: string }) {
   return (
     <Link
       href={`/app/${slug}/notifications`}
-      className="relative flex h-9 w-9 items-center justify-center rounded-md hover:bg-secondary"
+      className="relative flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
       aria-label="Notifications"
     >
       <Bell className="h-4 w-4" />
       {unread && unread > 0 ? (
-        <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+        <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground animate-scale-in">
           {unread > 99 ? '99+' : unread}
         </span>
       ) : null}
@@ -145,20 +210,27 @@ function AccountMenu() {
   const isPlatformAdmin = me?.platform_role === 'admin';
 
   return (
-    <Menu
+    <DropdownMenu
       align="right"
       button={() => (
-        <span className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-secondary">
-          <User className="h-4 w-4" />
+        <span className="flex h-9 w-9 items-center justify-center">
+          <Avatar name={me?.name} size="sm" />
         </span>
       )}
     >
       {(close) => (
         <>
+          {me ? (
+            <div className="px-2 py-2 text-sm">
+              <p className="font-medium">{me.name}</p>
+              <p className="text-xs text-muted-foreground">{me.email}</p>
+            </div>
+          ) : null}
+          <div className="my-1 h-px bg-border" />
           <Link
             href="/account/profile"
             onClick={close}
-            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
           >
             <User className="h-4 w-4" /> Account
           </Link>
@@ -166,20 +238,21 @@ function AccountMenu() {
             <Link
               href="/admin"
               onClick={close}
-              className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary"
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
             >
               <Shield className="h-4 w-4" /> Platform admin
             </Link>
           ) : null}
+          <div className="my-1 h-px bg-border" />
           <Link
             href="/logout"
             onClick={close}
-            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive/10"
           >
             <LogOut className="h-4 w-4" /> Sign out
           </Link>
         </>
       )}
-    </Menu>
+    </DropdownMenu>
   );
 }

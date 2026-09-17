@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 
+import { ThemeProvider } from '@/components/ui/theme-provider';
 import { AuthProvider } from '@/lib/auth/context';
 import { ToastProvider } from '@/components/ui/toast';
 import { UpgradeModalProvider } from '@/components/upgrade-modal';
@@ -28,12 +29,14 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ToastProvider>
-          <UpgradeModalProvider>{children}</UpgradeModalProvider>
-        </ToastProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ToastProvider>
+            <UpgradeModalProvider>{children}</UpgradeModalProvider>
+          </ToastProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
