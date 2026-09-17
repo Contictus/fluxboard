@@ -14,6 +14,7 @@ import { PRIORITIES, priorityLabel } from '@/lib/board/priority';
 import type { Priority, Task, UpdateTaskInput } from '@/lib/api/types';
 import { Subtasks } from './subtasks';
 import { Comments } from './comments';
+import { TaskLinks } from './links';
 import { TimeTracker } from './time-tracker';
 import { TaskCustomValues } from './custom-values';
 import { Attachments } from './attachments';
@@ -182,6 +183,7 @@ export function TaskDetail({
         </div>
 
         <Subtasks taskId={taskId} canEdit={canEdit} />
+        <TaskLinks taskId={taskId} canEdit={canEdit} />
         <TaskCustomValues projectId={projectId} taskId={taskId} canEdit={canEdit} />
         <TimeTracker taskId={taskId} canEdit={canEdit} />
         <Attachments taskId={taskId} canEdit={canEdit} />
