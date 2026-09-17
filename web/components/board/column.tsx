@@ -14,6 +14,7 @@ export interface QuickTaskInput {
   title: string;
   priority: Priority;
   assignee_id: string | null;
+  start_date: string | null;
   due_date: string | null;
 }
 
@@ -58,6 +59,7 @@ export function Column({
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<Priority>('none');
   const [assigneeId, setAssigneeId] = useState('');
+  const [startDate, setStartDate] = useState('');
   const [dueDate, setDueDate] = useState('');
 
   const overLimit = column.wip_limit != null && tasks.length >= column.wip_limit;
@@ -71,6 +73,7 @@ export function Column({
     setTitle('');
     setPriority('none');
     setAssigneeId('');
+    setStartDate('');
     setDueDate('');
     setComposing(false);
   }
@@ -82,6 +85,7 @@ export function Column({
       title: t,
       priority,
       assignee_id: assigneeId || null,
+      start_date: startDate ? new Date(startDate).toISOString() : null,
       due_date: dueDate ? new Date(dueDate).toISOString() : null,
     });
     resetComposer();
@@ -172,10 +176,17 @@ export function Column({
               </select>
               <input
                 type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                aria-label="Start date"
+                className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <input
+                type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 aria-label="Due date"
-                className="col-span-2 w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
             <div className="mt-2 flex items-center gap-2">

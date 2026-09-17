@@ -229,7 +229,12 @@ function QuickMenu({
     if (!open) void ensureFull();
   }
 
-  async function patch(p: { priority?: Priority; assignee_id?: string | null }) {
+  async function patch(p: {
+    priority?: Priority;
+    assignee_id?: string | null;
+    start_date?: string | null;
+    due_date?: string | null;
+  }) {
     const base = await ensureFull();
     if (!base) return;
     setBusy(true);
@@ -239,7 +244,8 @@ function QuickMenu({
         description: base.description,
         assignee_id: p.assignee_id !== undefined ? p.assignee_id : (base.assignee_id ?? null),
         priority: (p.priority ?? base.priority) as Priority,
-        due_date: base.due_date ?? null,
+        start_date: p.start_date !== undefined ? p.start_date : (base.start_date ?? null),
+        due_date: p.due_date !== undefined ? p.due_date : (base.due_date ?? null),
       });
       setFull(next);
       onMutated();
@@ -314,6 +320,32 @@ function QuickMenu({
                 </option>
               ))}
             </select>
+            <div className="grid grid-cols-2 gap-1 px-1">
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Start
+                <input
+                  type="date"
+                  disabled={busy}
+                  defaultValue={task.start_date ? task.start_date.slice(0, 10) : ''}
+                  onChange={(e) =>
+                    void patch({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null })
+                  }
+                  className="mt-0.5 w-full rounded-lg border border-input bg-background px-1.5 py-1 text-[11px] font-normal normal-case outline-none"
+                />
+              </label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Due
+                <input
+                  type="date"
+                  disabled={busy}
+                  defaultValue={task.due_date ? task.due_date.slice(0, 10) : ''}
+                  onChange={(e) =>
+                    void patch({ due_date: e.target.value ? new Date(e.target.value).toISOString() : null })
+                  }
+                  className="mt-0.5 w-full rounded-lg border border-input bg-background px-1.5 py-1 text-[11px] font-normal normal-case outline-none"
+                />
+              </label>
+            </div>
             {labels.length > 0 ? (
               <>
                 <span className="block px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

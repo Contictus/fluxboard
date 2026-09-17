@@ -24,8 +24,9 @@ function startOfWeek(d: Date): Date {
   return c;
 }
 
-// Project timeline (Gantt-style): one row per scheduled task, bars from
-// creation to due date, overdue highlighted, unscheduled tasks grouped below.
+// Project timeline (Gantt-style): one row per scheduled task, bars from the
+// planned start (falling back to creation) to the due date, overdue
+// highlighted, unscheduled tasks grouped below.
 export function Timeline({
   tasks,
   taskHref,
@@ -47,9 +48,11 @@ export function Timeline({
     for (const row of tasks) {
       if (!row.task.due_date) continue;
       const due = startOfDay(new Date(row.task.due_date));
+      // Bar starts at the planned start when set, else at creation.
+      const origin = row.task.start_date ?? row.task.created_at;
       const from = Math.max(
         0,
-        Math.floor((startOfDay(new Date(row.task.created_at)).getTime() - windowStart.getTime()) / DAY),
+        Math.floor((startOfDay(new Date(origin)).getTime() - windowStart.getTime()) / DAY),
       );
       const to = Math.floor((due.getTime() - windowStart.getTime()) / DAY);
       if (to < 0) continue; // entirely before the window
