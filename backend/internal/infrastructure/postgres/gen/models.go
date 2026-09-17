@@ -54,6 +54,19 @@ type AuditLog struct {
 	CreatedAt          time.Time   `json:"created_at"`
 }
 
+type AutomationRule struct {
+	ID            uuid.UUID `json:"id"`
+	OrgID         uuid.UUID `json:"org_id"`
+	Name          string    `json:"name"`
+	Enabled       bool      `json:"enabled"`
+	Trigger       string    `json:"trigger"`
+	TriggerConfig []byte    `json:"trigger_config"`
+	Action        string    `json:"action"`
+	ActionConfig  []byte    `json:"action_config"`
+	CreatedBy     uuid.UUID `json:"created_by"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type Board struct {
 	ID        uuid.UUID `json:"id"`
 	OrgID     uuid.UUID `json:"org_id"`
