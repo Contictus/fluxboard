@@ -153,6 +153,15 @@ type SubtaskRepository interface {
 	// Update sets title and done.
 	Update(ctx context.Context, orgID, id, title string, done bool) error
 	Delete(ctx context.Context, orgID, id string) error
+	// CountForProject returns per-task subtask totals and done counts in one
+	// query (board projection enrichment).
+	CountForProject(ctx context.Context, orgID, projectID string) (map[string]SubtaskCount, error)
+}
+
+// SubtaskCount aggregates a task's checklist progress.
+type SubtaskCount struct {
+	Total int
+	Done  int
 }
 
 // LabelRepository persists org-scoped labels and their task attachments
@@ -186,6 +195,9 @@ type CommentRepository interface {
 	Update(ctx context.Context, orgID, id, body string) error
 	// SoftDelete marks a comment deleted (keeps the row as a placeholder).
 	SoftDelete(ctx context.Context, orgID, id string) error
+	// CountForProject returns per-task live comment counts in one query
+	// (board projection enrichment).
+	CountForProject(ctx context.Context, orgID, projectID string) (map[string]int, error)
 }
 
 // ActivityRepository appends and reads the per-task change log (FR-TASK-002).

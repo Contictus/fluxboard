@@ -93,6 +93,27 @@ func (r *SubtaskRepo) ListByTask(ctx context.Context, orgID, taskID string) ([]p
 	return out, err
 }
 
+// CountForProject returns per-task subtask totals and done counts in one query.
+func (r *SubtaskRepo) CountForProject(ctx context.Context, orgID, projectID string) (map[string]project.SubtaskCount, error) {
+	pid, err := parseUUID(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("subtask count for project: %w", err)
+	}
+	out := make(map[string]project.SubtaskCount)
+	err = r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
+		oid, _ := parseUUID(orgID)
+		rows, err := q.CountSubtasksForProject(ctx, gen.CountSubtasksForProjectParams{OrgID: oid, ProjectID: pid})
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			out[row.TaskID.String()] = project.SubtaskCount{Total: int(row.Total), Done: int(row.Done)}
+		}
+		return nil
+	})
+	return out, err
+}
+
 func (r *SubtaskRepo) Update(ctx context.Context, orgID, id, title string, done bool) error {
 	sid, err := parseUUID(id)
 	if err != nil {

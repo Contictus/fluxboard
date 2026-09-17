@@ -31,6 +31,8 @@ type Deps struct {
 	Columns  project.ColumnRepository
 	Tasks    project.TaskRepository
 	Labels   project.LabelRepository // optional; nil ⇒ board cards carry no labels
+	Subtasks project.SubtaskRepository // optional; nil ⇒ board cards carry no subtask progress
+	Comments project.CommentRepository // optional; nil ⇒ board cards carry no comment counts
 	Events   notify.EventBus // realtime publish; nil ⇒ no SSE events
 	Logger   *slog.Logger
 	Now      func() time.Time // injectable for tests; defaults to time.Now
@@ -44,6 +46,8 @@ type Service struct {
 	columns  project.ColumnRepository
 	tasks    project.TaskRepository
 	labels   project.LabelRepository
+	subtasks project.SubtaskRepository
+	comments project.CommentRepository
 	events   notify.EventBus
 	logger   *slog.Logger
 	now      func() time.Time
@@ -61,7 +65,8 @@ func New(d Deps) *Service {
 	}
 	return &Service{
 		projects: d.Projects, members: d.Members, boards: d.Boards,
-		columns: d.Columns, tasks: d.Tasks, labels: d.Labels, events: d.Events, logger: logger, now: now,
+		columns: d.Columns, tasks: d.Tasks, labels: d.Labels, subtasks: d.Subtasks,
+		comments: d.Comments, events: d.Events, logger: logger, now: now,
 	}
 }
 
@@ -98,11 +103,14 @@ type UpdateProjectInput struct {
 }
 
 // ColumnView is a board column together with its ordered tasks. Labels maps
-// task ID to that task's labels (empty when the Labels dep is nil).
+// task ID to that task's labels, Subtasks to checklist progress, and Comments
+// to live comment counts (each empty when its dep is nil).
 type ColumnView struct {
-	Column project.Column
-	Tasks  []project.Task
-	Labels map[string][]project.Label
+	Column   project.Column
+	Tasks    []project.Task
+	Labels   map[string][]project.Label
+	Subtasks map[string]project.SubtaskCount
+	Comments map[string]int
 }
 
 // BoardView is the kanban projection: the default board and its columns+tasks.
@@ -314,8 +322,27 @@ func (s *Service) GetBoard(ctx context.Context, orgID, userID, projectID string,
 			s.logger.Warn("board labels enrichment failed", "err", err, "project", projectID)
 		}
 	}
+	subtasksByTask := make(map[string]project.SubtaskCount)
+	if s.subtasks != nil {
+		if sc, err := s.subtasks.CountForProject(ctx, orgID, projectID); err == nil {
+			subtasksByTask = sc
+		} else {
+			s.logger.Warn("board subtask enrichment failed", "err", err, "project", projectID)
+		}
+	}
+	commentsByTask := make(map[string]int)
+	if s.comments != nil {
+		if cc, err := s.comments.CountForProject(ctx, orgID, projectID); err == nil {
+			commentsByTask = cc
+		} else {
+			s.logger.Warn("board comment enrichment failed", "err", err, "project", projectID)
+		}
+	}
 	for _, c := range cols {
-		view.Columns = append(view.Columns, ColumnView{Column: c, Tasks: tasksByColumn[c.ID], Labels: labelsByTask})
+		view.Columns = append(view.Columns, ColumnView{
+			Column: c, Tasks: tasksByColumn[c.ID],
+			Labels: labelsByTask, Subtasks: subtasksByTask, Comments: commentsByTask,
+		})
 	}
 	return view, nil
 }

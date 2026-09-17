@@ -22,3 +22,10 @@ WHERE org_id = @org_id AND id = @id AND deleted_at IS NULL;
 -- name: SoftDeleteComment :execrows
 UPDATE comments SET deleted_at = now()
 WHERE org_id = @org_id AND id = @id AND deleted_at IS NULL;
+
+-- name: CountCommentsForProject :many
+SELECT c.task_id, COUNT(*) AS total
+FROM comments c
+JOIN tasks t ON t.id = c.task_id
+WHERE c.org_id = @org_id AND t.project_id = @project_id AND c.deleted_at IS NULL
+GROUP BY c.task_id;

@@ -96,6 +96,27 @@ func (r *CommentRepo) ListByTask(ctx context.Context, orgID, taskID string) ([]p
 	return out, err
 }
 
+// CountForProject returns per-task live comment counts in one query.
+func (r *CommentRepo) CountForProject(ctx context.Context, orgID, projectID string) (map[string]int, error) {
+	pid, err := parseUUID(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("comment count for project: %w", err)
+	}
+	out := make(map[string]int)
+	err = r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
+		oid, _ := parseUUID(orgID)
+		rows, err := q.CountCommentsForProject(ctx, gen.CountCommentsForProjectParams{OrgID: oid, ProjectID: pid})
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			out[row.TaskID.String()] = int(row.Total)
+		}
+		return nil
+	})
+	return out, err
+}
+
 func (r *CommentRepo) Update(ctx context.Context, orgID, id, body string) error {
 	cid, err := parseUUID(id)
 	if err != nil {
