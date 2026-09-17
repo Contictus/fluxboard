@@ -215,6 +215,11 @@ func NewRouter(d Deps) http.Handler {
 				p.With(read(tenant.ObjOrg)).Post("/sprints/{sprintId}/complete", d.Projects.CompleteSprint)
 				p.With(read(tenant.ObjOrg)).Delete("/sprints/{sprintId}", d.Projects.DeleteSprint)
 				p.With(read(tenant.ObjOrg)).Post("/sprints/assign", d.Projects.AssignSprint)
+				// Custom fields (docs/08, FR-FIELDS). Fine-grained gates in projectuc.
+				p.With(read(tenant.ObjOrg)).Get("/fields", d.Projects.ListFields)
+				p.With(read(tenant.ObjOrg)).Post("/fields", d.Projects.CreateField)
+				p.With(read(tenant.ObjOrg)).Patch("/fields/{fieldId}", d.Projects.UpdateField)
+				p.With(read(tenant.ObjOrg)).Delete("/fields/{fieldId}", d.Projects.DeleteField)
 			})
 
 				// Org-wide task search + bulk actions (FR-TASK-007/008). Static
@@ -243,10 +248,14 @@ func NewRouter(d Deps) http.Handler {
 					t.With(read(tenant.ObjOrg)).Get("/comments", d.Tasks.ListComments)
 					t.With(read(tenant.ObjOrg)).Post("/comments", d.Tasks.AddComment)
 					t.With(read(tenant.ObjOrg)).Patch("/comments/{commentId}", d.Tasks.EditComment)
-					t.With(read(tenant.ObjOrg)).Delete("/comments/{commentId}", d.Tasks.DeleteComment)
+				t.With(read(tenant.ObjOrg)).Delete("/comments/{commentId}", d.Tasks.DeleteComment)
 				t.With(read(tenant.ObjOrg)).Get("/labels", d.Tasks.ListTaskLabels)
 				t.With(read(tenant.ObjOrg)).Post("/labels", d.Tasks.AttachLabel)
 				t.With(read(tenant.ObjOrg)).Delete("/labels/{labelId}", d.Tasks.DetachLabel)
+				// Task custom values (docs/08, FR-FIELDS).
+				t.With(read(tenant.ObjOrg)).Get("/fields", d.Projects.TaskFieldValues)
+				t.With(read(tenant.ObjOrg)).Put("/fields/{fieldId}", d.Projects.SetFieldValue)
+				t.With(read(tenant.ObjOrg)).Delete("/fields/{fieldId}", d.Projects.ClearFieldValue)
 				// Time tracking (docs/08, FR-TIME). Fine-grained gates in taskuc.
 				t.With(read(tenant.ObjOrg)).Get("/time", d.Tasks.ListTimeEntries)
 				t.With(read(tenant.ObjOrg)).Post("/time/start", d.Tasks.StartTimer)

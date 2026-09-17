@@ -63,6 +63,8 @@ type Querier interface {
 	CreateColumn(ctx context.Context, arg CreateColumnParams) error
 	// Comments ([T], tenant-scoped, FR-TASK-005) --------------------------------
 	CreateComment(ctx context.Context, arg CreateCommentParams) error
+	// Custom fields ([T], tenant-scoped, FR-FIELDS) ----------------------------
+	CreateCustomField(ctx context.Context, arg CreateCustomFieldParams) error
 	// Invitations ([T], tenant-scoped) ------------------------------------------
 	CreateInvitation(ctx context.Context, arg CreateInvitationParams) error
 	// Labels + task attachments ([T], tenant-scoped, FR-TASK-004) ---------------
@@ -93,12 +95,14 @@ type Querier interface {
 	DeleteAttachment(ctx context.Context, arg DeleteAttachmentParams) (int64, error)
 	DeleteAutomationRule(ctx context.Context, arg DeleteAutomationRuleParams) (int64, error)
 	DeleteColumn(ctx context.Context, arg DeleteColumnParams) (int64, error)
+	DeleteCustomField(ctx context.Context, arg DeleteCustomFieldParams) (int64, error)
 	// The FK cascade on task_labels detaches this label from every task.
 	DeleteLabel(ctx context.Context, arg DeleteLabelParams) (int64, error)
 	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error)
 	DeleteOverride(ctx context.Context, arg DeleteOverrideParams) (int64, error)
 	DeleteSprint(ctx context.Context, arg DeleteSprintParams) (int64, error)
 	DeleteSubtask(ctx context.Context, arg DeleteSubtaskParams) (int64, error)
+	DeleteTaskCustomValue(ctx context.Context, arg DeleteTaskCustomValueParams) (int64, error)
 	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
 	// Hard-deletes the account (docs/08 §3 DELETE /me). Memberships/sessions cascade
 	// via ON DELETE CASCADE. Callers MUST enforce the sole-owner guard first.
@@ -115,6 +119,7 @@ type Querier interface {
 	GetBoardByProject(ctx context.Context, arg GetBoardByProjectParams) (Board, error)
 	GetColumn(ctx context.Context, arg GetColumnParams) (BoardColumn, error)
 	GetComment(ctx context.Context, arg GetCommentParams) (Comment, error)
+	GetCustomField(ctx context.Context, arg GetCustomFieldParams) (CustomField, error)
 	GetInvitation(ctx context.Context, arg GetInvitationParams) (Invitation, error)
 	GetInvitationByEmail(ctx context.Context, arg GetInvitationByEmailParams) (Invitation, error)
 	GetLabel(ctx context.Context, arg GetLabelParams) (Label, error)
@@ -178,6 +183,7 @@ type Querier interface {
 	ListAutomationRules(ctx context.Context, orgID uuid.UUID) ([]AutomationRule, error)
 	ListColumnsByBoard(ctx context.Context, arg ListColumnsByBoardParams) ([]BoardColumn, error)
 	ListCommentsByTask(ctx context.Context, arg ListCommentsByTaskParams) ([]Comment, error)
+	ListCustomFieldsByProject(ctx context.Context, arg ListCustomFieldsByProjectParams) ([]CustomField, error)
 	ListEnabledAutomationRules(ctx context.Context, arg ListEnabledAutomationRulesParams) ([]AutomationRule, error)
 	// Feature flags — Phase 6 (FR-ADM-006). feature_flags is [T] (RLS via TenantPool).
 	ListFeatureFlags(ctx context.Context, orgID uuid.UUID) ([]FeatureFlag, error)
@@ -228,6 +234,7 @@ type Querier interface {
 	ListSoleOwnerOrgs(ctx context.Context, userID uuid.UUID) ([]ListSoleOwnerOrgsRow, error)
 	ListSprintsByProject(ctx context.Context, arg ListSprintsByProjectParams) ([]Sprint, error)
 	ListSubtasksByTask(ctx context.Context, arg ListSubtasksByTaskParams) ([]Subtask, error)
+	ListTaskCustomValues(ctx context.Context, arg ListTaskCustomValuesParams) ([]ListTaskCustomValuesRow, error)
 	ListTasksByColumn(ctx context.Context, arg ListTasksByColumnParams) ([]ListTasksByColumnRow, error)
 	ListTasksByProject(ctx context.Context, arg ListTasksByProjectParams) ([]ListTasksByProjectRow, error)
 	// Platform admin cross-tenant reads — Phase 6 (FR-ADM-002/004). These span ALL
@@ -298,6 +305,7 @@ type Querier interface {
 	UpdateAutomationRule(ctx context.Context, arg UpdateAutomationRuleParams) (int64, error)
 	UpdateColumn(ctx context.Context, arg UpdateColumnParams) (int64, error)
 	UpdateComment(ctx context.Context, arg UpdateCommentParams) (int64, error)
+	UpdateCustomField(ctx context.Context, arg UpdateCustomFieldParams) (int64, error)
 	UpdateInvitationToken(ctx context.Context, arg UpdateInvitationTokenParams) (int64, error)
 	UpdateLabel(ctx context.Context, arg UpdateLabelParams) (int64, error)
 	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
@@ -320,6 +328,7 @@ type Querier interface {
 	// persistCustomer passes the row's existing value; the webhook passes the event
 	// time (after its staleness guard), so EXCLUDED never regresses it.
 	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) error
+	UpsertTaskCustomValue(ctx context.Context, arg UpsertTaskCustomValueParams) error
 	// Usage metering — Phase 4 (docs/06-BILLING.md §5, FR-BILL-007) ----------------
 	// usage_records [T]: hourly idempotent UPSERT of the per-(org, metric, day)
 	// aggregate; daily job pushes Business-plan aggregates to Stripe with action=set.

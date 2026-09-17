@@ -233,6 +233,24 @@ type SprintRepository interface {
 	ClearSprint(ctx context.Context, orgID, projectID, sprintID string) error
 }
 
+// CustomFieldRepository persists project custom fields and task values
+// (FR-FIELDS).
+type CustomFieldRepository interface {
+	Create(ctx context.Context, orgID string, f *CustomField) error
+	Get(ctx context.Context, orgID, id string) (*CustomField, error)
+	// ListByProject returns fields in position order.
+	ListByProject(ctx context.Context, orgID, projectID string) ([]CustomField, error)
+	Update(ctx context.Context, orgID string, f *CustomField) error
+	// Delete removes a field; values cascade.
+	Delete(ctx context.Context, orgID, id string) error
+	// SetValue upserts a task's value. ErrNotFound if task or field absent.
+	SetValue(ctx context.Context, orgID, taskID, fieldID string, v CustomValue) error
+	// ValuesByTask returns a task's values in field order.
+	ValuesByTask(ctx context.Context, orgID, taskID string) ([]CustomValue, error)
+	// ClearValue removes one task value. ErrNotFound if absent.
+	ClearValue(ctx context.Context, orgID, taskID, fieldID string) error
+}
+
 // ActivityRepository appends and reads the per-task change log (FR-TASK-002).
 type ActivityRepository interface {
 	Append(ctx context.Context, orgID string, a *Activity) error

@@ -15,6 +15,7 @@ import type { Priority, Task, UpdateTaskInput } from '@/lib/api/types';
 import { Subtasks } from './subtasks';
 import { Comments } from './comments';
 import { TimeTracker } from './time-tracker';
+import { TaskCustomValues } from './custom-values';
 import { Attachments } from './attachments';
 import { ActivityTimeline } from './activity-timeline';
 
@@ -181,6 +182,7 @@ export function TaskDetail({
         </div>
 
         <Subtasks taskId={taskId} canEdit={canEdit} />
+        <TaskCustomValues projectId={projectId} taskId={taskId} canEdit={canEdit} />
         <TimeTracker taskId={taskId} canEdit={canEdit} />
         <Attachments taskId={taskId} canEdit={canEdit} />
         <Comments taskId={taskId} canComment={canEdit} />

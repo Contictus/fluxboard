@@ -252,6 +252,7 @@ func run(logger *slog.Logger) error {
 	attachmentRepo := postgres.NewAttachmentRepo(tenantPool)
 	automationRepo := postgres.NewAutomationRepo(tenantPool)
 	sprintRepo := postgres.NewSprintRepo(tenantPool)
+	fieldRepo := postgres.NewCustomFieldRepo(tenantPool)
 	timeEntryRepo := postgres.NewTimeEntryRepo(tenantPool)
 	objectStore := loadObjectStore(ctx, cfg, logger) // FR-TASK-006; nil disables attachments
 
@@ -362,7 +363,7 @@ func run(logger *slog.Logger) error {
 	automationHandlers := handlers.NewAutomationHandlers(automationSvc, logger)
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
-		Columns: columnRepo, Tasks: taskRepo, Sprints: sprintRepo, Labels: labelRepo,
+		Columns: columnRepo, Tasks: taskRepo, Sprints: sprintRepo, Fields: fieldRepo, Labels: labelRepo,
 		Subtasks: subtaskRepo, Comments: commentRepo,
 		Automation: automationSvc,
 		Events: eventBus, Logger: logger,
