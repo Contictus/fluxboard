@@ -72,6 +72,14 @@ export function transferOwnership(orgId: string, userId: string): Promise<void> 
   return apiFetch(`/orgs/${orgId}/transfer-ownership`, { method: 'POST', body: { user_id: userId } });
 }
 
+/** Presigned PUT for the org logo (ADMIN+). Confirm via updateOrg logo_key. */
+export function logoUploadURL(
+  orgId: string,
+  input: { content_type: string; size: number },
+): Promise<{ key: string; url: string }> {
+  return apiFetch(`/orgs/${orgId}/logo/upload-url`, { method: 'POST', body: input });
+}
+
 // ---- Members (write) -------------------------------------------------------
 
 /** Change a member's role (204, ADMIN+). OWNER is set via transferOwnership, not here. */

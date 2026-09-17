@@ -66,6 +66,7 @@ type Deps struct {
 	Idem     IdempotencyStore
 	Events   notify.EventBus // realtime member.* events; nil ⇒ no publish
 	Notifier Notifier        // invite-accepted fan-out; nil ⇒ no fan-out
+	Logos    LogoStore       // org-logo presigned URLs; nil ⇒ logo surface disabled
 	Logger   *slog.Logger
 	Now      func() time.Time // injectable for tests; defaults to time.Now
 }
@@ -82,6 +83,7 @@ type Service struct {
 	idem     IdempotencyStore
 	events   notify.EventBus
 	notifier Notifier
+	logos    LogoStore
 	logger   *slog.Logger
 	now      func() time.Time
 }
@@ -103,7 +105,7 @@ func New(d Deps) *Service {
 	return &Service{
 		orgs: d.Orgs, members: d.Members, invites: d.Invites, users: d.Users,
 		cache: d.Cache, mailer: d.mailerOrNoop(), auditor: auditor, idem: d.Idem,
-		events: d.Events, notifier: d.Notifier, logger: logger, now: now,
+		events: d.Events, notifier: d.Notifier, logos: d.Logos, logger: logger, now: now,
 	}
 }
 
@@ -179,7 +181,8 @@ func (s *Service) ListMyOrgs(ctx context.Context, userID string) ([]tenant.OrgMe
 }
 
 // GetOrg returns an active org. Soft-deleted orgs are invisible here (see
-// RestoreOrg for the grace-window path).
+// RestoreOrg for the grace-window path). A stored logo key is resolved to a
+// short-lived read URL (best-effort — never fails the read).
 func (s *Service) GetOrg(ctx context.Context, orgID string) (*tenant.Organization, error) {
 	org, err := s.orgs.GetByID(ctx, orgID)
 	if err != nil {
@@ -188,6 +191,7 @@ func (s *Service) GetOrg(ctx context.Context, orgID string) (*tenant.Organizatio
 	if org.Deleted() {
 		return nil, domain.ErrNotFound
 	}
+	org.LogoURL = s.logoURL(ctx, org.LogoKey)
 	return org, nil
 }
 
@@ -208,6 +212,7 @@ func (s *Service) ResolveSlug(ctx context.Context, slug string) (SlugResolution,
 		return SlugResolution{}, fmt.Errorf("%w: slug required", domain.ErrValidation)
 	}
 	if org, err := s.orgs.GetBySlug(ctx, slug); err == nil {
+		org.LogoURL = s.logoURL(ctx, org.LogoKey)
 		return SlugResolution{Org: org}, nil
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return SlugResolution{}, err
@@ -223,19 +228,31 @@ func (s *Service) ResolveSlug(ctx context.Context, slug string) (SlugResolution,
 	if org.Deleted() {
 		return SlugResolution{}, domain.ErrNotFound
 	}
+	org.LogoURL = s.logoURL(ctx, org.LogoKey)
 	return SlugResolution{Org: org, Redirected: true}, nil
 }
 
-// UpdateProfile sets the org name and (optionally) logo key (ADMIN+ gate).
+// UpdateProfile sets the org name and (optionally) logo key (ADMIN+ gate). A
+// logo key must live under the org's namespace (see checkLogoKey).
 func (s *Service) UpdateProfile(ctx context.Context, orgID, name string, logoKey *string) (*tenant.Organization, error) {
 	name = strings.TrimSpace(name)
 	if err := validateName(name); err != nil {
 		return nil, err
 	}
+	if logoKey != nil {
+		if err := checkLogoKey(orgID, *logoKey); err != nil {
+			return nil, err
+		}
+	}
 	if err := s.orgs.UpdateProfile(ctx, orgID, name, logoKey); err != nil {
 		return nil, err
 	}
-	return s.orgs.GetByID(ctx, orgID)
+	org, err := s.orgs.GetByID(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	org.LogoURL = s.logoURL(ctx, org.LogoKey)
+	return org, nil
 }
 
 // ChangeSlug renames the org slug and records the old slug for the 301 window

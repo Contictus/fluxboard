@@ -41,6 +41,7 @@ type orgResp struct {
 	Slug      string     `json:"slug"`
 	Name      string     `json:"name"`
 	LogoKey   string     `json:"logo_key,omitempty"`
+	LogoURL   string     `json:"logo_url,omitempty"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -48,7 +49,7 @@ type orgResp struct {
 
 func toOrgResp(o *tenant.Organization) orgResp {
 	return orgResp{
-		ID: o.ID, Slug: o.Slug, Name: o.Name, LogoKey: o.LogoKey,
+		ID: o.ID, Slug: o.Slug, Name: o.Name, LogoKey: o.LogoKey, LogoURL: o.LogoURL,
 		DeletedAt: o.DeletedAt, CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 }
@@ -230,6 +231,33 @@ func (h *OrgHandlers) UpdateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusOK, toOrgResp(org))
+}
+
+type logoUploadReq struct {
+	ContentType string `json:"content_type"`
+	Size        int64  `json:"size"`
+}
+
+type logoUploadResp struct {
+	Key string `json:"key"`
+	URL string `json:"url"`
+}
+
+// LogoUploadURL issues a presigned PUT for the org logo (ADMIN+, via route
+// gate). The client uploads directly to MinIO, then records the key via
+// PATCH /orgs/{id} {logo_key} (namespace-checked in the usecase).
+func (h *OrgHandlers) LogoUploadURL(w http.ResponseWriter, r *http.Request) {
+	tc, _ := mw.TenantFrom(r.Context())
+	var req logoUploadReq
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	key, url, err := h.svc.RequestLogoUpload(r.Context(), tc.OrgID, req.ContentType, req.Size)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, logoUploadResp{Key: key, URL: url})
 }
 
 // DeleteOrg soft-deletes the org (OWNER).

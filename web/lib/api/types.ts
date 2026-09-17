@@ -77,6 +77,7 @@ export interface Org {
   slug: string;
   name: string;
   logo_key?: string;
+  logo_url?: string;
   /** Set while the org is soft-deleted and in its restore grace window. */
   deleted_at?: string;
   created_at: string;
