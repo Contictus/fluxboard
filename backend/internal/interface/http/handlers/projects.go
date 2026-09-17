@@ -72,6 +72,7 @@ type taskCardResp struct {
 	Title        string      `json:"title"`
 	Priority     string      `json:"priority"`
 	Assignee     *string     `json:"assignee_id,omitempty"`
+	StartDate    *time.Time  `json:"start_date,omitempty"`
 	DueDate      *time.Time  `json:"due_date,omitempty"`
 	Labels       []labelResp `json:"labels"`
 	CommentCount int         `json:"comment_count"`
@@ -295,7 +296,7 @@ func (h *ProjectHandlers) GetBoard(w http.ResponseWriter, r *http.Request) {
 			t := cv.Tasks[i]
 			card := taskCardResp{
 				ID: t.ID, Number: t.Number, Title: t.Title,
-				Priority: string(t.Priority), Assignee: t.AssigneeID, DueDate: t.DueDate, Rank: t.Rank,
+				Priority: string(t.Priority), Assignee: t.AssigneeID, StartDate: t.StartDate, DueDate: t.DueDate, Rank: t.Rank,
 				Labels: []labelResp{},
 				CommentCount: cv.Comments[t.ID],
 				SubtaskTotal: cv.Subtasks[t.ID].Total, SubtaskDone: cv.Subtasks[t.ID].Done,

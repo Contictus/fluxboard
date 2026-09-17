@@ -198,6 +198,7 @@ type Task struct {
 	Description string
 	AssigneeID  *string
 	Priority    Priority
+	StartDate   *time.Time
 	DueDate     *time.Time
 	SprintID    *string
 	Rank        string

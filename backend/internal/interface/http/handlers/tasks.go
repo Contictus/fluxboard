@@ -43,6 +43,7 @@ type taskResp struct {
 	Description string     `json:"description"`
 	AssigneeID  *string    `json:"assignee_id,omitempty"`
 	Priority    string     `json:"priority"`
+	StartDate   *time.Time `json:"start_date,omitempty"`
 	DueDate     *time.Time `json:"due_date,omitempty"`
 	Rank        string     `json:"rank"`
 	CreatedBy   string     `json:"created_by"`
@@ -54,7 +55,7 @@ func toTaskResp(t *project.Task) taskResp {
 	return taskResp{
 		ID: t.ID, ProjectID: t.ProjectID, ColumnID: t.ColumnID, Number: t.Number,
 		Title: t.Title, Description: t.Description, AssigneeID: t.AssigneeID,
-		Priority: string(t.Priority), DueDate: t.DueDate, Rank: t.Rank,
+		Priority: string(t.Priority), StartDate: t.StartDate, DueDate: t.DueDate, Rank: t.Rank,
 		CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }
@@ -114,6 +115,7 @@ type createTaskReq struct {
 	Description string     `json:"description"`
 	AssigneeID  *string    `json:"assignee_id"`
 	Priority    string     `json:"priority"`
+	StartDate   *time.Time `json:"start_date"`
 	DueDate     *time.Time `json:"due_date"`
 }
 
@@ -131,7 +133,7 @@ func (h *TaskHandlers) CreateTask(w http.ResponseWriter, r *http.Request) {
 	t, err := h.svc.CreateTask(r.Context(), tc.OrgID, tc.UserID, taskuc.CreateTaskInput{
 		ProjectID: chi.URLParam(r, "projectId"), ColumnID: req.ColumnID, Title: req.Title,
 		Description: req.Description, AssigneeID: req.AssigneeID,
-		Priority: project.Priority(req.Priority), DueDate: req.DueDate,
+		Priority: project.Priority(req.Priority), StartDate: req.StartDate, DueDate: req.DueDate,
 	}, tc.Role)
 	if err != nil {
 		response.Error(w, err)
@@ -184,6 +186,7 @@ type updateTaskReq struct {
 	Description string     `json:"description"`
 	AssigneeID  *string    `json:"assignee_id"`
 	Priority    string     `json:"priority"`
+	StartDate   *time.Time `json:"start_date"`
 	DueDate     *time.Time `json:"due_date"`
 }
 
@@ -200,7 +203,7 @@ func (h *TaskHandlers) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := h.svc.UpdateTask(r.Context(), tc.OrgID, tc.UserID, chi.URLParam(r, "taskId"), taskuc.UpdateTaskInput{
 		Title: req.Title, Description: req.Description, AssigneeID: req.AssigneeID,
-		Priority: project.Priority(req.Priority), DueDate: req.DueDate,
+		Priority: project.Priority(req.Priority), StartDate: req.StartDate, DueDate: req.DueDate,
 	}, tc.Role)
 	if err != nil {
 		response.Error(w, err)

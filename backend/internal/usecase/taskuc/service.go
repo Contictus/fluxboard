@@ -186,7 +186,17 @@ type CreateTaskInput struct {
 	Description string
 	AssigneeID  *string
 	Priority    project.Priority
+	StartDate   *time.Time
 	DueDate     *time.Time
+}
+
+// checkDateRange rejects a start that falls after the due date (both optional,
+// either may be nil — only the pair is constrained).
+func checkDateRange(start, due *time.Time) error {
+	if start != nil && due != nil && start.After(*due) {
+		return domain.ErrValidation
+	}
+	return nil
 }
 
 // CreateTask creates a task at the end of its column (CONTRIBUTOR+, FR-TASK-001).
@@ -200,6 +210,9 @@ func (s *Service) CreateTask(ctx context.Context, orgID, userID string, in Creat
 	}
 	if !in.Priority.Valid() {
 		return nil, domain.ErrValidation
+	}
+	if err := checkDateRange(in.StartDate, in.DueDate); err != nil {
+		return nil, err
 	}
 	if _, err := s.access(ctx, orgID, in.ProjectID, userID, orgRole, project.RoleContributor); err != nil {
 		return nil, err
@@ -218,7 +231,7 @@ func (s *Service) CreateTask(ctx context.Context, orgID, userID string, in Creat
 	t := &project.Task{
 		ID: newID(), OrgID: orgID, ProjectID: in.ProjectID, ColumnID: in.ColumnID,
 		Title: in.Title, Description: in.Description, AssigneeID: in.AssigneeID,
-		Priority: in.Priority, DueDate: in.DueDate, Rank: rank.Append(last), CreatedBy: userID,
+		Priority: in.Priority, StartDate: in.StartDate, DueDate: in.DueDate, Rank: rank.Append(last), CreatedBy: userID,
 	}
 	if err := s.tasks.Create(ctx, orgID, t); err != nil {
 		return nil, err
@@ -259,6 +272,7 @@ type UpdateTaskInput struct {
 	Description string
 	AssigneeID  *string
 	Priority    project.Priority
+	StartDate   *time.Time
 	DueDate     *time.Time
 }
 
@@ -274,6 +288,9 @@ func (s *Service) UpdateTask(ctx context.Context, orgID, userID, taskID string, 
 	if !in.Priority.Valid() {
 		return nil, domain.ErrValidation
 	}
+	if err := checkDateRange(in.StartDate, in.DueDate); err != nil {
+		return nil, err
+	}
 	t, _, err := s.taskAccess(ctx, orgID, taskID, userID, orgRole, project.RoleContributor)
 	if err != nil {
 		return nil, err
@@ -284,6 +301,7 @@ func (s *Service) UpdateTask(ctx context.Context, orgID, userID, taskID string, 
 	t.Description = in.Description
 	t.AssigneeID = in.AssigneeID
 	t.Priority = in.Priority
+	t.StartDate = in.StartDate
 	t.DueDate = in.DueDate
 	if err := s.tasks.Update(ctx, orgID, t); err != nil {
 		return nil, err
@@ -348,6 +366,9 @@ func diffTask(t *project.Task, in UpdateTaskInput) []fieldChange {
 	}
 	if t.Priority != in.Priority {
 		out = append(out, fieldChange{"priority", strPtr(string(t.Priority)), strPtr(string(in.Priority))})
+	}
+	if !eqTimePtr(t.StartDate, in.StartDate) {
+		out = append(out, fieldChange{"start_date", timePtr(t.StartDate), timePtr(in.StartDate)})
 	}
 	if !eqTimePtr(t.DueDate, in.DueDate) {
 		out = append(out, fieldChange{"due_date", timePtr(t.DueDate), timePtr(in.DueDate)})
