@@ -205,10 +205,17 @@ func NewRouter(d Deps) http.Handler {
 					p.With(read(tenant.ObjOrg)).Patch("/columns/{columnId}", d.Projects.RenameColumn)
 					p.With(read(tenant.ObjOrg)).Patch("/columns/{columnId}/position", d.Projects.ReorderColumn)
 					p.With(read(tenant.ObjOrg)).Delete("/columns/{columnId}", d.Projects.DeleteColumn)
-					p.With(read(tenant.ObjOrg)).Post("/tasks", d.Tasks.CreateTask)
-					p.With(read(tenant.ObjOrg)).Get("/tasks", d.Tasks.ListTasks)
-					p.With(read(tenant.ObjOrg)).Get("/trash", d.Tasks.ListTrash) // FR-TASK-009
-				})
+				p.With(read(tenant.ObjOrg)).Post("/tasks", d.Tasks.CreateTask)
+				p.With(read(tenant.ObjOrg)).Get("/tasks", d.Tasks.ListTasks)
+				p.With(read(tenant.ObjOrg)).Get("/trash", d.Tasks.ListTrash) // FR-TASK-009
+				// Sprints (docs/08, FR-SPRINT). Fine-grained gates in projectuc.
+				p.With(read(tenant.ObjOrg)).Get("/sprints", d.Projects.ListSprints)
+				p.With(read(tenant.ObjOrg)).Post("/sprints", d.Projects.CreateSprint)
+				p.With(read(tenant.ObjOrg)).Post("/sprints/{sprintId}/start", d.Projects.StartSprint)
+				p.With(read(tenant.ObjOrg)).Post("/sprints/{sprintId}/complete", d.Projects.CompleteSprint)
+				p.With(read(tenant.ObjOrg)).Delete("/sprints/{sprintId}", d.Projects.DeleteSprint)
+				p.With(read(tenant.ObjOrg)).Post("/sprints/assign", d.Projects.AssignSprint)
+			})
 
 				// Org-wide task search + bulk actions (FR-TASK-007/008). Static
 				// segments; chi matches them ahead of the {taskId} subrouter.
