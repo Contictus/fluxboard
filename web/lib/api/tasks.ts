@@ -132,6 +132,66 @@ export function deleteComment(orgId: string, taskId: string, commentId: string):
   return apiFetch(`/orgs/${orgId}/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE' });
 }
 
+// ---- Time tracking (FR-TIME) --------------------------------------------------
+
+/** One timer run or manual entry. */
+export interface TimeEntry {
+  id: string;
+  task_id: string;
+  user_id: string;
+  started_at: string;
+  ended_at?: string | null;
+  note: string;
+  seconds: number;
+  created_at: string;
+}
+
+export async function listTimeEntries(orgId: string, taskId: string): Promise<TimeEntry[]> {
+  const res = await apiFetch<{ entries: TimeEntry[] }>(`/orgs/${orgId}/tasks/${taskId}/time`);
+  return res.entries ?? [];
+}
+
+/** Start a timer (stops the caller's other running timers). */
+export function startTimer(orgId: string, taskId: string): Promise<TimeEntry> {
+  return apiFetch(`/orgs/${orgId}/tasks/${taskId}/time/start`, { method: 'POST' });
+}
+
+/** Stop a running entry (owner only). */
+export function stopTimer(orgId: string, taskId: string, entryId: string): Promise<TimeEntry> {
+  return apiFetch(`/orgs/${orgId}/tasks/${taskId}/time/${entryId}/stop`, { method: 'POST' });
+}
+
+/** Log a finished manual entry. */
+export function logTime(
+  orgId: string,
+  taskId: string,
+  input: { started_at: string; ended_at: string; note?: string },
+): Promise<TimeEntry> {
+  return apiFetch(`/orgs/${orgId}/tasks/${taskId}/time`, { method: 'POST', body: input });
+}
+
+/** Delete an entry (owner only, 204). */
+export function deleteTimeEntry(orgId: string, taskId: string, entryId: string): Promise<void> {
+  return apiFetch(`/orgs/${orgId}/tasks/${taskId}/time/${entryId}`, { method: 'DELETE' });
+}
+
+/** Sum seconds across entries (running timers counted to now). */
+export function totalSeconds(entries: TimeEntry[]): number {
+  const now = Date.now();
+  return entries.reduce((sum, e) => {
+    if (e.ended_at) return sum + e.seconds;
+    return sum + Math.max(0, Math.floor((now - new Date(e.started_at).getTime()) / 1000));
+  }, 0);
+}
+
+/** Format 3661 -> "1h 01m". */
+export function formatDuration(totalSecs: number): string {
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  if (h === 0) return `${m}m`;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
 // ---- Task labels (FR-TASK-004) --------------------------------------------
 
 export async function listTaskLabels(orgId: string, taskId: string): Promise<Label[]> {

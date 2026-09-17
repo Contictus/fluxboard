@@ -14,6 +14,7 @@ import { PRIORITIES, priorityLabel } from '@/lib/board/priority';
 import type { Priority, Task, UpdateTaskInput } from '@/lib/api/types';
 import { Subtasks } from './subtasks';
 import { Comments } from './comments';
+import { TimeTracker } from './time-tracker';
 import { Attachments } from './attachments';
 import { ActivityTimeline } from './activity-timeline';
 
@@ -180,6 +181,7 @@ export function TaskDetail({
         </div>
 
         <Subtasks taskId={taskId} canEdit={canEdit} />
+        <TimeTracker taskId={taskId} canEdit={canEdit} />
         <Attachments taskId={taskId} canEdit={canEdit} />
         <Comments taskId={taskId} canComment={canEdit} />
         <ActivityTimeline taskId={taskId} />
