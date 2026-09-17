@@ -271,6 +271,20 @@ type Project struct {
 	UpdatedAt   time.Time          `json:"updated_at"`
 }
 
+type ProjectForm struct {
+	ID             uuid.UUID `json:"id"`
+	OrgID          uuid.UUID `json:"org_id"`
+	ProjectID      uuid.UUID `json:"project_id"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	TargetColumnID uuid.UUID `json:"target_column_id"`
+	TokenHash      []byte    `json:"token_hash"`
+	CreatedBy      uuid.UUID `json:"created_by"`
+	IsActive       bool      `json:"is_active"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 type ProjectMember struct {
 	ProjectID uuid.UUID `json:"project_id"`
 	OrgID     uuid.UUID `json:"org_id"`

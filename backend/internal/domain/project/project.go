@@ -280,6 +280,28 @@ type Sprint struct {
 	CreatedAt      time.Time
 }
 
+// ProjectForm is a shareable intake form for a project (ADR-023). Anyone with
+// the unguessable token URL can file a task into TargetColumnID; only the
+// token SHA-256 (TokenHash) is stored, so the raw token is shown once at
+// create/rotate. TargetColumnID carries no DB FK (see 0027); the submit path
+// validates column-in-project instead.
+type ProjectForm struct {
+	ID             string
+	OrgID          string
+	ProjectID      string
+	Name           string
+	Description    string
+	TargetColumnID string
+	TokenHash      []byte
+	CreatedBy      string
+	IsActive       bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// MaxFormNameLen bounds the intake form title.
+const MaxFormNameLen = 120
+
 // Seconds returns the entry length against now for running timers.
 func (e *TimeEntry) Seconds(now time.Time) int64 {
 	end := now

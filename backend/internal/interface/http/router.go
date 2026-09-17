@@ -24,6 +24,7 @@ type Deps struct {
 	Orgs          *handlers.OrgHandlers
 	Projects      *handlers.ProjectHandlers
 	Tasks         *handlers.TaskHandlers
+	PublicForms   *handlers.PublicFormHandlers // nil ⇒ public intake forms disabled
 	Automations   *handlers.AutomationHandlers // nil ⇒ automations disabled
 	Billing       *handlers.BillingHandlers
 	Webhooks      *handlers.WebhookHandlers
@@ -81,6 +82,20 @@ func NewRouter(d Deps) http.Handler {
 		// and Swagger UI can fetch it without a token.
 		if d.OpenAPI != nil {
 			api.Get("/openapi.json", d.OpenAPI.Spec)
+		}
+
+		// Public intake forms (ADR-023). No session: the token in the path is
+		// the only credential, resolved server-side to (org, project). Submit
+		// is per-IP throttled like the other abuse-prone public endpoints.
+		if d.PublicForms != nil {
+			throttle := func(tag string) func(http.Handler) http.Handler {
+				if d.AuthThrottle == nil {
+					return func(next http.Handler) http.Handler { return next }
+				}
+				return d.AuthThrottle.PerIP(tag)
+			}
+			api.Get("/forms/{token}", d.PublicForms.GetPublicForm)
+			api.With(throttle("form_submit")).Post("/forms/{token}/submit", d.PublicForms.SubmitPublicForm)
 		}
 
 		// Auth surface (docs/04-AUTH.md §5) — no org context.
@@ -220,6 +235,12 @@ func NewRouter(d Deps) http.Handler {
 				p.With(read(tenant.ObjOrg)).Post("/fields", d.Projects.CreateField)
 				p.With(read(tenant.ObjOrg)).Patch("/fields/{fieldId}", d.Projects.UpdateField)
 				p.With(read(tenant.ObjOrg)).Delete("/fields/{fieldId}", d.Projects.DeleteField)
+				// Intake forms (ADR-023). Reads VIEWER, writes LEAD in projectuc.
+				p.With(read(tenant.ObjOrg)).Get("/forms", d.Projects.ListForms)
+				p.With(read(tenant.ObjOrg)).Post("/forms", d.Projects.CreateForm)
+				p.With(read(tenant.ObjOrg)).Patch("/forms/{formId}", d.Projects.UpdateForm)
+				p.With(read(tenant.ObjOrg)).Post("/forms/{formId}/rotate", d.Projects.RotateFormToken)
+				p.With(read(tenant.ObjOrg)).Delete("/forms/{formId}", d.Projects.DeleteForm)
 			})
 
 				// Org-wide task search + bulk actions (FR-TASK-007/008). Static
