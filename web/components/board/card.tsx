@@ -40,10 +40,10 @@ export function Card({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'rounded-sm border border-border/80 bg-card p-3 text-sm transition-colors duration-150',
-        isDragging && 'opacity-50 shadow-lg',
-        selected && 'ring-2 ring-primary',
-        !isDragging && !selectMode && 'hover:border-primary/50',
+        'rounded-2xl bg-card p-4 text-sm shadow-[0_5px_20px_hsl(var(--foreground)/0.04)] transition-all duration-150',
+        isDragging && 'opacity-50 shadow-xl',
+        selected && 'ring-2 ring-primary/60',
+        !isDragging && !selectMode && 'hover:-translate-y-0.5 hover:shadow-[0_10px_28px_hsl(var(--foreground)/0.08)]',
       )}
       {...(selectMode ? {} : attributes)}
       {...(selectMode ? {} : listeners)}

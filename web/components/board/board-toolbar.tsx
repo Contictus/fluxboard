@@ -16,7 +16,7 @@ export interface BoardFilter {
 export const EMPTY_FILTER: BoardFilter = { text: '', priority: '', assignee: 'any' };
 
 const selectCls =
-  'h-9 rounded-sm border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  'h-10 rounded-xl border-0 bg-secondary/60 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 // Board toolbar: client-side filters (text / priority / assignee — the board
 // projection carries no labels, so label is not a filter, ADR-017) plus the
@@ -54,7 +54,7 @@ export function BoardToolbar({
   const [labelOpen, setLabelOpen] = useState(false);
 
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-2 border-y border-border py-3">
+    <div className="mb-6 flex flex-wrap items-center gap-2 py-2">
       <div className="flex items-center gap-2 text-muted-foreground">
         <Filter className="h-4 w-4" />
       </div>
@@ -62,7 +62,7 @@ export function BoardToolbar({
         value={filter.text}
         onChange={(e) => onFilter({ ...filter, text: e.target.value })}
         placeholder="Filter tasks…"
-        className="h-9 w-52 rounded-sm border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-10 w-56 rounded-xl border-0 bg-secondary/60 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
       <select
         value={filter.priority}
@@ -91,15 +91,15 @@ export function BoardToolbar({
       <button
         onClick={onToggleSelectMode}
         className={cn(
-          'ml-auto inline-flex h-9 items-center gap-2 rounded-sm border px-3 text-sm transition-colors',
-          selectMode ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-secondary',
+          'ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm transition-colors',
+          selectMode ? 'bg-primary/10 text-primary' : 'bg-secondary/60 hover:bg-secondary',
         )}
       >
         <CheckSquare className="h-4 w-4" /> {selectMode ? 'Selecting' : 'Select'}
       </button>
 
       {selectMode && selectedCount > 0 ? (
-        <div className="flex w-full items-center gap-2 border-l-2 border-primary bg-card px-3 py-2">
+        <div className="flex w-full items-center gap-2 rounded-2xl bg-card px-4 py-3 shadow-sm">
           <span className="text-sm font-medium">{selectedCount} selected</span>
 
           <div className="relative">

@@ -23,13 +23,13 @@ export function ProjectHeader({ project }: { project: Project }) {
   ];
 
   return (
-    <div className="mb-6 border-b border-border pb-0">
+    <div className="mb-8 pb-0">
       <div className="flex items-center gap-2">
         <span
-          className="h-3 w-3 shrink-0 rounded-sm"
+          className="h-3.5 w-3.5 shrink-0 rounded-full shadow-sm"
           style={{ backgroundColor: project.color || 'hsl(var(--muted-foreground))' }}
         />
-        <h1 className="text-2xl font-semibold tracking-[-0.04em]">{project.name}</h1>
+        <h1 className="text-3xl font-semibold tracking-[-0.05em]">{project.name}</h1>
         <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{project.key}</span>
         {project.archived_at ? (
           <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -37,7 +37,7 @@ export function ProjectHeader({ project }: { project: Project }) {
           </span>
         ) : null}
       </div>
-      <nav className="mt-5 flex gap-5">
+      <nav className="mt-6 flex gap-2">
         {tabs.map((t) => {
           const active = t.exact ? pathname === t.href : pathname.startsWith(t.href);
           return (
@@ -45,10 +45,10 @@ export function ProjectHeader({ project }: { project: Project }) {
               key={t.href}
               href={t.href}
               className={cn(
-                'border-b-2 px-0 pb-3 text-sm transition-colors',
+                'rounded-xl px-3 py-2 text-sm transition-colors',
                 active
-                  ? 'border-primary font-medium text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
+                  ? 'bg-card font-medium text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
               )}
             >
               {t.label}

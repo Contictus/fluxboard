@@ -45,9 +45,9 @@ export function Column({
   }
 
   return (
-    <div className="flex w-72 shrink-0 flex-col border-t-2 border-border bg-secondary/35">
+    <div className="flex w-80 shrink-0 flex-col rounded-3xl bg-secondary/45 p-2">
       <div className="flex items-center gap-2 px-3 py-3">
-        <h3 className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em]">{column.name}</h3>
+        <h3 className="font-display text-sm font-semibold">{column.name}</h3>
         <span
           className={cn(
             'font-mono text-[10px]',
@@ -62,8 +62,8 @@ export function Column({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-[3rem] flex-1 flex-col gap-2 px-2 pb-3 transition-colors',
-          isOver && 'bg-primary/5',
+          'flex min-h-[3rem] flex-1 flex-col gap-3 px-1 pb-2 transition-colors',
+          isOver && 'rounded-2xl bg-primary/8',
         )}
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -80,7 +80,7 @@ export function Column({
         </SortableContext>
 
         {composing ? (
-          <div className="rounded-sm border border-border bg-card p-2">
+          <div className="rounded-2xl bg-card p-3 shadow-sm">
             <textarea
               autoFocus
               value={title}
@@ -100,7 +100,7 @@ export function Column({
               <button
                 onClick={submit}
                 disabled={addPending || !title.trim()}
-                className="rounded-sm bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                className="rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
               >
                 {addPending ? 'Adding…' : 'Add'}
               </button>
@@ -115,7 +115,7 @@ export function Column({
         ) : (
           <button
             onClick={() => setComposing(true)}
-            className="flex items-center gap-1.5 rounded-sm px-2 py-2 text-left text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-left text-xs text-muted-foreground hover:bg-background hover:text-foreground"
           >
             <Plus className="h-3.5 w-3.5" /> Add task
           </button>

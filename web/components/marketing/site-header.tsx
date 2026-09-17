@@ -36,17 +36,17 @@ export function SiteHeader() {
   return (
     <header
       className={cn(
-        'sticky top-0 z-40 border-b bg-background/80 backdrop-blur-xl transition-all duration-300',
-        scrolled && 'shadow-sm border-border/80',
+        'sticky top-0 z-40 bg-background/85 transition-all duration-300',
+        scrolled && 'shadow-[0_8px_30px_hsl(var(--foreground)/0.05)]',
       )}
     >
       <div className="container flex h-16 items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground">
-            F
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-xs font-black text-primary-foreground shadow-sm">
+            f
           </span>
-          <span className="gradient-text">Fluxboard</span>
+          <span>Fluxboard</span>
         </Link>
 
         {/* Desktop nav */}
@@ -58,7 +58,7 @@ export function SiteHeader() {
                 key={n.href}
                 href={n.href}
                 className={cn(
-                  'relative rounded-md px-3 py-2 text-sm transition-colors',
+                  'relative rounded-xl px-3 py-2 text-sm transition-colors',
                   active
                     ? 'text-foreground font-medium'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50',
@@ -99,7 +99,7 @@ export function SiteHeader() {
 
       {/* Mobile nav drawer */}
       {mobileOpen ? (
-        <div className="border-t bg-background p-4 animate-slide-down md:hidden">
+          <div className="bg-background p-4 shadow-lg animate-slide-down md:hidden">
           <nav className="flex flex-col gap-1">
             {nav.map((n) => {
               const active = pathname === n.href;

@@ -64,25 +64,25 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        'hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 md:flex',
-        collapsed ? 'w-[64px]' : 'w-60',
+        'hidden shrink-0 flex-col bg-sidebar transition-all duration-300 md:flex',
+        collapsed ? 'w-[72px]' : 'w-64',
       )}
     >
       {/* Logo area */}
-      <div className={cn('flex h-16 items-center border-b border-sidebar-border px-4', collapsed && 'justify-center')}>
+      <div className={cn('flex h-20 items-center px-5', collapsed && 'justify-center')}>
         <Link href={base} className="flex items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-primary/40 bg-primary/15 font-mono text-[11px] font-bold text-primary">
-            FB
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary font-display text-[11px] font-bold text-primary-foreground shadow-sm">
+            f
           </span>
-          {!collapsed ? <span className="font-mono text-[13px] font-semibold tracking-tight text-sidebar-foreground">fluxboard</span> : null}
+          {!collapsed ? <span className="font-display text-[15px] font-semibold tracking-tight text-sidebar-foreground">fluxboard</span> : null}
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-2">
         {/* Workspace section */}
         {!collapsed ? (
-          <p className="mb-2 mt-2 px-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-sidebar-foreground/45">
+          <p className="mb-2 mt-4 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/40">
             Workspace
           </p>
         ) : null}
@@ -95,13 +95,13 @@ export function Sidebar({
           <>
             {!collapsed ? (
               <>
-                <div className="my-2 h-px bg-sidebar-border" />
-                <p className="mb-1 px-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-sidebar-foreground/45">
+                <div className="my-5 h-px bg-sidebar-border/50" />
+                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/40">
                   Administration
                 </p>
               </>
             ) : (
-              <div className="my-2 h-px bg-sidebar-border" />
+              <div className="my-5 h-px bg-sidebar-border/50" />
             )}
             {adminItems.map((it) => (
               <NavLink key={it.href} item={it} pathname={pathname} collapsed={collapsed} />
@@ -111,7 +111,7 @@ export function Sidebar({
       </nav>
 
       {/* Bottom controls */}
-      <div className={cn('flex items-center gap-1 border-t border-sidebar-border p-3', collapsed ? 'flex-col' : 'justify-between')}>
+      <div className={cn('flex items-center gap-1 p-4', collapsed ? 'flex-col' : 'justify-between')}>
         <ThemeToggle compact />
         <button
           type="button"
@@ -142,16 +142,16 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        'group relative flex items-center gap-3 rounded-sm px-3 py-2.5 text-[13px] transition-colors duration-150',
+        'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-all duration-150',
         active
-          ? 'bg-sidebar-foreground/10 font-medium text-sidebar-foreground'
+          ? 'bg-sidebar-foreground/10 font-medium text-sidebar-foreground shadow-sm'
           : 'text-sidebar-foreground/60 hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground',
         collapsed && 'justify-center px-0',
       )}
     >
       {/* Active indicator bar */}
       {active ? (
-        <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 bg-sidebar-active" />
+        <span className="absolute left-1 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-sidebar-active" />
       ) : null}
       <Icon className="h-4 w-4 shrink-0" />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}
@@ -207,10 +207,10 @@ export function MobileSidebar({
         aria-hidden
       />
       {/* Drawer */}
-      <aside className="fixed inset-y-0 left-0 z-40 w-64 border-r bg-sidebar shadow-2xl animate-slide-in-left md:hidden">
-        <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground">
-            F
+      <aside className="fixed inset-y-0 left-0 z-40 w-72 bg-sidebar shadow-2xl animate-slide-in-left md:hidden">
+        <div className="flex h-20 items-center gap-2 px-5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-xs font-black text-primary-foreground">
+            f
           </span>
           <span className="font-bold tracking-tight text-sidebar-foreground">Fluxboard</span>
         </div>
@@ -224,7 +224,7 @@ export function MobileSidebar({
                 href={it.href}
                 onClick={onClose}
                 className={cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors',
+                  'flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition-colors',
                   active
                     ? 'bg-secondary font-medium text-foreground'
                     : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground',

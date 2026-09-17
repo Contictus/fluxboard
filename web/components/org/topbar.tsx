@@ -29,7 +29,7 @@ export function Topbar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const { org, slug, role } = useOrg();
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border/80 bg-topbar px-5">
+    <header className="flex h-20 shrink-0 items-center gap-3 bg-topbar px-6 lg:px-8">
       {/* Mobile hamburger */}
       {onMobileMenuToggle ? (
         <button
@@ -51,12 +51,12 @@ export function Topbar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         {/* Global search hint */}
         <button
           type="button"
-          className="hidden items-center gap-3 rounded-sm border border-border bg-background px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/50 sm:flex"
+          className="hidden items-center gap-3 rounded-xl bg-secondary/55 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary sm:flex"
           aria-label="Search"
         >
           <Search className="h-3 w-3" />
           <span>Search…</span>
-          <kbd className="rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium">⌘K</kbd>
+          <kbd className="rounded-md bg-background/70 px-1.5 py-0.5 font-mono text-[10px] font-medium">⌘K</kbd>
         </button>
         <NotificationBell slug={slug} />
         <AccountMenu />
@@ -111,7 +111,7 @@ function DropdownMenu({
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
           <div
             className={cn(
-              'absolute top-full z-20 mt-1.5 min-w-56 rounded-lg border bg-popover p-1 shadow-xl animate-scale-in',
+              'absolute top-full z-20 mt-2 min-w-56 rounded-2xl bg-popover p-2 shadow-xl shadow-foreground/10 animate-scale-in',
               align === 'right' ? 'right-0' : 'left-0',
             )}
           >
@@ -138,7 +138,7 @@ function OrgSwitcher({
     <DropdownMenu
       button={() => (
         <span className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-secondary">
-          <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-primary/30 bg-primary/10 text-primary">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/12 text-primary">
             <Building2 className="h-3.5 w-3.5" />
           </span>
           <span className="hidden font-medium sm:block">{currentName}</span>

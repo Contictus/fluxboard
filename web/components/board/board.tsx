@@ -231,7 +231,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-4">
+        <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-5">
           {board.columns.map((col) => (
             <Column
               key={col.id}
@@ -249,7 +249,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
           {isAdmin ? (
             <div className="w-72 shrink-0">
               {addingColumn ? (
-                <div className="rounded-lg border bg-card p-2">
+                <div className="rounded-2xl bg-card p-3 shadow-sm">
                   <input
                     autoFocus
                     value={newColumnName}
@@ -259,13 +259,13 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
                       if (e.key === 'Escape') setAddingColumn(false);
                     }}
                     placeholder="Column name…"
-                    className="w-full rounded border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full rounded-xl border-0 bg-secondary/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                   <div className="mt-1 flex gap-2">
                     <button
                       onClick={() => newColumnName.trim() && addColumnMutation.mutate(newColumnName.trim())}
                       disabled={addColumnMutation.isPending || !newColumnName.trim()}
-                      className="rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                    className="rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
                     >
                       Add
                     </button>
@@ -280,7 +280,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
               ) : (
                 <button
                   onClick={() => setAddingColumn(true)}
-                  className="flex w-full items-center gap-1.5 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  className="flex w-full items-center gap-1.5 rounded-2xl bg-secondary/45 px-3 py-3 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
                 >
                   <Plus className="h-4 w-4" /> Add column
                 </button>
@@ -291,7 +291,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
 
         <DragOverlay>
           {activeTask ? (
-            <div className="w-64 rounded-md border bg-card p-2.5 text-sm shadow-lg">
+            <div className="w-64 rounded-2xl bg-card p-3 text-sm shadow-xl">
               <p className="truncate font-medium">{activeTask.title}</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <span className="font-mono text-xs text-muted-foreground">#{activeTask.number}</span>
