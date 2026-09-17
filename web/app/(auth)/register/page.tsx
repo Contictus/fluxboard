@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { MailCheck } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,10 +32,12 @@ export default function RegisterPage() {
 
   if (mutation.isSuccess) {
     return (
-      <Card>
+      <Card className="text-center">
         <CardHeader>
-          <MailCheck className="h-8 w-8 text-primary" />
-          <CardTitle>Check your inbox</CardTitle>
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10 animate-scale-in">
+            <CheckCircle2 className="h-7 w-7 text-success" />
+          </div>
+          <CardTitle className="mt-2">Check your inbox</CardTitle>
           <CardDescription>
             If that email is valid, we&apos;ve sent a verification link. Click it to activate your
             account, then sign in.
@@ -96,8 +98,33 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            {/* Password strength hint */}
+            {password.length > 0 ? (
+              <div className="mt-2 flex gap-1">
+                {[1, 2, 3, 4].map((level) => {
+                  const strength =
+                    password.length >= 12 && /[A-Z]/.test(password) && /\d/.test(password) ? 4 :
+                    password.length >= 10 ? 3 :
+                    password.length >= 8 ? 2 : 1;
+                  return (
+                    <div
+                      key={level}
+                      className={`h-1 flex-1 rounded-full transition-colors ${
+                        level <= strength
+                          ? strength <= 1
+                            ? 'bg-destructive'
+                            : strength <= 2
+                              ? 'bg-warning'
+                              : 'bg-success'
+                          : 'bg-muted'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
           </Field>
-          <Button type="submit" className="w-full" disabled={mutation.isPending}>
+          <Button type="submit" className="w-full" isLoading={mutation.isPending}>
             {mutation.isPending ? 'Creating…' : 'Create account'}
           </Button>
         </form>

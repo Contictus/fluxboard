@@ -1,5 +1,5 @@
 // Package token generates cryptographically-random opaque tokens and their
-// storage hashes � 256-bit entropy, base64url, SHA-256 at rest. Refresh tokens, email-verify/reset links, invitations, and
+// storage hashes — 256-bit entropy, base64url, SHA-256 at rest. Refresh tokens, email-verify/reset links, invitations, and
 // API keys are all "random secret, presented to the client; only its SHA-256
 // stored" (docs/04-AUTH.md §2). Constant length + base64url = URL/cookie-safe.
 package token

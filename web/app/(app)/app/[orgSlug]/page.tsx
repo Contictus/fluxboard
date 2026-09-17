@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CircleCheck, FolderKanban, Bell } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth/context';
 import { useOrg } from '@/lib/org/context';
 import { searchTasks } from '@/lib/api/tasks';
@@ -15,9 +16,10 @@ export default function OrgHomePage() {
   const { org } = useOrg();
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">{org.name}</h1>
-      <div className="grid gap-6 lg:grid-cols-2">
+    <div className="mx-auto max-w-5xl px-6 py-8 animate-fade-in">
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">{org.name}</h1>
+      <p className="mb-6 text-sm text-muted-foreground">Welcome back. Here&apos;s what&apos;s happening.</p>
+      <div className="stagger-children grid gap-6 lg:grid-cols-2">
         <AssignedToMe />
         <RecentActivity />
         <Projects />
@@ -36,9 +38,11 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="group">
       <CardHeader className="flex-row items-center gap-2 space-y-0">
-        {icon}
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+          {icon}
+        </div>
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent>{children}</CardContent>
@@ -46,8 +50,14 @@ function Panel({
   );
 }
 
-function Loading() {
-  return <p className="text-sm text-muted-foreground">Loading…</p>;
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-2">
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-5/6" />
+    </div>
+  );
 }
 function Failed() {
   return <p className="text-sm text-destructive">Couldn&apos;t load.</p>;
@@ -67,9 +77,9 @@ function AssignedToMe() {
   });
 
   return (
-    <Panel title="Assigned to me" icon={<CircleCheck className="h-4 w-4 text-muted-foreground" />}>
+    <Panel title="Assigned to me" icon={<CircleCheck className="h-4 w-4" />}>
       {isLoading ? (
-        <Loading />
+        <LoadingSkeleton />
       ) : isError ? (
         <Failed />
       ) : !data || data.tasks.length === 0 ? (
@@ -79,7 +89,7 @@ function AssignedToMe() {
           {data.tasks.map((t) => (
             <li
               key={t.id}
-              className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-secondary/60"
+              className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary/60"
             >
               <span className="truncate">{t.title}</span>
               <span className="ml-2 shrink-0 text-xs text-muted-foreground">
@@ -96,7 +106,7 @@ function AssignedToMe() {
       ) : null}
       <Link
         href={`/app/${slug}/projects`}
-        className="mt-3 inline-block text-xs text-muted-foreground hover:text-foreground"
+        className="mt-3 inline-block text-xs text-primary hover:underline"
       >
         View all projects →
       </Link>
@@ -113,9 +123,9 @@ function RecentActivity() {
   });
 
   return (
-    <Panel title="Recent activity" icon={<Bell className="h-4 w-4 text-muted-foreground" />}>
+    <Panel title="Recent activity" icon={<Bell className="h-4 w-4" />}>
       {isLoading ? (
-        <Loading />
+        <LoadingSkeleton />
       ) : isError ? (
         <Failed />
       ) : !data || data.length === 0 ? (
@@ -145,9 +155,9 @@ function Projects() {
   const recent = data?.slice(0, 6);
 
   return (
-    <Panel title="Projects" icon={<FolderKanban className="h-4 w-4 text-muted-foreground" />}>
+    <Panel title="Projects" icon={<FolderKanban className="h-4 w-4" />}>
       {isLoading ? (
-        <Loading />
+        <LoadingSkeleton />
       ) : isError ? (
         <Failed />
       ) : !recent || recent.length === 0 ? (
@@ -158,7 +168,7 @@ function Projects() {
             <li key={p.id}>
               <Link
                 href={`/app/${slug}/projects/${p.key}`}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-secondary/60"
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary/60"
               >
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"

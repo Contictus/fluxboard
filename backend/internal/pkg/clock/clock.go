@@ -1,7 +1,5 @@
-// // Package clock — deterministic time abstraction for tests and production.
-package clock abstracts time so business logic stays deterministic under test.
+// Package clock â€” deterministic time abstraction for tests and production.
 // All timestamps are UTC (see docs/CLAUDE.md Â§Non-Negotiable Invariants #6).
-// Package clock — deterministic time abstraction for tests and production.
 package clock
 
 import "time"

@@ -29,12 +29,20 @@ const columns: { title: string; links: { href: string; label: string }[] }[] = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t">
+    <footer className="border-t bg-secondary/20">
+      {/* Gradient separator */}
+      <div className="h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+
       <div className="container grid gap-8 py-12 sm:grid-cols-2 md:grid-cols-4">
         <div>
-          <p className="text-lg font-bold">Fluxboard</p>
-          <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-            Multi-tenant project management with usage-based billing.
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[10px] font-black text-primary-foreground">
+              F
+            </span>
+            <span className="text-lg font-bold">Fluxboard</span>
+          </Link>
+          <p className="mt-3 max-w-xs text-sm text-muted-foreground">
+            Multi-tenant project management with usage-based billing. Ship faster, together.
           </p>
         </div>
         {columns.map((col) => (
