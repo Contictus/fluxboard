@@ -257,6 +257,9 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
               onAddTask={(columnId, input) => createTaskMutation.mutate({ columnId, ...input })}
               addPending={createTaskMutation.isPending}
               members={members}
+              orgId={orgId}
+              labels={labels ?? []}
+              onMutated={() => queryClient.invalidateQueries({ queryKey: boardKey })}
             />
           ))}
 

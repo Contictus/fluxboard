@@ -5,7 +5,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
 
-import type { BoardColumn, Priority, TaskCard } from '@/lib/api/types';
+import type { BoardColumn, Label, Priority, TaskCard } from '@/lib/api/types';
 import { PRIORITIES, priorityLabel } from '@/lib/board/priority';
 import { cn } from '@/lib/utils';
 import { Card } from './card';
@@ -34,6 +34,9 @@ export function Column({
   onAddTask,
   addPending,
   members,
+  orgId,
+  labels,
+  onMutated,
 }: {
   column: BoardColumn;
   tasks: TaskCard[];
@@ -44,6 +47,9 @@ export function Column({
   onAddTask: (columnId: string, input: QuickTaskInput) => void;
   addPending: boolean;
   members: AssigneeOption[];
+  orgId: string;
+  labels: Label[];
+  onMutated: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const [composing, setComposing] = useState(false);
@@ -106,6 +112,10 @@ export function Column({
               selected={selectedIds.has(t.id)}
               onToggle={onToggleSelect}
               assigneeName={t.assignee_id ? members.find((m) => m.user_id === t.assignee_id)?.name : undefined}
+              orgId={orgId}
+              members={members}
+              labels={labels}
+              onMutated={onMutated}
             />
           ))}
         </SortableContext>

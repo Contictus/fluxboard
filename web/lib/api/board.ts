@@ -11,7 +11,10 @@ export async function getBoard(orgId: string, projectId: string): Promise<Board>
   // board consumers can assume arrays (new projects have empty columns).
   return {
     ...board,
-    columns: (board.columns ?? []).map((col) => ({ ...col, tasks: col.tasks ?? [] })),
+    columns: (board.columns ?? []).map((col) => ({
+      ...col,
+      tasks: (col.tasks ?? []).map((t) => ({ ...t, labels: t.labels ?? [] })),
+    })),
   };
 }
 
