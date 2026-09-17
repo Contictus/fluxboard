@@ -77,6 +77,7 @@ type taskCardResp struct {
 	CommentCount int         `json:"comment_count"`
 	SubtaskTotal int         `json:"subtask_total"`
 	SubtaskDone  int         `json:"subtask_done"`
+	CreatedAt    time.Time   `json:"created_at"`
 	Rank         string      `json:"rank"`
 }
 
@@ -297,6 +298,7 @@ func (h *ProjectHandlers) GetBoard(w http.ResponseWriter, r *http.Request) {
 				Labels: []labelResp{},
 				CommentCount: cv.Comments[t.ID],
 				SubtaskTotal: cv.Subtasks[t.ID].Total, SubtaskDone: cv.Subtasks[t.ID].Done,
+				CreatedAt: t.CreatedAt,
 			}
 			for _, l := range cv.Labels[t.ID] {
 				ll := l
