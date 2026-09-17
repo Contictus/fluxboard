@@ -473,52 +473,52 @@ export interface AdminTenant {
   created_at: string;
 }
 
-/** Raw domain override (admin detail, PascalCase). */
+/** Org override (admin detail, snake_case). */
 export interface AdminOverride {
-  OrgID: string;
-  Key: string;
-  Value: string;
-  Note: string;
-  CreatedBy: string;
-  CreatedAt: string;
+  org_id: string;
+  key: string;
+  value: string;
+  note: string;
+  created_by: string;
+  created_at: string;
 }
 
-/** Raw domain feature flag (admin detail, PascalCase). */
+/** Org feature flag (admin detail, snake_case). */
 export interface AdminFlag {
-  OrgID: string;
-  Flag: string;
-  Enabled: boolean;
+  org_id: string;
+  flag: string;
+  enabled: boolean;
 }
 
-/** Raw domain webhook event (admin detail, PascalCase). */
+/** Webhook event (admin detail, snake_case). */
 export interface AdminWebhook {
-  EventID: string;
-  Type: string;
-  Handled: boolean;
-  Error: string;
-  ProcessedAt: string;
+  event_id: string;
+  type: string;
+  handled: boolean;
+  error: string;
+  processed_at: string;
 }
 
-/** Raw domain subscription (admin detail, PascalCase). */
+/** Subscription mirror (admin detail, snake_case). */
 export interface AdminSubscription {
-  ID: string;
-  OrgID: string;
-  PlanCode: string;
-  Status: string;
-  CurrentPeriodEnd?: string;
-  CancelAtPeriodEnd: boolean;
-  CreatedAt: string;
-  UpdatedAt: string;
+  id: string;
+  org_id: string;
+  plan_code: string;
+  status: string;
+  current_period_end?: string;
+  cancel_at_period_end: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-/** Raw domain invoice (admin detail, PascalCase). */
+/** Invoice mirror (admin detail, snake_case). */
 export interface AdminInvoice {
-  ID: string;
-  Number: string;
-  Status: string;
-  AmountDue: number;
-  Currency: string;
-  CreatedAt: string;
+  id: string;
+  number: string;
+  status: string;
+  amount_due: number;
+  currency: string;
+  created_at: string;
 }
 
 /** Tenant detail composite (GET /admin/tenants/{orgId}). */
