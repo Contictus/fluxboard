@@ -24,7 +24,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           working-directory: backend
       - name: go-arch-lint (dependency rule)
@@ -59,7 +59,8 @@ jobs:
           --health-cmd "redis-cli ping" --health-interval 5s
           --health-timeout 3s --health-retries 10
       minio:
-        image: bitnami/minio:latest
+        image: minio/minio:latest
+        command: ["server", "/data"]
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
@@ -105,9 +106,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: "9"
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - name: install
