@@ -59,9 +59,10 @@ export function BoardToolbar({
         <Filter className="h-4 w-4" />
       </div>
       <input
+        id="board-filter"
         value={filter.text}
         onChange={(e) => onFilter({ ...filter, text: e.target.value })}
-        placeholder="Filter tasks…"
+        placeholder="Filter tasks…  ( / )"
         className="h-10 w-56 rounded-xl border-0 bg-secondary/60 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
       <select

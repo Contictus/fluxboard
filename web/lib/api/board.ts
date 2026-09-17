@@ -13,7 +13,13 @@ export async function getBoard(orgId: string, projectId: string): Promise<Board>
     ...board,
     columns: (board.columns ?? []).map((col) => ({
       ...col,
-      tasks: (col.tasks ?? []).map((t) => ({ ...t, labels: t.labels ?? [] })),
+      tasks: (col.tasks ?? []).map((t) => ({
+        ...t,
+        labels: t.labels ?? [],
+        comment_count: t.comment_count ?? 0,
+        subtask_total: t.subtask_total ?? 0,
+        subtask_done: t.subtask_done ?? 0,
+      })),
     })),
   };
 }

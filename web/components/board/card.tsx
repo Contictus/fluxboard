@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CalendarDays, Settings2 } from 'lucide-react';
+import { CalendarDays, ListChecks, MessageSquare, Settings2 } from 'lucide-react';
 import { useState, type MouseEvent as ReactMouseEvent, type SyntheticEvent } from 'react';
 
 import type { Label, Priority, Task, TaskCard } from '@/lib/api/types';
@@ -161,6 +161,31 @@ export function Card({
               <Avatar name={assigneeName ?? task.assignee_id} size="sm" className="ml-auto" />
             ) : null}
           </div>
+          {task.comment_count > 0 || task.subtask_total > 0 ? (
+            <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
+              {task.comment_count > 0 ? (
+                <span className="inline-flex items-center gap-1" title={`${task.comment_count} comments`}>
+                  <MessageSquare className="h-3 w-3" />
+                  {task.comment_count}
+                </span>
+              ) : null}
+              {task.subtask_total > 0 ? (
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  title={`${task.subtask_done}/${task.subtask_total} subtasks done`}
+                >
+                  <ListChecks className="h-3 w-3" />
+                  {task.subtask_done}/{task.subtask_total}
+                  <span className="h-1 w-12 overflow-hidden rounded-full bg-secondary">
+                    <span
+                      className="block h-full rounded-full bg-primary"
+                      style={{ width: `${Math.round((task.subtask_done / task.subtask_total) * 100)}%` }}
+                    />
+                  </span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -81,6 +81,26 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
   const [activeId, setActiveId] = useState<string | null>(null);
   const [addingColumn, setAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
+  // Bumped to open the quick composer of the first column (keyboard "c").
+  const [composeSignal, setComposeSignal] = useState(0);
+
+  // Board shortcuts: "/" focuses the filter, "c" starts a task in the first
+  // column. Ignored while typing, and never hijacks browser modifiers.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        document.getElementById('board-filter')?.focus();
+      } else if (e.key === 'c') {
+        setComposeSignal((n) => n + 1);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -245,7 +265,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
         onDragEnd={onDragEnd}
       >
         <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-5">
-          {board.columns.map((col) => (
+          {board.columns.map((col, i) => (
             <Column
               key={col.id}
               column={col}
@@ -260,6 +280,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
               orgId={orgId}
               labels={labels ?? []}
               onMutated={() => queryClient.invalidateQueries({ queryKey: boardKey })}
+              composeSignal={i === 0 ? composeSignal : 0}
             />
           ))}
 

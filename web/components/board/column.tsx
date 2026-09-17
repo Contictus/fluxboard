@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
@@ -37,6 +37,7 @@ export function Column({
   orgId,
   labels,
   onMutated,
+  composeSignal,
 }: {
   column: BoardColumn;
   tasks: TaskCard[];
@@ -50,6 +51,7 @@ export function Column({
   orgId: string;
   labels: Label[];
   onMutated: () => void;
+  composeSignal?: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const [composing, setComposing] = useState(false);
@@ -59,6 +61,11 @@ export function Column({
   const [dueDate, setDueDate] = useState('');
 
   const overLimit = column.wip_limit != null && tasks.length >= column.wip_limit;
+
+  // External trigger (board "c" shortcut) opens this column's composer.
+  useEffect(() => {
+    if (composeSignal) setComposing(true);
+  }, [composeSignal]);
 
   function resetComposer() {
     setTitle('');
