@@ -26,36 +26,38 @@ import (
 
 // Deps are the collaborators the service needs.
 type Deps struct {
-	Projects project.ProjectRepository
-	Members  project.ProjectMemberRepository
-	Boards   project.BoardRepository
-	Columns  project.ColumnRepository
-	Tasks    project.TaskRepository
-	Sprints  project.SprintRepository // sprints; nil ⇒ sprint endpoints disabled
-	Labels   project.LabelRepository // optional; nil ⇒ board cards carry no labels
-	Subtasks project.SubtaskRepository // optional; nil ⇒ board cards carry no subtask progress
-	Comments project.CommentRepository // optional; nil ⇒ board cards carry no comment counts
-	Automation automation.Evaluator // automation rules; nil ⇒ no evaluation
-	Events   notify.EventBus // realtime publish; nil ⇒ no SSE events
-	Logger   *slog.Logger
-	Now      func() time.Time // injectable for tests; defaults to time.Now
+	Projects   project.ProjectRepository
+	Members    project.ProjectMemberRepository
+	Boards     project.BoardRepository
+	Columns    project.ColumnRepository
+	Tasks      project.TaskRepository
+	Sprints    project.SprintRepository       // sprints; nil ⇒ sprint endpoints disabled
+	Fields     project.CustomFieldRepository  // custom fields; nil ⇒ field endpoints disabled
+	Labels     project.LabelRepository        // optional; nil ⇒ board cards carry no labels
+	Subtasks   project.SubtaskRepository      // optional; nil ⇒ board cards carry no subtask progress
+	Comments   project.CommentRepository      // optional; nil ⇒ board cards carry no comment counts
+	Automation automation.Evaluator           // automation rules; nil ⇒ no evaluation
+	Events     notify.EventBus                // realtime publish; nil ⇒ no SSE events
+	Logger     *slog.Logger
+	Now        func() time.Time // injectable for tests; defaults to time.Now
 }
 
 // Service implements the project/board application logic.
 type Service struct {
-	projects project.ProjectRepository
-	members  project.ProjectMemberRepository
-	boards   project.BoardRepository
-	columns  project.ColumnRepository
-	tasks    project.TaskRepository
-	sprints  project.SprintRepository
-	labels   project.LabelRepository
-	subtasks project.SubtaskRepository
-	comments project.CommentRepository
+	projects   project.ProjectRepository
+	members    project.ProjectMemberRepository
+	boards     project.BoardRepository
+	columns    project.ColumnRepository
+	tasks      project.TaskRepository
+	sprints    project.SprintRepository
+	fields     project.CustomFieldRepository
+	labels     project.LabelRepository
+	subtasks   project.SubtaskRepository
+	comments   project.CommentRepository
 	automation automation.Evaluator
-	events   notify.EventBus
-	logger   *slog.Logger
-	now      func() time.Time
+	events     notify.EventBus
+	logger     *slog.Logger
+	now        func() time.Time
 }
 
 // New builds a Service from Deps.
@@ -70,7 +72,7 @@ func New(d Deps) *Service {
 	}
 	return &Service{
 		projects: d.Projects, members: d.Members, boards: d.Boards,
-		columns: d.Columns, tasks: d.Tasks, sprints: d.Sprints, labels: d.Labels, subtasks: d.Subtasks,
+		columns: d.Columns, tasks: d.Tasks, sprints: d.Sprints, fields: d.Fields, labels: d.Labels, subtasks: d.Subtasks,
 		comments: d.Comments, automation: d.Automation, events: d.Events, logger: logger, now: now,
 	}
 }
