@@ -1,28 +1,35 @@
-# golangci-lint config (v2 format). Conservative, high-signal set for a young codebase;
-# tightened as the project grows.
+# golangci-lint config (v2 format, produced by `golangci-lint migrate`).
+# Conservative, high-signal set for a young codebase; tightened as the project
+# grows. errcheck/govet/ineffassign/staticcheck/unused are v2 defaults.
 version: "2"
-run:
-  timeout: 5m
-
 linters:
   enable:
-    - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - misspell
     - bodyclose
+    - misspell
     - noctx
-
-# v2 moved gofmt/goimports from linters to formatters.
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Doc-only stub packages carry no logic to lint.
+      - linters:
+          - unused
+        path: doc\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 formatters:
   enable:
     - gofmt
     - goimports
-
-issues:
-  exclude-rules:
-    # Doc-only stub packages carry no logic to lint.
-    - path: doc\.go
-      linters: [unused]
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
