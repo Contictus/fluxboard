@@ -38,7 +38,7 @@ func taskFrom(
 		Description: description, AssigneeID: uuidStrPtr(assignee),
 		Priority: project.Priority(priority), StartDate: tsPtr(start), DueDate: tsPtr(due),
 		SprintID: uuidStrPtr(sprint),
-		Rank: rankv, CreatedBy: createdBy.String(),
+		Rank:     rankv, CreatedBy: createdBy.String(),
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}
 }
@@ -275,7 +275,7 @@ func (r *TaskRepo) GetTrashed(ctx context.Context, orgID, id string) (*project.T
 			Description: row.Description, AssigneeID: uuidStrPtr(row.AssigneeID),
 			Priority: project.Priority(row.Priority), StartDate: tsPtr(row.StartDate), DueDate: tsPtr(row.DueDate),
 			SprintID: uuidStrPtr(row.SprintID),
-			Rank: row.Rank, CreatedBy: row.CreatedBy.String(),
+			Rank:     row.Rank, CreatedBy: row.CreatedBy.String(),
 			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		}
 		out = &t
@@ -303,7 +303,7 @@ func (r *TaskRepo) ListTrashed(ctx context.Context, orgID, projectID string) ([]
 				Description: row.Description, AssigneeID: uuidStrPtr(row.AssigneeID),
 				Priority: project.Priority(row.Priority), StartDate: tsPtr(row.StartDate), DueDate: tsPtr(row.DueDate),
 				SprintID: uuidStrPtr(row.SprintID),
-				Rank: row.Rank, CreatedBy: row.CreatedBy.String(),
+				Rank:     row.Rank, CreatedBy: row.CreatedBy.String(),
 				CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			})
 		}
@@ -369,7 +369,7 @@ func (r *TaskRepo) Search(ctx context.Context, orgID string, f project.SearchFil
 				Description: row.Description, AssigneeID: uuidStrPtr(row.AssigneeID),
 				Priority: project.Priority(row.Priority), StartDate: tsPtr(row.StartDate), DueDate: tsPtr(row.DueDate),
 				SprintID: uuidStrPtr(row.SprintID),
-				Rank: row.Rank, CreatedBy: row.CreatedBy.String(),
+				Rank:     row.Rank, CreatedBy: row.CreatedBy.String(),
 				CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			})
 		}
