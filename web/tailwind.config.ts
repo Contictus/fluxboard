@@ -89,6 +89,10 @@ const config: Config = {
           border: 'hsl(var(--sidebar-border))',
           active: 'hsl(var(--sidebar-active))',
         },
+        topbar: {
+          DEFAULT: 'hsl(var(--topbar))',
+          foreground: 'hsl(var(--topbar-foreground))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

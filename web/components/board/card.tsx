@@ -40,10 +40,10 @@ export function Card({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'rounded-lg border bg-card p-3 text-sm shadow-sm transition-all duration-200',
-        isDragging && 'opacity-50 shadow-xl scale-105',
+        'rounded-sm border border-border/80 bg-card p-3 text-sm transition-colors duration-150',
+        isDragging && 'opacity-50 shadow-lg',
         selected && 'ring-2 ring-primary',
-        !isDragging && !selectMode && 'hover:shadow-md hover:-translate-y-0.5',
+        !isDragging && !selectMode && 'hover:border-primary/50',
       )}
       {...(selectMode ? {} : attributes)}
       {...(selectMode ? {} : listeners)}
@@ -65,7 +65,7 @@ export function Card({
             <Link
               href={href}
               onClick={(e) => e.stopPropagation()}
-              className="truncate font-medium hover:text-primary transition-colors"
+              className="truncate font-medium transition-colors hover:text-primary"
             >
               {task.title}
             </Link>
