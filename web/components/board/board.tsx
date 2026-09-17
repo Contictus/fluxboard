@@ -231,7 +231,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-4">
           {board.columns.map((col) => (
             <Column
               key={col.id}
