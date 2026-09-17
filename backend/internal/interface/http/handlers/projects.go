@@ -67,12 +67,13 @@ func toColumnResp(c *project.Column) columnResp {
 }
 
 type taskCardResp struct {
-	ID       string  `json:"id"`
-	Number   int     `json:"number"`
-	Title    string  `json:"title"`
-	Priority string  `json:"priority"`
-	Assignee *string `json:"assignee_id,omitempty"`
-	Rank     string  `json:"rank"`
+	ID       string     `json:"id"`
+	Number   int        `json:"number"`
+	Title    string     `json:"title"`
+	Priority string     `json:"priority"`
+	Assignee *string    `json:"assignee_id,omitempty"`
+	DueDate  *time.Time `json:"due_date,omitempty"`
+	Rank     string     `json:"rank"`
 }
 
 type boardColumnResp struct {
@@ -288,7 +289,7 @@ func (h *ProjectHandlers) GetBoard(w http.ResponseWriter, r *http.Request) {
 			t := cv.Tasks[i]
 			bc.Tasks = append(bc.Tasks, taskCardResp{
 				ID: t.ID, Number: t.Number, Title: t.Title,
-				Priority: string(t.Priority), Assignee: t.AssigneeID, Rank: t.Rank,
+				Priority: string(t.Priority), Assignee: t.AssigneeID, DueDate: t.DueDate, Rank: t.Rank,
 			})
 		}
 		resp.Columns = append(resp.Columns, bc)
