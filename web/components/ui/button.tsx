@@ -8,11 +8,11 @@ type Size = 'default' | 'sm' | 'lg' | 'icon';
 
 const variants: Record<Variant, string> = {
   default:
-    'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md',
+    'bg-primary text-primary-foreground hover:bg-primary/90',
   secondary:
     'bg-secondary text-secondary-foreground hover:bg-secondary/80',
   outline:
-    'border border-input bg-background shadow-sm hover:bg-secondary hover:shadow-md',
+    'border border-input bg-background hover:bg-secondary',
   ghost:
     'hover:bg-secondary',
   destructive:
@@ -42,8 +42,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       type={type}
       disabled={disabled || isLoading}
       className={cn(
-        'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background',
-        'transition-all duration-200 ease-out',
+        'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium ring-offset-background',
+        'transition-colors duration-150 ease-out',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         'active:scale-[0.98]',
         'disabled:pointer-events-none disabled:opacity-50',

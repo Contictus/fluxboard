@@ -24,6 +24,22 @@ const config: Config = {
           'Segoe UI',
           'sans-serif',
         ],
+        display: [
+          'var(--font-sora)',
+          'Sora',
+          'var(--font-inter)',
+          'Inter',
+          'system-ui',
+          'sans-serif',
+        ],
+        mono: [
+          'var(--font-jetbrains-mono)',
+          'JetBrains Mono',
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'monospace',
+        ],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -72,6 +88,10 @@ const config: Config = {
           foreground: 'hsl(var(--sidebar-foreground))',
           border: 'hsl(var(--sidebar-border))',
           active: 'hsl(var(--sidebar-active))',
+        },
+        topbar: {
+          DEFAULT: 'hsl(var(--topbar))',
+          foreground: 'hsl(var(--topbar-foreground))',
         },
       },
       borderRadius: {

@@ -64,25 +64,25 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        'hidden shrink-0 flex-col border-r bg-sidebar transition-all duration-300 md:flex',
-        collapsed ? 'w-[60px]' : 'w-56',
+        'hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 md:flex',
+        collapsed ? 'w-[64px]' : 'w-60',
       )}
     >
       {/* Logo area */}
-      <div className={cn('flex h-14 items-center border-b border-sidebar-border px-3', collapsed && 'justify-center')}>
+      <div className={cn('flex h-16 items-center border-b border-sidebar-border px-4', collapsed && 'justify-center')}>
         <Link href={base} className="flex items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground">
-            F
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-primary/40 bg-primary/15 font-mono text-[11px] font-bold text-primary">
+            FB
           </span>
-          {!collapsed ? <span className="text-sm font-bold tracking-tight text-sidebar-foreground">Fluxboard</span> : null}
+          {!collapsed ? <span className="font-mono text-[13px] font-semibold tracking-tight text-sidebar-foreground">fluxboard</span> : null}
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
         {/* Workspace section */}
         {!collapsed ? (
-          <p className="mb-1 mt-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 mt-2 px-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-sidebar-foreground/45">
             Workspace
           </p>
         ) : null}
@@ -96,7 +96,7 @@ export function Sidebar({
             {!collapsed ? (
               <>
                 <div className="my-2 h-px bg-sidebar-border" />
-                <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="mb-1 px-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-sidebar-foreground/45">
                   Administration
                 </p>
               </>
@@ -111,7 +111,7 @@ export function Sidebar({
       </nav>
 
       {/* Bottom controls */}
-      <div className={cn('flex items-center gap-1 border-t border-sidebar-border p-2', collapsed ? 'flex-col' : 'justify-between')}>
+      <div className={cn('flex items-center gap-1 border-t border-sidebar-border p-3', collapsed ? 'flex-col' : 'justify-between')}>
         <ThemeToggle compact />
         <button
           type="button"
@@ -142,16 +142,16 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        'group relative flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-all duration-200',
+        'group relative flex items-center gap-3 rounded-sm px-3 py-2.5 text-[13px] transition-colors duration-150',
         active
-          ? 'bg-secondary font-medium text-foreground'
-          : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
+          ? 'bg-sidebar-foreground/10 font-medium text-sidebar-foreground'
+          : 'text-sidebar-foreground/60 hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground',
         collapsed && 'justify-center px-0',
       )}
     >
       {/* Active indicator bar */}
       {active ? (
-        <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-sidebar-active" />
+        <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 bg-sidebar-active" />
       ) : null}
       <Icon className="h-4 w-4 shrink-0" />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}

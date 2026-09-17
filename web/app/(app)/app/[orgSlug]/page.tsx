@@ -16,10 +16,16 @@ export default function OrgHomePage() {
   const { org } = useOrg();
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8 animate-fade-in">
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">{org.name}</h1>
-      <p className="mb-6 text-sm text-muted-foreground">Welcome back. Here&apos;s what&apos;s happening.</p>
-      <div className="stagger-children grid gap-6 lg:grid-cols-2">
+    <div className="mx-auto max-w-[1320px] px-6 py-10 animate-fade-in lg:px-10">
+      <div className="mb-10 flex items-end justify-between gap-6 border-b border-border pb-6">
+        <div>
+          <p className="mb-3 font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-primary">Workspace / overview</p>
+          <h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">{org.name}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">A clear view of the work moving through your team.</p>
+        </div>
+        <span className="hidden font-mono text-[11px] text-muted-foreground sm:block">LIVE / {new Date().toLocaleDateString('en-GB')}</span>
+      </div>
+      <div className="stagger-children grid gap-x-12 gap-y-10 lg:grid-cols-[1.35fr_0.9fr]">
         <AssignedToMe />
         <RecentActivity />
         <Projects />
@@ -38,14 +44,14 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="group">
-      <CardHeader className="flex-row items-center gap-2 space-y-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+    <Card className="group rounded-none border-0 border-t border-border bg-transparent shadow-none hover:shadow-none">
+      <CardHeader className="flex-row items-center gap-3 px-0 py-4">
+        <div className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-primary">
           {icon}
         </div>
-        <CardTitle className="text-base">{title}</CardTitle>
+        <CardTitle className="font-mono text-[11px] font-medium uppercase tracking-[0.16em]">{title}</CardTitle>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="px-0 pb-0">{children}</CardContent>
     </Card>
   );
 }
@@ -89,7 +95,7 @@ function AssignedToMe() {
           {data.tasks.map((t) => (
             <li
               key={t.id}
-              className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary/60"
+              className="flex items-center justify-between border-b border-border/70 px-0 py-3 text-sm transition-colors hover:text-primary"
             >
               <span className="truncate">{t.title}</span>
               <span className="ml-2 shrink-0 text-xs text-muted-foreground">
@@ -106,7 +112,7 @@ function AssignedToMe() {
       ) : null}
       <Link
         href={`/app/${slug}/projects`}
-        className="mt-3 inline-block text-xs text-primary hover:underline"
+        className="mt-4 inline-block font-mono text-[11px] uppercase tracking-wider text-primary hover:text-foreground"
       >
         View all projects →
       </Link>
@@ -133,7 +139,7 @@ function RecentActivity() {
       ) : (
         <ul className="space-y-2">
           {data.map((n) => (
-            <li key={n.id} className="text-sm">
+            <li key={n.id} className="border-b border-border/70 py-3 text-sm last:border-0">
               <p className={n.read_at ? 'text-muted-foreground' : 'font-medium'}>{n.title}</p>
               {n.body ? <p className="text-xs text-muted-foreground">{n.body}</p> : null}
             </li>
@@ -168,7 +174,7 @@ function Projects() {
             <li key={p.id}>
               <Link
                 href={`/app/${slug}/projects/${p.key}`}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary/60"
+                className="flex items-center gap-3 border-b border-border/70 px-0 py-3 text-sm transition-colors hover:text-primary"
               >
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
