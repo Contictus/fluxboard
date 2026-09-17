@@ -5,8 +5,14 @@ import type { Board, BulkActionInput, Column, CreateTaskInput, Task } from './ty
 // projection is fetched whole and cached under ['board', projectId]; drag-drop
 // moves are optimistic and the rank key is minted client-side (lib/board/rank).
 
-export function getBoard(orgId: string, projectId: string): Promise<Board> {
-  return apiFetch(`/orgs/${orgId}/projects/${projectId}/board`);
+export async function getBoard(orgId: string, projectId: string): Promise<Board> {
+  const board = await apiFetch<Board>(`/orgs/${orgId}/projects/${projectId}/board`);
+  // The API may encode empty lists as null (Go nil slices); normalize so
+  // board consumers can assume arrays (new projects have empty columns).
+  return {
+    ...board,
+    columns: (board.columns ?? []).map((col) => ({ ...col, tasks: col.tasks ?? [] })),
+  };
 }
 
 export function createColumn(
