@@ -365,6 +365,17 @@ type TaskLabel struct {
 	OrgID   uuid.UUID `json:"org_id"`
 }
 
+type TimeEntry struct {
+	ID        uuid.UUID          `json:"id"`
+	OrgID     uuid.UUID          `json:"org_id"`
+	TaskID    uuid.UUID          `json:"task_id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	StartedAt time.Time          `json:"started_at"`
+	EndedAt   pgtype.Timestamptz `json:"ended_at"`
+	Note      string             `json:"note"`
+	CreatedAt time.Time          `json:"created_at"`
+}
+
 type UsageRecord struct {
 	OrgID      uuid.UUID          `json:"org_id"`
 	Metric     string             `json:"metric"`

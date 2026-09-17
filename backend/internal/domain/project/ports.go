@@ -200,6 +200,20 @@ type CommentRepository interface {
 	CountForProject(ctx context.Context, orgID, projectID string) (map[string]int, error)
 }
 
+// TimeEntryRepository persists task timers and manual entries (FR-TIME).
+type TimeEntryRepository interface {
+	Create(ctx context.Context, orgID string, e *TimeEntry) error
+	Get(ctx context.Context, orgID, id string) (*TimeEntry, error)
+	// ListByTask returns a task's entries newest-first.
+	ListByTask(ctx context.Context, orgID, taskID string) ([]TimeEntry, error)
+	// ListRunning returns the caller's running timers newest-first.
+	ListRunning(ctx context.Context, orgID, userID string) ([]TimeEntry, error)
+	// Stop stamps ended_at. ErrNotFound if absent or already stopped.
+	Stop(ctx context.Context, orgID, id string, endedAt time.Time) error
+	// Delete removes an entry. ErrNotFound if absent.
+	Delete(ctx context.Context, orgID, id string) error
+}
+
 // ActivityRepository appends and reads the per-task change log (FR-TASK-002).
 type ActivityRepository interface {
 	Append(ctx context.Context, orgID string, a *Activity) error

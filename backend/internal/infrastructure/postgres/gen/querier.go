@@ -84,6 +84,8 @@ type Querier interface {
 	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) error
 	// Tasks ([T], tenant-scoped) ------------------------------------------------
 	CreateTask(ctx context.Context, arg CreateTaskParams) error
+	// Time entries ([T], tenant-scoped, FR-TIME) -------------------------------
+	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) error
 	DeleteAttachment(ctx context.Context, arg DeleteAttachmentParams) (int64, error)
 	DeleteAutomationRule(ctx context.Context, arg DeleteAutomationRuleParams) (int64, error)
@@ -93,6 +95,7 @@ type Querier interface {
 	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error)
 	DeleteOverride(ctx context.Context, arg DeleteOverrideParams) (int64, error)
 	DeleteSubtask(ctx context.Context, arg DeleteSubtaskParams) (int64, error)
+	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
 	// Hard-deletes the account (docs/08 §3 DELETE /me). Memberships/sessions cascade
 	// via ON DELETE CASCADE. Callers MUST enforce the sole-owner guard first.
 	DeleteUser(ctx context.Context, id uuid.UUID) error
@@ -138,6 +141,7 @@ type Querier interface {
 	// Live tasks only; trashed tasks are addressable through the Trash queries.
 	GetTask(ctx context.Context, arg GetTaskParams) (GetTaskRow, error)
 	GetTenantSummary(ctx context.Context, orgID uuid.UUID) (GetTenantSummaryRow, error)
+	GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (TimeEntry, error)
 	GetTrashedTask(ctx context.Context, arg GetTrashedTaskParams) (GetTrashedTaskRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
@@ -212,6 +216,7 @@ type Querier interface {
 	// in docs/build/PHASE-5 §4).
 	// Non-archived, non-deleted projects for an org (rollup iteration).
 	ListRollupProjectIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	ListRunningTimeEntries(ctx context.Context, arg ListRunningTimeEntriesParams) ([]TimeEntry, error)
 	// Orgs the user solely owns (blocks account deletion, docs/08 §3). Cross-org read:
 	// run on the owner pool (memberships RLS is non-FORCE, table owner bypasses it).
 	ListSoleOwnerOrgs(ctx context.Context, userID uuid.UUID) ([]ListSoleOwnerOrgsRow, error)
@@ -223,6 +228,7 @@ type Querier interface {
 	// (non-FORCE) RLS on subscriptions/memberships). Gated by the platform-admin HTTP
 	// guard. MRR = the org's plan monthly_price when its subscription is entitled.
 	ListTenants(ctx context.Context, arg ListTenantsParams) ([]ListTenantsRow, error)
+	ListTimeEntriesByTask(ctx context.Context, arg ListTimeEntriesByTaskParams) ([]TimeEntry, error)
 	ListTrashedTasks(ctx context.Context, arg ListTrashedTasksParams) ([]ListTrashedTasksRow, error)
 	// Metered aggregates for a day not yet pushed to Stripe.
 	ListUsageForPush(ctx context.Context, arg ListUsageForPushParams) ([]UsageRecord, error)
@@ -272,6 +278,7 @@ type Querier interface {
 	SoftDeleteOrg(ctx context.Context, arg SoftDeleteOrgParams) error
 	// Soft-delete / Trash (FR-TASK-009) -----------------------------------------
 	SoftDeleteTask(ctx context.Context, arg SoftDeleteTaskParams) (int64, error)
+	StopTimeEntry(ctx context.Context, arg StopTimeEntryParams) (int64, error)
 	// Total committed bytes for the org (storage-quota check, FR-TASK-006).
 	SumOrgAttachmentBytes(ctx context.Context, orgID uuid.UUID) (int64, error)
 	// Total of a metric over [from, to] (cumulative dimensions: api_calls).
