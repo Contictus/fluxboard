@@ -35,7 +35,7 @@ func newWebhookHarness(t *testing.T) (*WebhookHandlers, *recordOnlyEvents) {
 }
 
 func postWebhook(h *WebhookHandlers, body, sig string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(body))
 	if sig != "" {
 		req.Header.Set("X-Stub-Signature", sig)
 	}

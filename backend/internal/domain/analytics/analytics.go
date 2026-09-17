@@ -44,11 +44,11 @@ const (
 // dimensions plus an invoice estimate in minor units. Seats/Storage are the latest
 // values; APICalls is the period sum.
 type UsageDashboard struct {
-	PeriodStart     time.Time
-	PeriodEnd       time.Time
-	Seats           int64
-	StorageBytes    int64
-	APICalls        int64
-	EstimatedTotal  int64 // minor units (invariant #5)
-	Plan            string
+	PeriodStart    time.Time
+	PeriodEnd      time.Time
+	Seats          int64
+	StorageBytes   int64
+	APICalls       int64
+	EstimatedTotal int64 // minor units (invariant #5)
+	Plan           string
 }

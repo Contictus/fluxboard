@@ -31,7 +31,7 @@ func (f *fakeCounter) RecordRequest(context.Context, string, string, time.Time) 
 }
 
 func rlRequest(withTenant bool) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/orgs/org1/projects", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/orgs/org1/projects", nil)
 	if withTenant {
 		ctx := context.WithValue(r.Context(), ctxKeyTenant, TenantContext{OrgID: "org1", UserID: "u1"})
 		r = r.WithContext(ctx)
