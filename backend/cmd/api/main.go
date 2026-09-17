@@ -253,6 +253,7 @@ func run(logger *slog.Logger) error {
 	automationRepo := postgres.NewAutomationRepo(tenantPool)
 	sprintRepo := postgres.NewSprintRepo(tenantPool)
 	fieldRepo := postgres.NewCustomFieldRepo(tenantPool)
+	formRepo := postgres.NewFormRepo(pool, tenantPool)
 	linkRepo := postgres.NewTaskLinkRepo(tenantPool)
 	timeEntryRepo := postgres.NewTimeEntryRepo(tenantPool)
 	objectStore := loadObjectStore(ctx, cfg, logger) // FR-TASK-006; nil disables attachments
@@ -365,7 +366,7 @@ func run(logger *slog.Logger) error {
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
 		Columns: columnRepo, Tasks: taskRepo, Sprints: sprintRepo, Fields: fieldRepo, Labels: labelRepo,
-		Subtasks: subtaskRepo, Comments: commentRepo, Links: linkRepo,
+		Subtasks: subtaskRepo, Comments: commentRepo, Links: linkRepo, Forms: formRepo,
 		Automation: automationSvc,
 		Events: eventBus, Logger: logger,
 	})
@@ -377,6 +378,7 @@ func run(logger *slog.Logger) error {
 		Events: eventBus, Notifier: notifySvc, Automation: automationSvc, Logger: logger,
 	})
 	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
+	publicFormHandlers := handlers.NewPublicFormHandlers(projectSvc, logger)
 	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
 	billingHandlers := handlers.NewBillingHandlers(billingSvc, logger)
 	webhookHandlers := handlers.NewWebhookHandlers(billingSvc, stripeGW, logger)
@@ -410,6 +412,7 @@ func run(logger *slog.Logger) error {
 		Orgs:          orgHandlers,
 		Projects:      projectHandlers,
 		Tasks:         taskHandlers,
+		PublicForms:   publicFormHandlers,
 		Automations:   automationHandlers,
 		Billing:       billingHandlers,
 		Webhooks:      webhookHandlers,

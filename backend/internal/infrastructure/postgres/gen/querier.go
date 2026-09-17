@@ -81,6 +81,12 @@ type Querier interface {
 	CreateOrg(ctx context.Context, arg CreateOrgParams) error
 	// Projects ([T], tenant-scoped) ---------------------------------------------
 	CreateProject(ctx context.Context, arg CreateProjectParams) error
+	// Intake forms ([T], tenant-scoped, ADR-023) ----------------------------------
+	// Token resolution (public surface) intentionally lives OUTSIDE sqlc: it calls
+	// the SECURITY DEFINER app_form_by_token function whose RETURNS TABLE columns
+	// sqlc can't infer (same as app_invitation_by_token — hand-written pgx in the
+	// form repo).
+	CreateProjectForm(ctx context.Context, arg CreateProjectFormParams) error
 	CreateRecoveryCode(ctx context.Context, arg CreateRecoveryCodeParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	// Sprints ([T], tenant-scoped, FR-SPRINT) ----------------------------------
@@ -102,6 +108,7 @@ type Querier interface {
 	DeleteLabel(ctx context.Context, arg DeleteLabelParams) (int64, error)
 	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error)
 	DeleteOverride(ctx context.Context, arg DeleteOverrideParams) (int64, error)
+	DeleteProjectForm(ctx context.Context, arg DeleteProjectFormParams) (int64, error)
 	DeleteSprint(ctx context.Context, arg DeleteSprintParams) (int64, error)
 	DeleteSubtask(ctx context.Context, arg DeleteSubtaskParams) (int64, error)
 	DeleteTaskCustomValue(ctx context.Context, arg DeleteTaskCustomValueParams) (int64, error)
@@ -141,6 +148,7 @@ type Querier interface {
 	// Backs webhook:retry — the worker replays this stored payload through the consumer.
 	GetProcessedEventPayload(ctx context.Context, eventID string) (GetProcessedEventPayloadRow, error)
 	GetProject(ctx context.Context, arg GetProjectParams) (GetProjectRow, error)
+	GetProjectForm(ctx context.Context, arg GetProjectFormParams) (ProjectForm, error)
 	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (GetProjectMemberRow, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error)
 	GetSessionByTokenHashForUpdate(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashForUpdateRow, error)
@@ -213,6 +221,7 @@ type Querier interface {
 	ListOverrides(ctx context.Context, orgID uuid.UUID) ([]EntitlementOverride, error)
 	ListPendingInvitations(ctx context.Context, orgID uuid.UUID) ([]Invitation, error)
 	ListPlans(ctx context.Context) ([]Plan, error)
+	ListProjectFormsByProject(ctx context.Context, arg ListProjectFormsByProjectParams) ([]ProjectForm, error)
 	// Directory lookups — Phase 5 notification fan-out (notifyuc.Directory). Resolves
 	// project members (for @mention matching) and specific users (targeted notifs).
 	// Runs inside a tenant tx: project_members is RLS-scoped; users is global.
@@ -317,6 +326,8 @@ type Querier interface {
 	UpdateOrgProfile(ctx context.Context, arg UpdateOrgProfileParams) error
 	UpdateOrgSlug(ctx context.Context, arg UpdateOrgSlugParams) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (int64, error)
+	UpdateProjectForm(ctx context.Context, arg UpdateProjectFormParams) (int64, error)
+	UpdateProjectFormToken(ctx context.Context, arg UpdateProjectFormTokenParams) (int64, error)
 	UpdateSprint(ctx context.Context, arg UpdateSprintParams) (int64, error)
 	UpdateSubtask(ctx context.Context, arg UpdateSubtaskParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)

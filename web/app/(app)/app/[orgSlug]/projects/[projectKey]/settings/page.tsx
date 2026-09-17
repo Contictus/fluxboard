@@ -22,6 +22,7 @@ import { between } from '@/lib/board/rank';
 import { useToast } from '@/components/ui/toast';
 import { ProjectHeader } from '@/components/board/project-header';
 import { FieldsManager } from '@/components/board/fields-manager';
+import { FormsManager } from '@/components/board/forms-manager';
 import type { BoardColumn, Project, Visibility } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +49,7 @@ export default function ProjectSettingsPage({ params }: { params: { projectKey: 
           <GeneralSection project={project} />
           <ColumnsSection project={project} />
           <FieldsManager projectId={project.id} />
+          <FormsManager projectId={project.id} />
           <DangerSection project={project} />
         </div>
       ) : (

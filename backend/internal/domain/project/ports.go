@@ -263,6 +263,23 @@ type TaskLinkRepository interface {
 	Blocked(ctx context.Context, orgID, taskID string) ([]TaskLink, error)
 }
 
+// FormRepository persists project intake forms (ADR-023).
+type FormRepository interface {
+	Create(ctx context.Context, orgID string, f *ProjectForm) error
+	Get(ctx context.Context, orgID, id string) (*ProjectForm, error)
+	// ListByProject returns a project's forms oldest-first.
+	ListByProject(ctx context.Context, orgID, projectID string) ([]ProjectForm, error)
+	Update(ctx context.Context, orgID string, f *ProjectForm) error
+	// RotateToken swaps the stored token hash (the old URL dies).
+	RotateToken(ctx context.Context, orgID, id string, tokenHash []byte) error
+	// Delete removes a form. Submitted tasks are untouched.
+	Delete(ctx context.Context, orgID, id string) error
+	// ResolveByToken resolves the public projection from a token hash via the
+	// SECURITY DEFINER app_form_by_token function (no tenant scope — the token
+	// IS the credential). ErrNotFound when unknown.
+	ResolveByToken(ctx context.Context, tokenHash []byte) (*ProjectForm, error)
+}
+
 // ActivityRepository appends and reads the per-task change log (FR-TASK-002).
 type ActivityRepository interface {
 	Append(ctx context.Context, orgID string, a *Activity) error
