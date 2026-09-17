@@ -101,9 +101,9 @@ export default function ProjectListPage({ params }: { params: { projectKey: stri
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No tasks yet.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto rounded-2xl bg-card shadow-[0_8px_30px_hsl(var(--foreground)/0.04)]">
           <table className="w-full text-sm">
-            <thead className="border-b bg-secondary/40 text-left text-muted-foreground">
+            <thead className="bg-secondary/45 text-left text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">#</th>
                 <th className="px-3 py-2">{header('title', 'Title')}</th>
@@ -114,7 +114,7 @@ export default function ProjectListPage({ params }: { params: { projectKey: stri
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b last:border-0 hover:bg-secondary/40">
+                <tr key={r.id} className="transition-colors hover:bg-secondary/35">
                   <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{r.number}</td>
                   <td className="px-3 py-2">
                     <Link

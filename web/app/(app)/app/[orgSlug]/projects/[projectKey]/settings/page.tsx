@@ -40,7 +40,7 @@ export default function ProjectSettingsPage({ params }: { params: { projectKey: 
     );
 
   return (
-    <div className="px-6 py-6">
+    <div className="mx-auto max-w-6xl px-6 py-10 lg:px-10 lg:py-14">
       <ProjectHeader project={project} />
       {isAdmin ? (
         <div className="max-w-2xl space-y-8">
@@ -49,7 +49,7 @@ export default function ProjectSettingsPage({ params }: { params: { projectKey: 
           <DangerSection project={project} />
         </div>
       ) : (
-        <p className="max-w-2xl rounded-md border bg-secondary/40 p-4 text-sm text-muted-foreground">
+        <p className="max-w-2xl rounded-2xl bg-secondary/55 p-5 text-sm text-muted-foreground">
           Only project leads and organization admins can change project settings.
         </p>
       )}
@@ -86,7 +86,7 @@ function GeneralSection({ project }: { project: Project }) {
     <section>
       <SectionTitle>General</SectionTitle>
       {archived ? (
-        <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+        <p className="mb-3 rounded-2xl bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-400">
           This project is archived and read-only. Unarchive it below to edit.
         </p>
       ) : null}
@@ -107,7 +107,7 @@ function GeneralSection({ project }: { project: Project }) {
             onChange={(e) => setDescription(e.target.value)}
             disabled={archived}
             rows={3}
-            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className="flex w-full rounded-xl border-0 bg-secondary/60 px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           />
         </Field>
         <Field id="p-color" label="Color">
@@ -135,8 +135,8 @@ function GeneralSection({ project }: { project: Project }) {
                 disabled={archived}
                 onClick={() => setVisibility(v)}
                 className={cn(
-                  'rounded-md border p-3 text-left text-sm transition-colors disabled:opacity-50',
-                  visibility === v ? 'border-primary bg-secondary/50' : 'hover:bg-secondary/40',
+                  'rounded-2xl bg-secondary/45 p-4 text-left text-sm transition-colors disabled:opacity-50',
+                  visibility === v ? 'bg-primary/10 text-foreground ring-1 ring-primary/30' : 'hover:bg-secondary',
                 )}
               >
                 <span className="font-medium">{label}</span>
@@ -296,7 +296,7 @@ function ColumnRow({
   }
 
   return (
-    <div className="rounded-md border bg-card p-2">
+    <div className="rounded-2xl bg-card p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={commit} className="max-w-[16rem]" />
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -341,7 +341,7 @@ function ColumnRow({
       </div>
 
       {confirming ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-sm">
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl bg-destructive/5 p-3 text-sm">
           <span>Move its tasks to</span>
           <select
             value={target}
@@ -405,7 +405,7 @@ function DangerSection({ project }: { project: Project }) {
   return (
     <section>
       <SectionTitle>Danger zone</SectionTitle>
-      <div className="flex items-center justify-between rounded-md border border-destructive/30 p-4">
+      <div className="flex items-center justify-between rounded-2xl bg-destructive/5 p-5">
         <div>
           <p className="text-sm font-medium">{archived ? 'Restore project' : 'Archive project'}</p>
           <p className="text-sm text-muted-foreground">

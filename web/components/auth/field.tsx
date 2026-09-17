@@ -15,7 +15,7 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       {children}
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -27,7 +27,7 @@ export function Field({
 export function FormError({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+    <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
       {message}
     </div>
   );

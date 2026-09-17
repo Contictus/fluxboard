@@ -22,18 +22,18 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
   const currentLabel = nav.find((n) => pathname === n.href)?.label ?? 'Account';
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10 animate-fade-in">
+    <div className="mx-auto max-w-5xl px-6 py-12 lg:px-10 lg:py-16 animate-fade-in">
       {/* Header with breadcrumb */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-10 flex items-end justify-between">
         <div>
-          <div className="mb-1 flex items-center gap-1 text-sm text-muted-foreground">
+          <div className="mb-3 flex items-center gap-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
             <Link href="/app" className="hover:text-foreground transition-colors">
               Organizations
             </Link>
             <ChevronRight className="h-3 w-3" />
             <span className="text-foreground font-medium">Account</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">{currentLabel}</h1>
+          <h1 className="text-4xl font-semibold tracking-[-0.06em]">{currentLabel}</h1>
         </div>
         <Link
           href="/logout"
@@ -44,7 +44,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
       </div>
 
       <div className="grid gap-8 md:grid-cols-[180px_1fr]">
-        <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col">
+        <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col md:pr-8">
           {nav.map((n) => {
             const active = pathname === n.href;
             return (
@@ -52,7 +52,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 key={n.href}
                 href={n.href}
                 className={cn(
-                  'relative whitespace-nowrap rounded-md px-3 py-2 text-sm transition-all duration-200',
+                  'relative whitespace-nowrap rounded-xl px-3 py-2.5 text-sm transition-all duration-200',
                   active
                     ? 'bg-secondary font-medium text-foreground'
                     : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
