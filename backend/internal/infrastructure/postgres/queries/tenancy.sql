@@ -26,6 +26,13 @@ SET name = @name,
     logo_key = coalesce(sqlc.narg('logo_key'), logo_key)
 WHERE id = @id AND deleted_at IS NULL;
 
+-- name: ClearOrgLogo :execrows
+-- Removes the org logo (empty-string logo_key in UpdateProfile). A separate
+-- query because coalesce() above cannot express "set NULL".
+UPDATE organizations
+SET logo_key = NULL
+WHERE id = @id AND deleted_at IS NULL;
+
 -- name: UpdateOrgSlug :exec
 UPDATE organizations SET slug = @slug WHERE id = @id AND deleted_at IS NULL;
 

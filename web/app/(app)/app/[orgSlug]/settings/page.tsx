@@ -196,6 +196,16 @@ function LogoSection() {
     onError: () => toast({ title: 'Logo upload failed', variant: 'error' }),
   });
 
+  const remove = useMutation({
+    mutationFn: () => updateOrg(orgId, { logo_key: '' }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['org', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['orgs'] });
+      toast({ title: 'Logo removed', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Couldn’t remove logo', variant: 'error' }),
+  });
+
   return (
     <div className="space-y-1.5">
       <span className="text-sm font-medium">Logo</span>
@@ -229,10 +239,21 @@ function LogoSection() {
             variant="outline"
             size="sm"
             onClick={() => fileRef.current?.click()}
-            disabled={upload.isPending}
+            disabled={upload.isPending || remove.isPending}
           >
             {upload.isPending ? 'Uploading…' : 'Change logo'}
           </Button>
+          {org.logo_key ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => remove.mutate()}
+              disabled={upload.isPending || remove.isPending}
+            >
+              {remove.isPending ? 'Removing…' : 'Remove'}
+            </Button>
+          ) : null}
           <p className="mt-1 text-xs text-muted-foreground">PNG, JPEG or WebP, up to 5 MB.</p>
         </div>
       </div>

@@ -146,6 +146,21 @@ func (r *OrgRepo) UpdateProfile(ctx context.Context, id, name string, logoKey *s
 	return r.q.UpdateOrgProfile(ctx, gen.UpdateOrgProfileParams{Name: name, LogoKey: logoKey, ID: oid})
 }
 
+func (r *OrgRepo) ClearLogo(ctx context.Context, id string) error {
+	oid, err := parseUUID(id)
+	if err != nil {
+		return fmt.Errorf("clear org logo: %w", err)
+	}
+	n, err := r.q.ClearOrgLogo(ctx, oid)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 func (r *OrgRepo) UpdateSlug(ctx context.Context, id, newSlug string, historyExpires time.Time) error {
 	oid, err := parseUUID(id)
 	if err != nil {

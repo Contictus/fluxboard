@@ -88,6 +88,29 @@ func TestCheckLogoKey(t *testing.T) {
 	}
 }
 
+func TestUpdateProfile_ClearLogo(t *testing.T) {
+	members := &fakeMembers{m: map[string]map[string]*tenant.Membership{}}
+	orgs := &fakeOrgs{orgs: map[string]*tenant.Organization{
+		"o1": {ID: "o1", Slug: "org1", Name: "Org", LogoKey: "org-logos/o1/abc"},
+	}, members: members}
+	s := New(Deps{Orgs: orgs, Members: members, Now: func() time.Time { return testNow }})
+
+	empty := ""
+	got, err := s.UpdateProfile(context.Background(), "o1", "Org", &empty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LogoKey != "" {
+		t.Errorf("LogoKey = %q, want cleared", got.LogoKey)
+	}
+
+	// Foreign keys are rejected, not stored.
+	evil := "org-logos/o2/abc"
+	if _, err := s.UpdateProfile(context.Background(), "o1", "Org", &evil); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("foreign key: err = %v, want ErrValidation", err)
+	}
+}
+
 func TestGetOrg_MintsLogoURL(t *testing.T) {
 	store := &fakeLogoStore{}
 	members := &fakeMembers{m: map[string]map[string]*tenant.Membership{}}

@@ -13,6 +13,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearOrgLogo = `-- name: ClearOrgLogo :execrows
+UPDATE organizations
+SET logo_key = NULL
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+// Removes the org logo (empty-string logo_key in UpdateProfile). A separate
+// query because coalesce() above cannot express "set NULL".
+func (q *Queries) ClearOrgLogo(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, clearOrgLogo, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countMembers = `-- name: CountMembers :one
 SELECT count(*) FROM memberships WHERE org_id = $1
 `

@@ -233,14 +233,20 @@ func (s *Service) ResolveSlug(ctx context.Context, slug string) (SlugResolution,
 }
 
 // UpdateProfile sets the org name and (optionally) logo key (ADMIN+ gate). A
-// logo key must live under the org's namespace (see checkLogoKey).
+// logo key must live under the org's namespace (see checkLogoKey); an empty
+// key clears the logo.
 func (s *Service) UpdateProfile(ctx context.Context, orgID, name string, logoKey *string) (*tenant.Organization, error) {
 	name = strings.TrimSpace(name)
 	if err := validateName(name); err != nil {
 		return nil, err
 	}
 	if logoKey != nil {
-		if err := checkLogoKey(orgID, *logoKey); err != nil {
+		if *logoKey == "" {
+			if err := s.orgs.ClearLogo(ctx, orgID); err != nil {
+				return nil, err
+			}
+			logoKey = nil // cleared above; don't let coalesce() write '' back
+		} else if err := checkLogoKey(orgID, *logoKey); err != nil {
 			return nil, err
 		}
 	}

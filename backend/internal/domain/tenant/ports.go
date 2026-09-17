@@ -27,6 +27,8 @@ type OrgRepository interface {
 	ListForUser(ctx context.Context, userID string) ([]OrgMembership, error)
 	// UpdateProfile sets name and (optionally) logo. logoKey nil leaves it.
 	UpdateProfile(ctx context.Context, id, name string, logoKey *string) error
+	// ClearLogo removes the logo (sets logo_key NULL).
+	ClearLogo(ctx context.Context, id string) error
 	// UpdateSlug changes the slug and records the old one in slug_history for
 	// the 301 window, in one transaction. Returns domain.ErrConflict if taken.
 	UpdateSlug(ctx context.Context, id, newSlug string, historyExpires time.Time) error
