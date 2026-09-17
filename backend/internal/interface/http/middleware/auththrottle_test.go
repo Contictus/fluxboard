@@ -14,9 +14,9 @@ import (
 )
 
 type fakeThrottleLimiter struct {
-	allow bool
-	retry time.Duration
-	err   error
+	allow  bool
+	retry  time.Duration
+	err    error
 	gotKey string
 }
 

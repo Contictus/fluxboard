@@ -297,10 +297,10 @@ func (h *ProjectHandlers) GetBoard(w http.ResponseWriter, r *http.Request) {
 			card := taskCardResp{
 				ID: t.ID, Number: t.Number, Title: t.Title,
 				Priority: string(t.Priority), Assignee: t.AssigneeID, StartDate: t.StartDate, DueDate: t.DueDate, Rank: t.Rank,
-				Labels: []labelResp{},
+				Labels:       []labelResp{},
 				CommentCount: cv.Comments[t.ID],
 				SubtaskTotal: cv.Subtasks[t.ID].Total, SubtaskDone: cv.Subtasks[t.ID].Done,
-				SprintID: t.SprintID,
+				SprintID:  t.SprintID,
 				CreatedAt: t.CreatedAt,
 			}
 			for _, l := range cv.Labels[t.ID] {

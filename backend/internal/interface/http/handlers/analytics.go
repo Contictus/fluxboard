@@ -66,10 +66,10 @@ func (h *AnalyticsHandlers) ProjectAnalytics(w http.ResponseWriter, r *http.Requ
 	series := make([]dailyStatResp, 0, len(a.Series))
 	for _, d := range a.Series {
 		series = append(series, dailyStatResp{
-			Day:            d.Day.UTC().Format("2006-01-02"),
-			CreatedCount:   d.CreatedCount,
-			CompletedCount: d.CompletedCount,
-			ColumnSnapshot: d.ColumnSnapshot,
+			Day:             d.Day.UTC().Format("2006-01-02"),
+			CreatedCount:    d.CreatedCount,
+			CompletedCount:  d.CompletedCount,
+			ColumnSnapshot:  d.ColumnSnapshot,
 			AvgCycleSeconds: d.AvgCycleSeconds,
 		})
 	}

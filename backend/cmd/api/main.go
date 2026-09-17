@@ -46,9 +46,9 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/apikeyuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/audituc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/automationuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/billinguc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/notifyuc"
-	"github.com/mesutokul/fluxboard/backend/internal/usecase/automationuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/projectuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/tenantuc"
@@ -368,7 +368,7 @@ func run(logger *slog.Logger) error {
 		Columns: columnRepo, Tasks: taskRepo, Sprints: sprintRepo, Fields: fieldRepo, Labels: labelRepo,
 		Subtasks: subtaskRepo, Comments: commentRepo, Links: linkRepo, Forms: formRepo,
 		Automation: automationSvc,
-		Events: eventBus, Logger: logger,
+		Events:     eventBus, Logger: logger,
 	})
 	taskSvc := taskuc.New(taskuc.Deps{
 		Tasks: taskRepo, Subtasks: subtaskRepo, Labels: labelRepo, Comments: commentRepo,
@@ -403,33 +403,33 @@ func run(logger *slog.Logger) error {
 	}
 
 	router := httpx.NewRouter(httpx.Deps{
-		Logger:        logger,
-		WebOrigin:     cfg.WebOrigin,
-		Health:        httpx.Health{DB: pool, Redis: redisPinger{rdb}},
-		MetricsHTTP:   promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
-		Auth:          authHandlers,
-		User:          userHandlers,
-		Orgs:          orgHandlers,
-		Projects:      projectHandlers,
-		Tasks:         taskHandlers,
-		PublicForms:   publicFormHandlers,
-		Automations:   automationHandlers,
-		Billing:       billingHandlers,
-		Webhooks:      webhookHandlers,
-		Events:        eventHandlers,
-		Notifications: notificationHandlers,
-		APIKeys:       apiKeyHandlers,
-		AuditView:     auditHandlers,
-		Analytics:     analyticsHandlers,
-		Admin:         adminHandlers,
-		OpenAPI:       handlers.NewOpenAPIHandlers(),
-		DevDocs:       !cfg.IsProd(),
-		Authenticator: authenticator,
-		Tenant:        tenantGuard,
-		Entitlement:   entitlementGuard,
-		AuthThrottle:  &mw.AuthThrottle{Limiter: authThrottleLimiter, Logger: logger},
-		RateLimit:     rateLimiter,
-		PlatformAdmin: platformGuard,
+		Logger:         logger,
+		WebOrigin:      cfg.WebOrigin,
+		Health:         httpx.Health{DB: pool, Redis: redisPinger{rdb}},
+		MetricsHTTP:    promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
+		Auth:           authHandlers,
+		User:           userHandlers,
+		Orgs:           orgHandlers,
+		Projects:       projectHandlers,
+		Tasks:          taskHandlers,
+		PublicForms:    publicFormHandlers,
+		Automations:    automationHandlers,
+		Billing:        billingHandlers,
+		Webhooks:       webhookHandlers,
+		Events:         eventHandlers,
+		Notifications:  notificationHandlers,
+		APIKeys:        apiKeyHandlers,
+		AuditView:      auditHandlers,
+		Analytics:      analyticsHandlers,
+		Admin:          adminHandlers,
+		OpenAPI:        handlers.NewOpenAPIHandlers(),
+		DevDocs:        !cfg.IsProd(),
+		Authenticator:  authenticator,
+		Tenant:         tenantGuard,
+		Entitlement:    entitlementGuard,
+		AuthThrottle:   &mw.AuthThrottle{Limiter: authThrottleLimiter, Logger: logger},
+		RateLimit:      rateLimiter,
+		PlatformAdmin:  platformGuard,
 		APIKeyResolver: apiKeyResolver,
 		HTTPMetrics:    httpMetrics,
 	})

@@ -116,14 +116,14 @@ var AllowedAttachmentMIME = map[string]bool{
 	"image/jpeg":         true,
 	"image/gif":          true,
 	"image/webp":         true,
-	"application/pdf":     true,
-	"text/plain":          true,
-	"text/csv":            true,
-	"application/zip":     true,
-	"application/msword":  true,
+	"application/pdf":    true,
+	"text/plain":         true,
+	"text/csv":           true,
+	"application/zip":    true,
+	"application/msword": true,
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
-	"application/vnd.ms-excel":                                                true,
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true,
+	"application/vnd.ms-excel": true,
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
 }
 
 // AllowedMIME reports whether ct is an accepted attachment content type.
@@ -315,6 +315,7 @@ func (e *TimeEntry) Seconds(now time.Time) int64 {
 	}
 	return s
 }
+
 // Deleted reports whether the comment is soft-deleted.
 func (c *Comment) Deleted() bool { return c.DeletedAt != nil }
 

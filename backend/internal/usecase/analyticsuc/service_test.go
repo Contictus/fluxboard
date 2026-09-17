@@ -9,9 +9,9 @@ import (
 )
 
 type fakeStats struct {
-	rows      []analytics.DailyStat
-	gotFrom   time.Time
-	gotTo     time.Time
+	rows    []analytics.DailyStat
+	gotFrom time.Time
+	gotTo   time.Time
 }
 
 func (f *fakeStats) ListDaily(_ context.Context, _, _ string, from, to time.Time) ([]analytics.DailyStat, error) {

@@ -53,11 +53,11 @@ type Deps struct {
 	Members      project.ProjectMemberRepository
 	Boards       project.BoardRepository
 	Columns      project.ColumnRepository
-	Store        project.ObjectStore // MinIO; nil disables attachment endpoints
-	Entitlements EntitlementResolver // plan storage ceiling; nil ⇒ Free const
-	Events       notify.EventBus     // realtime publish; nil ⇒ no SSE events
-	Notifier     Notifier            // notification fan-out; nil ⇒ no fan-out
-	Automation   automation.Evaluator  // automation rules; nil ⇒ no evaluation
+	Store        project.ObjectStore  // MinIO; nil disables attachment endpoints
+	Entitlements EntitlementResolver  // plan storage ceiling; nil ⇒ Free const
+	Events       notify.EventBus      // realtime publish; nil ⇒ no SSE events
+	Notifier     Notifier             // notification fan-out; nil ⇒ no fan-out
+	Automation   automation.Evaluator // automation rules; nil ⇒ no evaluation
 	Logger       *slog.Logger
 	Now          func() time.Time // injectable for tests; defaults to time.Now
 }
@@ -101,7 +101,7 @@ func New(d Deps) *Service {
 		members: d.Members, boards: d.Boards, columns: d.Columns, store: d.Store,
 		entitlements: d.Entitlements, events: d.Events, notifier: d.Notifier,
 		automation: d.Automation,
-		logger: logger, now: now,
+		logger:     logger, now: now,
 	}
 }
 
