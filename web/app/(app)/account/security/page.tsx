@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FormError } from '@/components/auth/field';
 import { useToast } from '@/components/ui/toast';
@@ -61,9 +62,8 @@ function PasswordCard() {
         >
           <FormError message={message} />
           <Field id="current" label="Current password">
-            <Input
+            <PasswordInput
               id="current"
-              type="password"
               autoComplete="current-password"
               required
               value={current}
@@ -71,9 +71,8 @@ function PasswordCard() {
             />
           </Field>
           <Field id="next" label="New password">
-            <Input
+            <PasswordInput
               id="next"
-              type="password"
               autoComplete="new-password"
               required
               minLength={8}

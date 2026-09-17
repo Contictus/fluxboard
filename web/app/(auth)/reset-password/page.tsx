@@ -6,7 +6,7 @@ import { Suspense, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FormError } from '@/components/auth/field';
 import { resetPassword } from '@/lib/api/auth';
@@ -75,9 +75,8 @@ function ResetForm() {
         >
           <FormError message={message} />
           <Field id="password" label="New password">
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="new-password"
               required
               minLength={8}
@@ -86,9 +85,8 @@ function ResetForm() {
             />
           </Field>
           <Field id="confirm" label="Confirm password" error={mismatch}>
-            <Input
+            <PasswordInput
               id="confirm"
-              type="password"
               autoComplete="new-password"
               required
               value={confirm}

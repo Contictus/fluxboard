@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import {
   Card,
   CardContent,
@@ -105,9 +106,8 @@ function LoginForm() {
             />
           </Field>
           <Field id="password" label="Password">
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="current-password"
               required
               value={password}

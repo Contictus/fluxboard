@@ -7,6 +7,7 @@ import { CheckCircle2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FormError } from '@/components/auth/field';
 import { register } from '@/lib/api/auth';
@@ -89,9 +90,8 @@ export default function RegisterPage() {
             />
           </Field>
           <Field id="password" label="Password" error={fieldErrors.password}>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="new-password"
               required
               minLength={8}
