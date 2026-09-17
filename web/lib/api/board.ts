@@ -19,6 +19,7 @@ export async function getBoard(orgId: string, projectId: string): Promise<Board>
         comment_count: t.comment_count ?? 0,
         subtask_total: t.subtask_total ?? 0,
         subtask_done: t.subtask_done ?? 0,
+        sprint_id: t.sprint_id ?? null,
       })),
     })),
   };

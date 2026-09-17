@@ -214,6 +214,25 @@ type TimeEntryRepository interface {
 	Delete(ctx context.Context, orgID, id string) error
 }
 
+// SprintRepository persists project sprints and task assignment (FR-SPRINT).
+type SprintRepository interface {
+	Create(ctx context.Context, orgID string, s *Sprint) error
+	Get(ctx context.Context, orgID, id string) (*Sprint, error)
+	// ListByProject returns sprints oldest-first.
+	ListByProject(ctx context.Context, orgID, projectID string) ([]Sprint, error)
+	// GetActive returns the active sprint. ErrNotFound when none.
+	GetActive(ctx context.Context, orgID, projectID string) (*Sprint, error)
+	Update(ctx context.Context, orgID string, s *Sprint) error
+	// Delete removes a planned sprint. Tasks keep no dangling reference:
+	// the FK sets their sprint_id NULL.
+	Delete(ctx context.Context, orgID, id string) error
+	// SetTaskSprint assigns (nil clears) a task's sprint. The sprint must
+	// belong to the task's project; enforced by the caller.
+	SetTaskSprint(ctx context.Context, orgID, taskID string, sprintID *string) error
+	// ClearSprint unassigns every task of one sprint in a project.
+	ClearSprint(ctx context.Context, orgID, projectID, sprintID string) error
+}
+
 // ActivityRepository appends and reads the per-task change log (FR-TASK-002).
 type ActivityRepository interface {
 	Append(ctx context.Context, orgID string, a *Activity) error

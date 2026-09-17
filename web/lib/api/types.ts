@@ -233,6 +233,7 @@ export interface TaskCard {
   comment_count: number;
   subtask_total: number;
   subtask_done: number;
+  sprint_id?: string | null;
   created_at: string;
   rank: string;
 }

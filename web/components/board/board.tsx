@@ -20,6 +20,7 @@ import type { Board as BoardData, BulkActionInput, TaskCard } from '@/lib/api/ty
 import { getBoard, bulkTasks, createColumn, createTask, moveTask } from '@/lib/api/board';
 import { listLabels } from '@/lib/api/labels';
 import { listOrgMembers } from '@/lib/api/orgs';
+import { listSprints } from '@/lib/api/sprints';
 import { useOrg } from '@/lib/org/context';
 import { useAuth } from '@/lib/auth/context';
 import { ApiError } from '@/lib/api/client';
@@ -69,6 +70,10 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
 
   const { data: board, isLoading, isError } = useQuery({ queryKey: boardKey, queryFn: () => getBoard(orgId, projectId) });
   const { data: labels } = useQuery({ queryKey: ['labels', orgId], queryFn: () => listLabels(orgId) });
+  const { data: sprints } = useQuery({
+    queryKey: ['sprints', projectId],
+    queryFn: () => listSprints(orgId, projectId),
+  });
   const { data: membersPage } = useQuery({
     queryKey: ['members', orgId],
     queryFn: () => listOrgMembers(orgId, { limit: 100 }),
@@ -171,6 +176,8 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
       if (filter.priority && t.priority !== filter.priority) return false;
       if (filter.assignee === 'me' && t.assignee_id !== userId) return false;
       if (filter.assignee === 'unassigned' && t.assignee_id) return false;
+      if (filter.sprint === 'backlog' && t.sprint_id) return false;
+      if (filter.sprint !== '' && filter.sprint !== 'backlog' && t.sprint_id !== filter.sprint) return false;
       return true;
     });
   }
@@ -246,6 +253,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
         selectedCount={selectedIds.size}
         columns={board.columns}
         labels={labels ?? []}
+        sprints={sprints ?? []}
         bulkPending={bulkMutation.isPending}
         onBulkMove={(columnId) => bulkMutation.mutate({ action: 'move', task_ids: [...selectedIds], column_id: columnId })}
         onBulkAssignMe={() =>

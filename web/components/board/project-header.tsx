@@ -20,6 +20,7 @@ export function ProjectHeader({ project }: { project: Project }) {
     { href: `${base}/list`, label: 'List', exact: false },
     { href: `${base}/timeline`, label: 'Timeline', exact: false },
     { href: `${base}/calendar`, label: 'Calendar', exact: false },
+    { href: `${base}/sprints`, label: 'Sprints', exact: false },
     { href: `${base}/analytics`, label: 'Analytics', exact: false },
     ...(isAdmin ? [{ href: `${base}/settings`, label: 'Settings', exact: false }] : []),
   ];

@@ -199,6 +199,7 @@ type Task struct {
 	AssigneeID  *string
 	Priority    Priority
 	DueDate     *time.Time
+	SprintID    *string
 	Rank        string
 	CreatedBy   string
 	CreatedAt   time.Time
@@ -250,6 +251,33 @@ type TimeEntry struct {
 	EndedAt   *time.Time
 	Note      string
 	CreatedAt time.Time
+}
+
+// SprintStatus is a sprint's lifecycle state.
+type SprintStatus string
+
+const (
+	SprintPlanned   SprintStatus = "planned"
+	SprintActive    SprintStatus = "active"
+	SprintCompleted SprintStatus = "completed"
+)
+
+// Sprint is a timeboxed iteration in a project (FR-SPRINT). Tasks join via
+// Task.SprintID (nil = backlog). CompletedTotal/CompletedDone snapshot scope
+// at completion for velocity.
+type Sprint struct {
+	ID             string
+	OrgID          string
+	ProjectID      string
+	Name           string
+	Goal           string
+	Status         SprintStatus
+	StartedAt      *time.Time
+	EndedAt        *time.Time
+	CompletedTotal int
+	CompletedDone  int
+	CreatedBy      string
+	CreatedAt      time.Time
 }
 
 // Seconds returns the entry length against now for running timers.
