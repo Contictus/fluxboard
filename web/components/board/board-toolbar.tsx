@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Filter, CheckSquare, X } from 'lucide-react';
 
 import type { BoardColumn, Label, Priority } from '@/lib/api/types';
+import type { Sprint } from '@/lib/api/sprints';
 import { PRIORITIES, priorityLabel } from '@/lib/board/priority';
 import { cn } from '@/lib/utils';
 
@@ -11,9 +12,10 @@ export interface BoardFilter {
   text: string;
   priority: Priority | '';
   assignee: 'any' | 'me' | 'unassigned';
+  sprint: '' | 'backlog' | string;
 }
 
-export const EMPTY_FILTER: BoardFilter = { text: '', priority: '', assignee: 'any' };
+export const EMPTY_FILTER: BoardFilter = { text: '', priority: '', assignee: 'any', sprint: '' };
 
 const selectCls =
   'h-10 rounded-xl border-0 bg-secondary/60 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -29,6 +31,7 @@ export function BoardToolbar({
   selectedCount,
   columns,
   labels,
+  sprints,
   bulkPending,
   onBulkMove,
   onBulkAssignMe,
@@ -43,6 +46,7 @@ export function BoardToolbar({
   selectedCount: number;
   columns: BoardColumn[];
   labels: Label[];
+  sprints: Sprint[];
   bulkPending: boolean;
   onBulkMove: (columnId: string) => void;
   onBulkAssignMe: () => void;
@@ -87,6 +91,20 @@ export function BoardToolbar({
         <option value="any">Anyone</option>
         <option value="me">Assigned to me</option>
         <option value="unassigned">Unassigned</option>
+      </select>
+      <select
+        value={filter.sprint}
+        onChange={(e) => onFilter({ ...filter, sprint: e.target.value })}
+        className={selectCls}
+        aria-label="Filter by sprint"
+      >
+        <option value="">All sprints</option>
+        <option value="backlog">Backlog</option>
+        {sprints.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
       </select>
 
       <button
