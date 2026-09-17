@@ -48,6 +48,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/authuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/billinguc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/notifyuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/automationuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/projectuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/tenantuc"
@@ -249,6 +250,7 @@ func run(logger *slog.Logger) error {
 	commentRepo := postgres.NewCommentRepo(tenantPool)
 	activityRepo := postgres.NewActivityRepo(tenantPool)
 	attachmentRepo := postgres.NewAttachmentRepo(tenantPool)
+	automationRepo := postgres.NewAutomationRepo(tenantPool)
 	objectStore := loadObjectStore(ctx, cfg, logger) // FR-TASK-006; nil disables attachments
 
 	// Phase 4 — billing wiring (docs/06). Built before taskSvc so the storage
@@ -351,10 +353,16 @@ func run(logger *slog.Logger) error {
 	})
 	userHandlers := handlers.NewUserHandlers(userSvc, logger)
 
+	automationSvc := automationuc.New(automationuc.Deps{
+		Rules: automationRepo, Tasks: taskRepo, Labels: labelRepo,
+		Columns: columnRepo, Boards: boardRepo, Logger: logger,
+	})
+	automationHandlers := handlers.NewAutomationHandlers(automationSvc, logger)
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
 		Columns: columnRepo, Tasks: taskRepo, Labels: labelRepo,
 		Subtasks: subtaskRepo, Comments: commentRepo,
+		Automation: automationSvc,
 		Events: eventBus, Logger: logger,
 	})
 	taskSvc := taskuc.New(taskuc.Deps{
@@ -362,7 +370,7 @@ func run(logger *slog.Logger) error {
 		Activity: activityRepo, Attachments: attachmentRepo, Projects: projectRepo,
 		Members: projectMemberRepo, Boards: boardRepo, Columns: columnRepo,
 		Store: objectStore, Entitlements: billingSvc,
-		Events: eventBus, Notifier: notifySvc, Logger: logger,
+		Events: eventBus, Notifier: notifySvc, Automation: automationSvc, Logger: logger,
 	})
 	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
 	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
@@ -398,6 +406,7 @@ func run(logger *slog.Logger) error {
 		Orgs:          orgHandlers,
 		Projects:      projectHandlers,
 		Tasks:         taskHandlers,
+		Automations:   automationHandlers,
 		Billing:       billingHandlers,
 		Webhooks:      webhookHandlers,
 		Events:        eventHandlers,
