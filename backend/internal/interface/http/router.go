@@ -188,6 +188,7 @@ func NewRouter(d Deps) http.Handler {
 
 				o.With(read(tenant.ObjOrg)).Get("/", d.Orgs.GetOrg)
 				o.With(write(tenant.ObjOrg)).Patch("/", d.Orgs.UpdateOrg)
+				o.With(write(tenant.ObjOrg)).Post("/logo/upload-url", d.Orgs.LogoUploadURL)
 				o.With(write(tenant.ObjOwnership)).Delete("/", d.Orgs.DeleteOrg)
 				o.With(write(tenant.ObjOwnership)).Post("/restore", d.Orgs.RestoreOrg)
 				o.With(write(tenant.ObjOwnership)).Post("/transfer-ownership", d.Orgs.TransferOwnership)

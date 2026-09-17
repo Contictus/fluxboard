@@ -86,6 +86,15 @@ func (f *fakeOrgs) UpdateProfile(_ context.Context, id, name string, logoKey *st
 	return nil
 }
 
+func (f *fakeOrgs) ClearLogo(_ context.Context, id string) error {
+	o, ok := f.orgs[id]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	o.LogoKey = ""
+	return nil
+}
+
 func (f *fakeOrgs) UpdateSlug(_ context.Context, id, newSlug string, _ time.Time) error {
 	for _, e := range f.orgs {
 		if e.Slug == newSlug {

@@ -36,29 +36,29 @@ type TenantSummary struct {
 // (FR-ADM-004). Handled=false marks an event recognized but with no handler (a
 // retry candidate). Error carries the last processing error, if any.
 type WebhookEvent struct {
-	EventID     string
-	Type        string
-	Handled     bool
-	Error       string
-	ProcessedAt time.Time
+	EventID     string    `json:"event_id"`
+	Type        string    `json:"type"`
+	Handled     bool      `json:"handled"`
+	Error       string    `json:"error"`
+	ProcessedAt time.Time `json:"processed_at"`
 }
 
 // EntitlementOverride is a platform-admin override of one entitlement field for a
 // single org (FR-ADM-002). Value is stored as text and parsed by the resolver.
 type EntitlementOverride struct {
-	OrgID     string
-	Key       string
-	Value     string
-	Note      string
-	CreatedBy string
-	CreatedAt time.Time
+	OrgID     string    `json:"org_id"`
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	Note      string    `json:"note"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // FeatureFlag is a per-org toggle (FR-ADM-006). An absent row ⇒ disabled.
 type FeatureFlag struct {
-	OrgID   string
-	Flag    string
-	Enabled bool
+	OrgID   string `json:"org_id"`
+	Flag    string `json:"flag"`
+	Enabled bool   `json:"enabled"`
 }
 
 // ImpersonationClaim is the read-only dual-identity marker an admin mints to view

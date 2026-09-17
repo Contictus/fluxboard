@@ -26,6 +26,9 @@ type Querier interface {
 	// Atomically mark up to @lim undrained rows drained and return them. FOR UPDATE
 	// SKIP LOCKED lets concurrent drainers make progress without contending.
 	ClaimOutboxBatch(ctx context.Context, arg ClaimOutboxBatchParams) ([]Outbox, error)
+	// Removes the org logo (empty-string logo_key in UpdateProfile). A separate
+	// query because coalesce() above cannot express "set NULL".
+	ClearOrgLogo(ctx context.Context, id uuid.UUID) (int64, error)
 	ClearProjectSprints(ctx context.Context, arg ClearProjectSprintsParams) (int64, error)
 	// Current open (non-trashed) task count per column for a project.
 	ColumnOpenCounts(ctx context.Context, arg ColumnOpenCountsParams) ([]ColumnOpenCountsRow, error)

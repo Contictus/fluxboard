@@ -53,8 +53,9 @@ GET    /users/lookup?email=                exact-match, only for invite UX, rate
 ```
 POST   /orgs                               {name, slug}
 GET    /orgs                               my orgs
-GET    /orgs/{orgId}                       (membership required)
+GET    /orgs/{orgId}                       (membership required; includes logo_url when a logo is stored)
 PATCH  /orgs/{orgId}                       name/logo (ADMIN+), slug (OWNER)
+POST   /orgs/{orgId}/logo/upload-url       presigned PUT for the org logo (ADMIN+; confirm via PATCH logo_key, namespaced org-logos/{orgId}/)
 DELETE /orgs/{orgId}                       soft-delete flow (OWNER)
 POST   /orgs/{orgId}/restore               within grace (OWNER)
 POST   /orgs/{orgId}/transfer-ownership    {user_id} (OWNER)

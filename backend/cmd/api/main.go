@@ -217,6 +217,10 @@ func run(logger *slog.Logger) error {
 		Logger: logger,
 	})
 
+	// Object store (MinIO/S3) for attachments, avatars and org logos
+	// (FR-TASK-006); nil disables those surfaces instead of failing boot.
+	objectStore := loadObjectStore(ctx, cfg, logger)
+
 	tenantSvc := tenantuc.New(tenantuc.Deps{
 		Orgs:     orgRepo,
 		Members:  membershipRepo,
@@ -228,6 +232,7 @@ func run(logger *slog.Logger) error {
 		Idem:     redisx.NewIdempotencyStore(rdb),
 		Events:   eventBus,
 		Notifier: notifySvc,
+		Logos:    objectStore,
 		Logger:   logger,
 	})
 	orgHandlers := handlers.NewOrgHandlers(tenantSvc, logger)
@@ -256,7 +261,6 @@ func run(logger *slog.Logger) error {
 	formRepo := postgres.NewFormRepo(pool, tenantPool)
 	linkRepo := postgres.NewTaskLinkRepo(tenantPool)
 	timeEntryRepo := postgres.NewTimeEntryRepo(tenantPool)
-	objectStore := loadObjectStore(ctx, cfg, logger) // FR-TASK-006; nil disables attachments
 
 	// Phase 4 — billing wiring (docs/06). Built before taskSvc so the storage
 	// quota check can resolve the org's plan ceiling. The gateway selects stub vs

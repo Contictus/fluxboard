@@ -43,12 +43,13 @@ func (r OrgRole) Assignable() bool {
 }
 
 // Organization is the tenant root. Soft-deleted orgs keep a purge_after grace
-// window (invariant #7).
+// window (invariant #7). LogoURL is transient (minted per read, never stored).
 type Organization struct {
 	ID               string
 	Slug             string
 	Name             string
 	LogoKey          string
+	LogoURL          string
 	StripeCustomerID string
 	DeletedAt        *time.Time
 	PurgeAfter       *time.Time

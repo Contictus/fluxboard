@@ -167,34 +167,34 @@ func Unlimited(max int) bool { return max < 0 }
 // Subscription is the local mirror of an org's Stripe subscription (one per
 // org). Nil pointers mean "not yet set by Stripe".
 type Subscription struct {
-	ID                   string
-	OrgID                string
-	PlanCode             PlanCode
-	StripeSubscriptionID *string
-	StripeCustomerID     *string
-	Status               SubStatus
-	CurrentPeriodEnd     *time.Time
-	CancelAtPeriodEnd    bool
-	LastStripeEventAt    *time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                   string     `json:"id"`
+	OrgID                string     `json:"org_id"`
+	PlanCode             PlanCode   `json:"plan_code"`
+	StripeSubscriptionID *string    `json:"stripe_subscription_id,omitempty"`
+	StripeCustomerID     *string    `json:"stripe_customer_id,omitempty"`
+	Status               SubStatus  `json:"status"`
+	CurrentPeriodEnd     *time.Time `json:"current_period_end,omitempty"`
+	CancelAtPeriodEnd    bool       `json:"cancel_at_period_end"`
+	LastStripeEventAt    *time.Time `json:"last_stripe_event_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 // Invoice mirrors a Stripe invoice for the history page (FR-BILL-008). Amounts
 // are minor units.
 type Invoice struct {
-	ID              string
-	OrgID           string
-	StripeInvoiceID string
-	Number          string
-	Status          string
-	AmountDue       int64
-	AmountPaid      int64
-	Currency        string
-	HostedPDFURL    string
-	PeriodStart     *time.Time
-	PeriodEnd       *time.Time
-	CreatedAt       time.Time
+	ID              string     `json:"id"`
+	OrgID           string     `json:"org_id"`
+	StripeInvoiceID string     `json:"stripe_invoice_id"`
+	Number          string     `json:"number"`
+	Status          string     `json:"status"`
+	AmountDue       int64      `json:"amount_due"`
+	AmountPaid      int64      `json:"amount_paid"`
+	Currency        string     `json:"currency"`
+	HostedPDFURL    string     `json:"hosted_pdf_url"`
+	PeriodStart     *time.Time `json:"period_start,omitempty"`
+	PeriodEnd       *time.Time `json:"period_end,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 // UsageMetric names a metered dimension (docs/06-BILLING.md §5).

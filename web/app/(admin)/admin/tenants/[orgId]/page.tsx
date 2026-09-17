@@ -96,12 +96,12 @@ export default function AdminTenantDetailPage() {
       <Section title="Subscription">
         {d.subscription ? (
           <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-            <Field label="Plan" value={d.subscription.PlanCode} />
-            <Field label="Status" value={d.subscription.Status} />
-            <Field label="Period end" value={fmtDate(d.subscription.CurrentPeriodEnd)} />
+            <Field label="Plan" value={d.subscription.plan_code} />
+            <Field label="Status" value={d.subscription.status} />
+            <Field label="Period end" value={fmtDate(d.subscription.current_period_end)} />
             <Field
               label="Cancel at period end"
-              value={d.subscription.CancelAtPeriodEnd ? 'Yes' : 'No'}
+              value={d.subscription.cancel_at_period_end ? 'Yes' : 'No'}
             />
           </dl>
         ) : (
@@ -126,12 +126,12 @@ export default function AdminTenantDetailPage() {
           <table className="w-full text-sm">
             <tbody>
               {d.invoices.map((inv) => (
-                <tr key={inv.ID} className="border-b border-neutral-800 last:border-0">
-                  <td className="py-2 text-neutral-300">{inv.Number || inv.ID}</td>
-                  <td className="py-2 capitalize text-neutral-400">{inv.Status}</td>
-                  <td className="py-2 text-neutral-400">{fmtDate(inv.CreatedAt)}</td>
+                <tr key={inv.id} className="border-b border-neutral-800 last:border-0">
+                  <td className="py-2 text-neutral-300">{inv.number || inv.id}</td>
+                  <td className="py-2 capitalize text-neutral-400">{inv.status}</td>
+                  <td className="py-2 text-neutral-400">{fmtDate(inv.created_at)}</td>
                   <td className="py-2 text-right text-neutral-300">
-                    {formatMoney(inv.AmountDue, inv.Currency)}
+                    {formatMoney(inv.amount_due, inv.currency)}
                   </td>
                 </tr>
               ))}
@@ -178,7 +178,7 @@ function FlagsSection({
   onChanged,
 }: {
   orgId: string;
-  flags: { OrgID: string; Flag: string; Enabled: boolean }[];
+  flags: { org_id: string; flag: string; enabled: boolean }[];
   onChanged: () => void;
 }) {
   const { toast } = useToast();
@@ -198,18 +198,18 @@ function FlagsSection({
       ) : (
         <ul className="mb-4 space-y-2">
           {flags.map((f) => (
-            <li key={f.Flag} className="flex items-center justify-between text-sm">
-              <span className="font-mono text-neutral-200">{f.Flag}</span>
+            <li key={f.flag} className="flex items-center justify-between text-sm">
+              <span className="font-mono text-neutral-200">{f.flag}</span>
               <button
-                onClick={() => toggle.mutate({ flag: f.Flag, enabled: !f.Enabled })}
+                onClick={() => toggle.mutate({ flag: f.flag, enabled: !f.enabled })}
                 disabled={toggle.isPending}
                 className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  f.Enabled
+                  f.enabled
                     ? 'bg-emerald-500/20 text-emerald-400'
                     : 'bg-neutral-800 text-neutral-400'
                 }`}
               >
-                {f.Enabled ? 'Enabled' : 'Disabled'}
+                {f.enabled ? 'Enabled' : 'Disabled'}
               </button>
             </li>
           ))}
@@ -282,14 +282,14 @@ function OverridesSection({
       ) : (
         <ul className="mb-4 space-y-2">
           {overrides.map((o) => (
-            <li key={o.Key} className="flex items-center justify-between gap-3 text-sm">
+            <li key={o.key} className="flex items-center justify-between gap-3 text-sm">
               <span className="min-w-0">
-                <span className="font-mono text-neutral-200">{o.Key}</span>
-                <span className="text-neutral-400"> = {o.Value}</span>
-                {o.Note ? <span className="ml-2 text-xs text-neutral-500">({o.Note})</span> : null}
+                <span className="font-mono text-neutral-200">{o.key}</span>
+                <span className="text-neutral-400"> = {o.value}</span>
+                {o.note ? <span className="ml-2 text-xs text-neutral-500">({o.note})</span> : null}
               </span>
               <button
-                onClick={() => remove.mutate(o.Key)}
+                onClick={() => remove.mutate(o.key)}
                 disabled={remove.isPending}
                 className="shrink-0 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
                 aria-label="Remove override"
@@ -366,28 +366,28 @@ function WebhooksSection({
         <table className="w-full text-sm">
           <tbody>
             {webhooks.map((w) => (
-              <tr key={w.EventID} className="border-b border-neutral-800 last:border-0">
-                <td className="py-2 font-mono text-xs text-neutral-300">{w.Type}</td>
+              <tr key={w.event_id} className="border-b border-neutral-800 last:border-0">
+                <td className="py-2 font-mono text-xs text-neutral-300">{w.type}</td>
                 <td className="py-2">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs ${
-                      w.Handled
+                      w.handled
                         ? 'bg-emerald-500/20 text-emerald-400'
                         : 'bg-amber-500/20 text-amber-400'
                     }`}
                   >
-                    {w.Handled ? 'handled' : 'unhandled'}
+                    {w.handled ? 'handled' : 'unhandled'}
                   </span>
-                  {w.Error ? (
-                    <span className="ml-2 text-xs text-red-400" title={w.Error}>
+                  {w.error ? (
+                    <span className="ml-2 text-xs text-red-400" title={w.error}>
                       error
                     </span>
                   ) : null}
                 </td>
-                <td className="py-2 text-neutral-500">{fmtDate(w.ProcessedAt)}</td>
+                <td className="py-2 text-neutral-500">{fmtDate(w.processed_at)}</td>
                 <td className="py-2 text-right">
                   <button
-                    onClick={() => retry.mutate(w.EventID)}
+                    onClick={() => retry.mutate(w.event_id)}
                     disabled={retry.isPending}
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
                   >

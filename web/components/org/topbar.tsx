@@ -42,7 +42,7 @@ export function Topbar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         </button>
       ) : null}
 
-      <OrgSwitcher currentSlug={slug} currentName={org.name} role={role} />
+      <OrgSwitcher currentSlug={slug} currentName={org.name} logoUrl={org.logo_url} role={role} />
 
       {/* Breadcrumb */}
       <Breadcrumb slug={slug} />
@@ -126,10 +126,12 @@ function DropdownMenu({
 function OrgSwitcher({
   currentSlug,
   currentName,
+  logoUrl,
   role,
 }: {
   currentSlug: string;
   currentName: string;
+  logoUrl?: string;
   role: string;
 }) {
   const { data: orgs } = useQuery({ queryKey: ['orgs'], queryFn: listMyOrgs });
@@ -138,9 +140,14 @@ function OrgSwitcher({
     <DropdownMenu
       button={() => (
         <span className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-secondary">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/12 text-primary">
-            <Building2 className="h-3.5 w-3.5" />
-          </span>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="" className="h-8 w-8 rounded-xl object-cover" />
+          ) : (
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/12 text-primary">
+              <Building2 className="h-3.5 w-3.5" />
+            </span>
+          )}
           <span className="hidden font-medium sm:block">{currentName}</span>
           <span className="hidden text-xs text-muted-foreground sm:block">{role.toLowerCase()}</span>
           <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Check, Loader2, X } from 'lucide-react';
@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/auth/field';
 import { useOrg } from '@/lib/org/context';
 import { useToast } from '@/components/ui/toast';
-import { isSlugAvailable, updateOrg } from '@/lib/api/orgs';
+import { isSlugAvailable, logoUploadURL, updateOrg } from '@/lib/api/orgs';
+import { putToPresignedUrl } from '@/lib/api/user';
 import { ApiError } from '@/lib/api/client';
 
 function slugify(s: string): string {
@@ -103,13 +104,7 @@ export default function OrgGeneralSettingsPage() {
           <Field id="org-name" label="Name">
             <Input id="org-name" value={name} onChange={(e) => setName(e.target.value)} required />
           </Field>
-          <div className="space-y-1.5">
-            <span className="text-sm font-medium">Logo</span>
-            <p className="rounded-md border bg-secondary/40 p-3 text-xs text-muted-foreground">
-              Logo upload isn’t available yet — the API exposes no organization-logo upload
-              endpoint. It will land in a later release.
-            </p>
-          </div>
+          <LogoSection />
           <Button type="submit" disabled={saveName.isPending || !name.trim() || name.trim() === org.name}>
             {saveName.isPending ? 'Saving…' : 'Save changes'}
           </Button>
@@ -173,4 +168,95 @@ export default function OrgGeneralSettingsPage() {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{children}</h2>;
+}
+
+// Org logo picker (ADMIN+ surface; the API gates the same). Uploads straight
+// to object storage via a presigned URL, then records the namespaced key
+// through the existing profile PATCH.
+function LogoSection() {
+  const { orgId, org } = useOrg();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      const { key, url } = await logoUploadURL(orgId, {
+        content_type: file.type,
+        size: file.size,
+      });
+      await putToPresignedUrl(url, file);
+      await updateOrg(orgId, { logo_key: key });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['org', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['orgs'] });
+      toast({ title: 'Logo updated', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Logo upload failed', variant: 'error' }),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => updateOrg(orgId, { logo_key: '' }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['org', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['orgs'] });
+      toast({ title: 'Logo removed', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Couldn’t remove logo', variant: 'error' }),
+  });
+
+  return (
+    <div className="space-y-1.5">
+      <span className="text-sm font-medium">Logo</span>
+      <div className="flex items-center gap-4">
+        {org.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={org.logo_url}
+            alt="Organization logo"
+            className="h-12 w-12 rounded-xl border object-cover"
+          />
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border bg-secondary text-lg font-semibold uppercase text-muted-foreground">
+            {org.name.slice(0, 2)}
+          </div>
+        )}
+        <div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) upload.mutate(f);
+              e.target.value = '';
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => fileRef.current?.click()}
+            disabled={upload.isPending || remove.isPending}
+          >
+            {upload.isPending ? 'Uploading…' : 'Change logo'}
+          </Button>
+          {org.logo_key ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => remove.mutate()}
+              disabled={upload.isPending || remove.isPending}
+            >
+              {remove.isPending ? 'Removing…' : 'Remove'}
+            </Button>
+          ) : null}
+          <p className="mt-1 text-xs text-muted-foreground">PNG, JPEG or WebP, up to 5 MB.</p>
+        </div>
+      </div>
+    </div>
+  );
 }
