@@ -1,8 +1,13 @@
 import Link from 'next/link';
 
-const columns: { title: string; links: { href: string; label: string }[] }[] = [
+const columns: {
+  title: string;
+  blurb: string;
+  links: { href: string; label: string }[];
+}[] = [
   {
     title: 'Product',
+    blurb: 'Boards, teams, and billing in one workspace.',
     links: [
       { href: '/features', label: 'Features' },
       { href: '/pricing', label: 'Pricing' },
@@ -12,6 +17,7 @@ const columns: { title: string; links: { href: string; label: string }[] }[] = [
   },
   {
     title: 'Legal',
+    blurb: 'Terms, privacy, and data processing.',
     links: [
       { href: '/legal/terms', label: 'Terms' },
       { href: '/legal/privacy', label: 'Privacy' },
@@ -20,6 +26,7 @@ const columns: { title: string; links: { href: string; label: string }[] }[] = [
   },
   {
     title: 'Account',
+    blurb: 'Sign in or start a new workspace.',
     links: [
       { href: '/login', label: 'Sign in' },
       { href: '/register', label: 'Create account' },
@@ -41,13 +48,16 @@ export function SiteFooter() {
             </span>
             <span className="text-lg font-bold">Fluxboard</span>
           </Link>
-          <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-            Multi-tenant project management with usage-based billing. Ship faster, together.
+          <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+            Fluxboard is a multi-tenant project-management platform with usage-based billing
+            built in. Plan work on kanban boards, coordinate teams in isolated workspaces, and
+            scale from a side project to an organization without migrating tools.
           </p>
         </div>
         {columns.map((col) => (
           <div key={col.title}>
             <p className="text-sm font-semibold">{col.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{col.blurb}</p>
             <ul className="mt-3 space-y-2">
               {col.links.map((l) => (
                 <li key={l.href}>
