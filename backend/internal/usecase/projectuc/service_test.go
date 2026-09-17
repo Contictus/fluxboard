@@ -15,9 +15,9 @@ import (
 
 type fakeProjects struct {
 	project.ProjectRepository
-	p          *project.Project
-	created    *project.Project
-	createErr  error
+	p         *project.Project
+	created   *project.Project
+	createErr error
 }
 
 func (f *fakeProjects) Get(_ context.Context, _, _ string) (*project.Project, error) {

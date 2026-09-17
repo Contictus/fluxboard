@@ -15,35 +15,35 @@ import (
 
 // Deps are the collaborators the router needs. main.go owns construction.
 type Deps struct {
-	Logger        *slog.Logger
-	WebOrigin     string
-	Health        Health
-	MetricsHTTP   http.Handler
-	Auth          *handlers.AuthHandlers
-	User          *handlers.UserHandlers // nil ⇒ /me account surface disabled
-	Orgs          *handlers.OrgHandlers
-	Projects      *handlers.ProjectHandlers
-	Tasks         *handlers.TaskHandlers
-	PublicForms   *handlers.PublicFormHandlers // nil ⇒ public intake forms disabled
-	Automations   *handlers.AutomationHandlers // nil ⇒ automations disabled
-	Billing       *handlers.BillingHandlers
-	Webhooks      *handlers.WebhookHandlers
-	Events        *handlers.EventHandlers        // nil ⇒ SSE disabled (tests)
-	Notifications *handlers.NotificationHandlers // nil ⇒ notification center disabled (tests)
-	APIKeys       *handlers.APIKeyHandlers       // nil ⇒ API-key management disabled
-	AuditView     *handlers.AuditHandlers        // nil ⇒ org audit viewer disabled
-	Analytics     *handlers.AnalyticsHandlers    // nil ⇒ analytics disabled
-	Admin         *handlers.AdminHandlers        // nil ⇒ /admin surface disabled
-	OpenAPI       *handlers.OpenAPIHandlers      // nil ⇒ openapi.json / docs disabled
-	DevDocs       bool                           // true ⇒ mount interactive Swagger UI at /api/docs (non-prod)
-	Authenticator *mw.Authenticator
-	Tenant        *mw.TenantGuard
-	Entitlement   *mw.EntitlementGuard
-	AuthThrottle  *mw.AuthThrottle         // nil ⇒ public auth endpoints unthrottled (tests)
-	RateLimit     *mw.RateLimiter          // nil ⇒ no plan rate limiting (tests)
-	PlatformAdmin *mw.PlatformAdminGuard   // nil ⇒ /admin surface disabled
-	APIKeyResolver mw.APIKeyResolver       // nil ⇒ API-key auth path disabled (session only)
-	HTTPMetrics   mw.HTTPMetrics           // nil ⇒ no request-duration histogram (tests)
+	Logger         *slog.Logger
+	WebOrigin      string
+	Health         Health
+	MetricsHTTP    http.Handler
+	Auth           *handlers.AuthHandlers
+	User           *handlers.UserHandlers // nil ⇒ /me account surface disabled
+	Orgs           *handlers.OrgHandlers
+	Projects       *handlers.ProjectHandlers
+	Tasks          *handlers.TaskHandlers
+	PublicForms    *handlers.PublicFormHandlers // nil ⇒ public intake forms disabled
+	Automations    *handlers.AutomationHandlers // nil ⇒ automations disabled
+	Billing        *handlers.BillingHandlers
+	Webhooks       *handlers.WebhookHandlers
+	Events         *handlers.EventHandlers        // nil ⇒ SSE disabled (tests)
+	Notifications  *handlers.NotificationHandlers // nil ⇒ notification center disabled (tests)
+	APIKeys        *handlers.APIKeyHandlers       // nil ⇒ API-key management disabled
+	AuditView      *handlers.AuditHandlers        // nil ⇒ org audit viewer disabled
+	Analytics      *handlers.AnalyticsHandlers    // nil ⇒ analytics disabled
+	Admin          *handlers.AdminHandlers        // nil ⇒ /admin surface disabled
+	OpenAPI        *handlers.OpenAPIHandlers      // nil ⇒ openapi.json / docs disabled
+	DevDocs        bool                           // true ⇒ mount interactive Swagger UI at /api/docs (non-prod)
+	Authenticator  *mw.Authenticator
+	Tenant         *mw.TenantGuard
+	Entitlement    *mw.EntitlementGuard
+	AuthThrottle   *mw.AuthThrottle       // nil ⇒ public auth endpoints unthrottled (tests)
+	RateLimit      *mw.RateLimiter        // nil ⇒ no plan rate limiting (tests)
+	PlatformAdmin  *mw.PlatformAdminGuard // nil ⇒ /admin surface disabled
+	APIKeyResolver mw.APIKeyResolver      // nil ⇒ API-key auth path disabled (session only)
+	HTTPMetrics    mw.HTTPMetrics         // nil ⇒ no request-duration histogram (tests)
 }
 
 // NewRouter assembles the router. Infrastructure middleware wrap every route;
@@ -150,7 +150,7 @@ func NewRouter(d Deps) http.Handler {
 			} else {
 				sec.Use(d.Authenticator.Authenticate)
 			}
-			sec.Use(mw.RequireVerified)           // FR-AUTH-002: block unverified email (API keys are marked verified)
+			sec.Use(mw.RequireVerified)          // FR-AUTH-002: block unverified email (API keys are marked verified)
 			sec.Use(mw.RejectImpersonationWrite) // FR-ADM-003: an impersonation token is read-only everywhere, incl. /me and POST /orgs
 
 			// Account self-service (docs/08 §3, FR-AUTH-014). User-scoped, org-independent.
@@ -220,28 +220,28 @@ func NewRouter(d Deps) http.Handler {
 					p.With(read(tenant.ObjOrg)).Patch("/columns/{columnId}", d.Projects.RenameColumn)
 					p.With(read(tenant.ObjOrg)).Patch("/columns/{columnId}/position", d.Projects.ReorderColumn)
 					p.With(read(tenant.ObjOrg)).Delete("/columns/{columnId}", d.Projects.DeleteColumn)
-				p.With(read(tenant.ObjOrg)).Post("/tasks", d.Tasks.CreateTask)
-				p.With(read(tenant.ObjOrg)).Get("/tasks", d.Tasks.ListTasks)
-				p.With(read(tenant.ObjOrg)).Get("/trash", d.Tasks.ListTrash) // FR-TASK-009
-				// Sprints (docs/08, FR-SPRINT). Fine-grained gates in projectuc.
-				p.With(read(tenant.ObjOrg)).Get("/sprints", d.Projects.ListSprints)
-				p.With(read(tenant.ObjOrg)).Post("/sprints", d.Projects.CreateSprint)
-				p.With(read(tenant.ObjOrg)).Post("/sprints/{sprintId}/start", d.Projects.StartSprint)
-				p.With(read(tenant.ObjOrg)).Post("/sprints/{sprintId}/complete", d.Projects.CompleteSprint)
-				p.With(read(tenant.ObjOrg)).Delete("/sprints/{sprintId}", d.Projects.DeleteSprint)
-				p.With(read(tenant.ObjOrg)).Post("/sprints/assign", d.Projects.AssignSprint)
-				// Custom fields (docs/08, FR-FIELDS). Fine-grained gates in projectuc.
-				p.With(read(tenant.ObjOrg)).Get("/fields", d.Projects.ListFields)
-				p.With(read(tenant.ObjOrg)).Post("/fields", d.Projects.CreateField)
-				p.With(read(tenant.ObjOrg)).Patch("/fields/{fieldId}", d.Projects.UpdateField)
-				p.With(read(tenant.ObjOrg)).Delete("/fields/{fieldId}", d.Projects.DeleteField)
-				// Intake forms (ADR-023). Reads VIEWER, writes LEAD in projectuc.
-				p.With(read(tenant.ObjOrg)).Get("/forms", d.Projects.ListForms)
-				p.With(read(tenant.ObjOrg)).Post("/forms", d.Projects.CreateForm)
-				p.With(read(tenant.ObjOrg)).Patch("/forms/{formId}", d.Projects.UpdateForm)
-				p.With(read(tenant.ObjOrg)).Post("/forms/{formId}/rotate", d.Projects.RotateFormToken)
-				p.With(read(tenant.ObjOrg)).Delete("/forms/{formId}", d.Projects.DeleteForm)
-			})
+					p.With(read(tenant.ObjOrg)).Post("/tasks", d.Tasks.CreateTask)
+					p.With(read(tenant.ObjOrg)).Get("/tasks", d.Tasks.ListTasks)
+					p.With(read(tenant.ObjOrg)).Get("/trash", d.Tasks.ListTrash) // FR-TASK-009
+					// Sprints (docs/08, FR-SPRINT). Fine-grained gates in projectuc.
+					p.With(read(tenant.ObjOrg)).Get("/sprints", d.Projects.ListSprints)
+					p.With(read(tenant.ObjOrg)).Post("/sprints", d.Projects.CreateSprint)
+					p.With(read(tenant.ObjOrg)).Post("/sprints/{sprintId}/start", d.Projects.StartSprint)
+					p.With(read(tenant.ObjOrg)).Post("/sprints/{sprintId}/complete", d.Projects.CompleteSprint)
+					p.With(read(tenant.ObjOrg)).Delete("/sprints/{sprintId}", d.Projects.DeleteSprint)
+					p.With(read(tenant.ObjOrg)).Post("/sprints/assign", d.Projects.AssignSprint)
+					// Custom fields (docs/08, FR-FIELDS). Fine-grained gates in projectuc.
+					p.With(read(tenant.ObjOrg)).Get("/fields", d.Projects.ListFields)
+					p.With(read(tenant.ObjOrg)).Post("/fields", d.Projects.CreateField)
+					p.With(read(tenant.ObjOrg)).Patch("/fields/{fieldId}", d.Projects.UpdateField)
+					p.With(read(tenant.ObjOrg)).Delete("/fields/{fieldId}", d.Projects.DeleteField)
+					// Intake forms (ADR-023). Reads VIEWER, writes LEAD in projectuc.
+					p.With(read(tenant.ObjOrg)).Get("/forms", d.Projects.ListForms)
+					p.With(read(tenant.ObjOrg)).Post("/forms", d.Projects.CreateForm)
+					p.With(read(tenant.ObjOrg)).Patch("/forms/{formId}", d.Projects.UpdateForm)
+					p.With(read(tenant.ObjOrg)).Post("/forms/{formId}/rotate", d.Projects.RotateFormToken)
+					p.With(read(tenant.ObjOrg)).Delete("/forms/{formId}", d.Projects.DeleteForm)
+				})
 
 				// Org-wide task search + bulk actions (FR-TASK-007/008). Static
 				// segments; chi matches them ahead of the {taskId} subrouter.
@@ -268,26 +268,26 @@ func NewRouter(d Deps) http.Handler {
 					t.With(read(tenant.ObjOrg)).Delete("/subtasks/{subtaskId}", d.Tasks.DeleteSubtask)
 					t.With(read(tenant.ObjOrg)).Get("/comments", d.Tasks.ListComments)
 					t.With(read(tenant.ObjOrg)).Post("/comments", d.Tasks.AddComment)
-				t.With(read(tenant.ObjOrg)).Patch("/comments/{commentId}", d.Tasks.EditComment)
-				t.With(read(tenant.ObjOrg)).Delete("/comments/{commentId}", d.Tasks.DeleteComment)
-				t.With(read(tenant.ObjOrg)).Get("/labels", d.Tasks.ListTaskLabels)
-				t.With(read(tenant.ObjOrg)).Post("/labels", d.Tasks.AttachLabel)
-				t.With(read(tenant.ObjOrg)).Delete("/labels/{labelId}", d.Tasks.DetachLabel)
-				// Task custom values (docs/08, FR-FIELDS).
-				t.With(read(tenant.ObjOrg)).Get("/fields", d.Projects.TaskFieldValues)
-				t.With(read(tenant.ObjOrg)).Put("/fields/{fieldId}", d.Projects.SetFieldValue)
-				t.With(read(tenant.ObjOrg)).Delete("/fields/{fieldId}", d.Projects.ClearFieldValue)
-				// Dependencies (docs/08, FR-LINKS). Fine-grained gates in taskuc.
-				t.With(read(tenant.ObjOrg)).Get("/links", d.Tasks.ListTaskLinks)
-				t.With(read(tenant.ObjOrg)).Post("/links", d.Tasks.AddTaskLink)
-				t.With(read(tenant.ObjOrg)).Delete("/links/{linkedId}", d.Tasks.RemoveTaskLink)
-				// Time tracking (docs/08, FR-TIME). Fine-grained gates in taskuc.
-				t.With(read(tenant.ObjOrg)).Get("/time", d.Tasks.ListTimeEntries)
-				t.With(read(tenant.ObjOrg)).Post("/time/start", d.Tasks.StartTimer)
-				t.With(read(tenant.ObjOrg)).Post("/time", d.Tasks.LogTime)
-				t.With(read(tenant.ObjOrg)).Post("/time/{entryId}/stop", d.Tasks.StopTimer)
-				t.With(read(tenant.ObjOrg)).Delete("/time/{entryId}", d.Tasks.DeleteTimeEntry)
-			})
+					t.With(read(tenant.ObjOrg)).Patch("/comments/{commentId}", d.Tasks.EditComment)
+					t.With(read(tenant.ObjOrg)).Delete("/comments/{commentId}", d.Tasks.DeleteComment)
+					t.With(read(tenant.ObjOrg)).Get("/labels", d.Tasks.ListTaskLabels)
+					t.With(read(tenant.ObjOrg)).Post("/labels", d.Tasks.AttachLabel)
+					t.With(read(tenant.ObjOrg)).Delete("/labels/{labelId}", d.Tasks.DetachLabel)
+					// Task custom values (docs/08, FR-FIELDS).
+					t.With(read(tenant.ObjOrg)).Get("/fields", d.Projects.TaskFieldValues)
+					t.With(read(tenant.ObjOrg)).Put("/fields/{fieldId}", d.Projects.SetFieldValue)
+					t.With(read(tenant.ObjOrg)).Delete("/fields/{fieldId}", d.Projects.ClearFieldValue)
+					// Dependencies (docs/08, FR-LINKS). Fine-grained gates in taskuc.
+					t.With(read(tenant.ObjOrg)).Get("/links", d.Tasks.ListTaskLinks)
+					t.With(read(tenant.ObjOrg)).Post("/links", d.Tasks.AddTaskLink)
+					t.With(read(tenant.ObjOrg)).Delete("/links/{linkedId}", d.Tasks.RemoveTaskLink)
+					// Time tracking (docs/08, FR-TIME). Fine-grained gates in taskuc.
+					t.With(read(tenant.ObjOrg)).Get("/time", d.Tasks.ListTimeEntries)
+					t.With(read(tenant.ObjOrg)).Post("/time/start", d.Tasks.StartTimer)
+					t.With(read(tenant.ObjOrg)).Post("/time", d.Tasks.LogTime)
+					t.With(read(tenant.ObjOrg)).Post("/time/{entryId}/stop", d.Tasks.StopTimer)
+					t.With(read(tenant.ObjOrg)).Delete("/time/{entryId}", d.Tasks.DeleteTimeEntry)
+				})
 
 				// Org-scoped labels (docs/01 §TASK FR-TASK-004). Writes need the
 				// write:labels gate (MEMBER+); reads under read:org.
