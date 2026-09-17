@@ -281,9 +281,9 @@ func (h *ProjectHandlers) GetBoard(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, err)
 		return
 	}
-	resp := boardResp{BoardID: view.Board.ID}
+	resp := boardResp{BoardID: view.Board.ID, Columns: []boardColumnResp{}}
 	for _, cv := range view.Columns {
-		bc := boardColumnResp{columnResp: toColumnResp(&cv.Column)}
+		bc := boardColumnResp{columnResp: toColumnResp(&cv.Column), Tasks: []taskCardResp{}}
 		for i := range cv.Tasks {
 			t := cv.Tasks[i]
 			bc.Tasks = append(bc.Tasks, taskCardResp{
