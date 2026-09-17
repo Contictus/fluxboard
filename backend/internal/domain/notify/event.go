@@ -38,7 +38,7 @@ const (
 	EventMemberRoleChanged = "member.role_changed"
 	EventMembershipRevoked = "membership.revoked" // targeted
 
-	EventNotificationCreated = "notification.created" // targeted by user_id
+	EventNotificationCreated  = "notification.created" // targeted by user_id
 	EventBillingStatusChanged = "billing.status_changed"
 
 	// EventResync is emitted by the server when a client's Last-Event-ID is

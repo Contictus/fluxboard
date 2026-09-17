@@ -102,7 +102,7 @@ func Schedule() []ScheduleEntry {
 		{Cron: "0 * * * *", Task: asynq.NewTask(TypeUsageAggregate, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}},
 		{Cron: "0 2 * * *", Task: asynq.NewTask(TypeUsagePushStripe, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}},
 		{Cron: "0 4 * * *", Task: asynq.NewTask(TypeBillingReconcile, nil), Opts: []asynq.Option{asynq.Queue(QueueCritical)}},
-		{Cron: "15 3 * * *", Task: asynq.NewTask(TypeStatsRollup, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}},   // FR-AN-001; offset from purge/GC
+		{Cron: "15 3 * * *", Task: asynq.NewTask(TypeStatsRollup, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}},    // FR-AN-001; offset from purge/GC
 		{Cron: "45 3 * * *", Task: asynq.NewTask(TypeAuditRetention, nil), Opts: []asynq.Option{asynq.Queue(QueueLow)}}, // FR-AUD-002; offset from rollup
 	}
 }

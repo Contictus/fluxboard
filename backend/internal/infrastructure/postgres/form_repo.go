@@ -185,8 +185,8 @@ func (r *FormRepo) ResolveByToken(ctx context.Context, tokenHash []byte) (*proje
 		 FROM app_form_by_token($1)`, tokenHash)
 	var (
 		id, orgID, projectID, col, by uuid.UUID
-		name, desc                     string
-		active                         bool
+		name, desc                    string
+		active                        bool
 	)
 	if err := row.Scan(&id, &orgID, &projectID, &name, &desc, &col, &by, &active); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

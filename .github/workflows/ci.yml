@@ -24,12 +24,12 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           working-directory: backend
       - name: go-arch-lint (dependency rule)
         run: |
-          go install github.com/fe3dback/go-arch-lint@latest
+          go install github.com/fe3dback/go-arch-lint@v1.15.0
           go-arch-lint check
       - name: sqlc diff (generated code current)
         run: |
@@ -58,12 +58,11 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s
           --health-timeout 3s --health-retries 10
-      minio:
-        image: bitnami/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports: ["9000:9000"]
+      # No MinIO service: the test steps export no MINIO_* env, so the store
+      # boots nil and attachment paths stay disabled (same as MINIO_ENDPOINT
+      # unset locally). (The old bitnami/minio:latest reference died with
+      # Bitnami's tag removal, and Actions service containers accept no
+      # `command` key for the official image's required `server /data` arg.)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -105,9 +104,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: "9"
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - name: install
@@ -125,6 +126,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # gitleaks scans git history; a shallow clone breaks the scan.
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}

@@ -31,15 +31,15 @@ func NewAutomationHandlers(svc *automationuc.Service, logger *slog.Logger) *Auto
 }
 
 type automationRuleResp struct {
-	ID            string                      `json:"id"`
-	Name          string                      `json:"name"`
-	Enabled       bool                        `json:"enabled"`
-	Trigger       string                      `json:"trigger"`
-	TriggerConfig automation.TriggerConfig    `json:"trigger_config"`
-	Action        string                      `json:"action"`
-	ActionConfig  automation.ActionConfig     `json:"action_config"`
-	CreatedBy     string                      `json:"created_by"`
-	CreatedAt     time.Time                   `json:"created_at"`
+	ID            string                   `json:"id"`
+	Name          string                   `json:"name"`
+	Enabled       bool                     `json:"enabled"`
+	Trigger       string                   `json:"trigger"`
+	TriggerConfig automation.TriggerConfig `json:"trigger_config"`
+	Action        string                   `json:"action"`
+	ActionConfig  automation.ActionConfig  `json:"action_config"`
+	CreatedBy     string                   `json:"created_by"`
+	CreatedAt     time.Time                `json:"created_at"`
 }
 
 func toAutomationRuleResp(r *automation.Rule) automationRuleResp {

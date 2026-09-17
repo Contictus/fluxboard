@@ -31,7 +31,7 @@ func TestBetweenBasic(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Between(%q,%q) err: %v", c.a, c.b, err)
 		}
-		if !(c.a < got && got < c.b) {
+		if c.a >= got || got >= c.b {
 			t.Fatalf("Between(%q,%q)=%q not strictly between", c.a, c.b, got)
 		}
 	}
@@ -44,11 +44,11 @@ func TestOpenBounds(t *testing.T) {
 	}
 	// Append past a value is greater; Prepend before it is lesser.
 	hi := Append(first)
-	if !(hi > first) {
+	if hi <= first {
 		t.Fatalf("Append(%q)=%q not greater", first, hi)
 	}
 	lo := Prepend(first)
-	if !(lo < first) {
+	if lo >= first {
 		t.Fatalf("Prepend(%q)=%q not lesser", first, lo)
 	}
 	// Between with sentinels.
@@ -112,10 +112,10 @@ func TestRandomMovesTotalOrder(t *testing.T) {
 		if err != nil {
 			t.Fatalf("move %d Between(%q,%q): %v", move, a, b, err)
 		}
-		if a != "" && !(a < k) {
+		if a != "" && a >= k {
 			t.Fatalf("move %d: %q !< %q", move, a, k)
 		}
-		if b != "" && !(k < b) {
+		if b != "" && k >= b {
 			t.Fatalf("move %d: %q !< %q", move, k, b)
 		}
 		// Insert keeping order.

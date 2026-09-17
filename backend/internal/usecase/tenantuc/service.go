@@ -56,13 +56,13 @@ type IdempotencyStore interface {
 
 // Deps are the collaborators the service needs.
 type Deps struct {
-	Orgs    tenant.OrgRepository
-	Members tenant.MembershipRepository
-	Invites tenant.InvitationRepository
-	Users   auth.UserRepository
-	Cache   tenant.MembershipCache
-	Mailer  Mailer
-	Audit   audit.Writer
+	Orgs     tenant.OrgRepository
+	Members  tenant.MembershipRepository
+	Invites  tenant.InvitationRepository
+	Users    auth.UserRepository
+	Cache    tenant.MembershipCache
+	Mailer   Mailer
+	Audit    audit.Writer
 	Idem     IdempotencyStore
 	Events   notify.EventBus // realtime member.* events; nil ⇒ no publish
 	Notifier Notifier        // invite-accepted fan-out; nil ⇒ no fan-out
@@ -72,13 +72,13 @@ type Deps struct {
 
 // Service implements the tenancy application logic.
 type Service struct {
-	orgs    tenant.OrgRepository
-	members tenant.MembershipRepository
-	invites tenant.InvitationRepository
-	users   auth.UserRepository
-	cache   tenant.MembershipCache
-	mailer  Mailer
-	auditor audit.Writer
+	orgs     tenant.OrgRepository
+	members  tenant.MembershipRepository
+	invites  tenant.InvitationRepository
+	users    auth.UserRepository
+	cache    tenant.MembershipCache
+	mailer   Mailer
+	auditor  audit.Writer
 	idem     IdempotencyStore
 	events   notify.EventBus
 	notifier Notifier

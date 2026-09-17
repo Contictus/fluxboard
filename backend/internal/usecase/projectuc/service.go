@@ -31,15 +31,15 @@ type Deps struct {
 	Boards     project.BoardRepository
 	Columns    project.ColumnRepository
 	Tasks      project.TaskRepository
-	Sprints    project.SprintRepository       // sprints; nil ⇒ sprint endpoints disabled
-	Fields     project.CustomFieldRepository  // custom fields; nil ⇒ field endpoints disabled
-	Forms      project.FormRepository          // intake forms; nil ⇒ form endpoints disabled
-	Labels     project.LabelRepository        // optional; nil ⇒ board cards carry no labels
-	Subtasks   project.SubtaskRepository      // optional; nil ⇒ board cards carry no subtask progress
-	Comments   project.CommentRepository      // optional; nil ⇒ board cards carry no comment counts
-	Automation automation.Evaluator           // automation rules; nil ⇒ no evaluation
-	Links      project.TaskLinkRepository  // dependency guard on moves; nil ⇒ no guard
-	Events     notify.EventBus                // realtime publish; nil ⇒ no SSE events
+	Sprints    project.SprintRepository      // sprints; nil ⇒ sprint endpoints disabled
+	Fields     project.CustomFieldRepository // custom fields; nil ⇒ field endpoints disabled
+	Forms      project.FormRepository        // intake forms; nil ⇒ form endpoints disabled
+	Labels     project.LabelRepository       // optional; nil ⇒ board cards carry no labels
+	Subtasks   project.SubtaskRepository     // optional; nil ⇒ board cards carry no subtask progress
+	Comments   project.CommentRepository     // optional; nil ⇒ board cards carry no comment counts
+	Automation automation.Evaluator          // automation rules; nil ⇒ no evaluation
+	Links      project.TaskLinkRepository    // dependency guard on moves; nil ⇒ no guard
+	Events     notify.EventBus               // realtime publish; nil ⇒ no SSE events
 	Logger     *slog.Logger
 	Now        func() time.Time // injectable for tests; defaults to time.Now
 }

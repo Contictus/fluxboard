@@ -15,6 +15,10 @@ version: 3
 # stdlib-only rule and keeps pkg/config true leaves.
 allow:
   depOnAnyVendor: true
+  # Import edges are the enforced rule (docs/03 §3). deepScan's call/DI-edge
+  # analysis false-positives on the mandated pattern (cmd wiring injects repos
+  # into constructors), so it stays off.
+  deepScan: false
 
 components:
   domain:         { in: internal/domain/** }
@@ -25,13 +29,26 @@ components:
   config:         { in: internal/config }
   # cmd/* is the only place wiring may import across every layer (DI container).
   cmd:            { in: cmd/** }
+  # sqlc output: imported by every repository, so it is shared, not layered.
+  gen:            { in: internal/infrastructure/postgres/gen }
+
+# Shared code any component may import (sqlc query layer). Test files are
+# excluded from analysis: harnesses legitimately wire across layers.
+commonComponents:
+  - gen
+excludeFiles:
+  - _test\.go$
 
 deps:
+  # Intra-component imports (subpackage to subpackage) are allowed: a layer is
+  # one component, not one package.
+  domain:
+    mayDependOn: [domain]
   usecase:
     mayDependOn: [domain, pkg]
   infrastructure:
     mayDependOn: [domain, pkg, config]
   interface:
-    mayDependOn: [domain, usecase, pkg, config]
+    mayDependOn: [domain, usecase, pkg, config, interface]
   cmd:
     mayDependOn: [domain, usecase, infrastructure, interface, pkg, config]

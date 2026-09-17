@@ -14,9 +14,9 @@ import (
 )
 
 type fakeThrottleLimiter struct {
-	allow bool
-	retry time.Duration
-	err   error
+	allow  bool
+	retry  time.Duration
+	err    error
 	gotKey string
 }
 
@@ -36,7 +36,7 @@ func withIP(r *http.Request, ip string) *http.Request {
 func TestAuthThrottle_PerIP(t *testing.T) {
 	t.Run("allowed request passes and keys by tag+ip", func(t *testing.T) {
 		lim := &fakeThrottleLimiter{allow: true}
-		r := withIP(httptest.NewRequest(http.MethodPost, "/auth/register", nil), "1.2.3.4")
+		r := withIP(httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/auth/register", nil), "1.2.3.4")
 		rec := runGuard(newThrottle(lim).PerIP("register"), r)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
@@ -48,7 +48,7 @@ func TestAuthThrottle_PerIP(t *testing.T) {
 
 	t.Run("over-limit returns 429 with Retry-After", func(t *testing.T) {
 		lim := &fakeThrottleLimiter{allow: false, retry: 42 * time.Second}
-		r := withIP(httptest.NewRequest(http.MethodPost, "/auth/password/forgot", nil), "1.2.3.4")
+		r := withIP(httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/auth/password/forgot", nil), "1.2.3.4")
 		rec := runGuard(newThrottle(lim).PerIP("password_forgot"), r)
 		if rec.Code != http.StatusTooManyRequests {
 			t.Fatalf("status = %d, want 429", rec.Code)
@@ -60,7 +60,7 @@ func TestAuthThrottle_PerIP(t *testing.T) {
 
 	t.Run("limiter error fails open", func(t *testing.T) {
 		lim := &fakeThrottleLimiter{err: errors.New("redis down")}
-		r := withIP(httptest.NewRequest(http.MethodPost, "/auth/register", nil), "1.2.3.4")
+		r := withIP(httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/auth/register", nil), "1.2.3.4")
 		rec := runGuard(newThrottle(lim).PerIP("register"), r)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200 (fail-open)", rec.Code)
@@ -69,7 +69,7 @@ func TestAuthThrottle_PerIP(t *testing.T) {
 
 	t.Run("missing IP is not throttled", func(t *testing.T) {
 		lim := &fakeThrottleLimiter{allow: false}
-		r := httptest.NewRequest(http.MethodPost, "/auth/register", nil) // no reqmeta IP
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/auth/register", nil) // no reqmeta IP
 		rec := runGuard(newThrottle(lim).PerIP("register"), r)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200 (no IP to key on)", rec.Code)

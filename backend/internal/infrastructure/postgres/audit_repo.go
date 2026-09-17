@@ -56,18 +56,18 @@ func (r *AuditRepo) Append(ctx context.Context, e audit.Entry) error {
 	}
 
 	_, err := r.pool.Exec(ctx, insertAuditSQL,
-		uuid.New(),               // $1 id (audit rows get a fresh v4 id)
-		nullUUID(e.OrgID),        // $2
-		nullUUID(e.ActorUserID),  // $3
+		uuid.New(),                     // $1 id (audit rows get a fresh v4 id)
+		nullUUID(e.OrgID),              // $2
+		nullUUID(e.ActorUserID),        // $3
 		nullUUID(e.ImpersonatorUserID), // $4
-		string(e.Action),         // $5
-		ptrOrNil(e.TargetType),   // $6
-		ptrOrNil(e.TargetID),     // $7
-		meta,                     // $8
-		ptrOrNil(e.IP),           // $9 ::text::inet
-		ptrOrNil(e.UserAgent),    // $10
-		string(severity),         // $11
-		createdAt,                // $12
+		string(e.Action),               // $5
+		ptrOrNil(e.TargetType),         // $6
+		ptrOrNil(e.TargetID),           // $7
+		meta,                           // $8
+		ptrOrNil(e.IP),                 // $9 ::text::inet
+		ptrOrNil(e.UserAgent),          // $10
+		string(severity),               // $11
+		createdAt,                      // $12
 	)
 	if err != nil {
 		return fmt.Errorf("audit append: %w", err)

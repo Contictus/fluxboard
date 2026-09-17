@@ -33,7 +33,7 @@ func TestImpersonationReadOnly(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest(tc.method, "/orgs/org1/x", nil)
+			r := httptest.NewRequestWithContext(context.Background(), tc.method, "/orgs/org1/x", nil)
 			if tc.name != "no tenant context passes" {
 				ctx := context.WithValue(r.Context(), ctxKeyTenant,
 					TenantContext{OrgID: "org1", Impersonated: tc.impersonated})
@@ -65,7 +65,7 @@ func TestRejectImpersonationWrite(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest(tc.method, "/me", nil)
+			r := httptest.NewRequestWithContext(context.Background(), tc.method, "/me", nil)
 			if tc.imp != "\x00none" {
 				r = r.WithContext(WithPrincipal(r.Context(), Principal{UserID: "admin", ImpersonatedOrg: tc.imp}))
 			}
@@ -94,7 +94,7 @@ func TestAPIKeyScopeGuard(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest(tc.method, "/orgs/org1/x", nil)
+			r := httptest.NewRequestWithContext(context.Background(), tc.method, "/orgs/org1/x", nil)
 			if tc.info != nil {
 				r = r.WithContext(WithAPIKey(r.Context(), *tc.info))
 			}
