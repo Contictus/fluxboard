@@ -58,13 +58,11 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s
           --health-timeout 3s --health-retries 10
-      minio:
-        image: minio/minio:latest
-        command: ["server", "/data"]
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports: ["9000:9000"]
+      # No MinIO service: the test steps export no MINIO_* env, so the store
+      # boots nil and attachment paths stay disabled (same as MINIO_ENDPOINT
+      # unset locally). (The old bitnami/minio:latest reference died with
+      # Bitnami's tag removal, and Actions service containers accept no
+      # `command` key for the official image's required `server /data` arg.)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
