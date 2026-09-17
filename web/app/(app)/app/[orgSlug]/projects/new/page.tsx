@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FormError } from '@/components/auth/field';
 import { useOrg } from '@/lib/org/context';
 import { createProject } from '@/lib/api/projects';
+import { PROJECT_TEMPLATES, createProjectFromTemplate } from '@/lib/board/templates';
 import { ApiError } from '@/lib/api/client';
 import type { Visibility } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
@@ -36,13 +37,20 @@ export default function NewProjectPage() {
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(COLORS[0] as string);
   const [visibility, setVisibility] = useState<Visibility>('org');
+  const [templateKey, setTemplateKey] = useState('blank');
 
   useEffect(() => {
     if (!keyEdited) setKey(suggestKey(name));
   }, [name, keyEdited]);
 
   const mutation = useMutation({
-    mutationFn: () => createProject(orgId, { key, name, description, color, visibility }),
+    mutationFn: () => {
+      const template = PROJECT_TEMPLATES.find((t) => t.key === templateKey) ?? PROJECT_TEMPLATES[0]!;
+      if (template.key === 'blank') {
+        return createProject(orgId, { key, name, description, color, visibility });
+      }
+      return createProjectFromTemplate(orgId, { key, name, description, color, visibility }, template);
+    },
     onSuccess: async (project) => {
       await queryClient.invalidateQueries({ queryKey: ['projects', orgId] });
       router.replace(`/app/${slug}/projects/${project.key}`);
@@ -169,6 +177,29 @@ export default function NewProjectPage() {
                   >
                     <span className="font-medium">{label}</span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">Template</span>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PROJECT_TEMPLATES.map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setTemplateKey(t.key)}
+                    className={cn(
+                      'rounded-2xl bg-secondary/45 p-4 text-left text-sm transition-colors',
+                      templateKey === t.key ? 'bg-primary/10 text-foreground ring-1 ring-primary/30' : 'hover:bg-secondary',
+                    )}
+                  >
+                    <span className="font-medium">{t.name}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{t.description}</span>
+                    <span className="mt-1.5 block text-[11px] text-muted-foreground">
+                      {t.columns.join(' → ')}
+                    </span>
                   </button>
                 ))}
               </div>
