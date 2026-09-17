@@ -228,6 +228,7 @@ export interface TaskCard {
   title: string;
   priority: Priority;
   assignee_id?: string;
+  due_date?: string | null;
   rank: string;
 }
 

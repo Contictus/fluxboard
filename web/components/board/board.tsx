@@ -19,6 +19,7 @@ import { Plus } from 'lucide-react';
 import type { Board as BoardData, BulkActionInput, TaskCard } from '@/lib/api/types';
 import { getBoard, bulkTasks, createColumn, createTask, moveTask } from '@/lib/api/board';
 import { listLabels } from '@/lib/api/labels';
+import { listOrgMembers } from '@/lib/api/orgs';
 import { useOrg } from '@/lib/org/context';
 import { useAuth } from '@/lib/auth/context';
 import { ApiError } from '@/lib/api/client';
@@ -26,7 +27,7 @@ import { useToast } from '@/components/ui/toast';
 import { between } from '@/lib/board/rank';
 import { priorityClass, priorityLabel } from '@/lib/board/priority';
 import { cn } from '@/lib/utils';
-import { Column } from './column';
+import { Column, type QuickTaskInput } from './column';
 import { BoardToolbar, EMPTY_FILTER, type BoardFilter } from './board-toolbar';
 
 interface MoveVars {
@@ -68,6 +69,11 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
 
   const { data: board, isLoading, isError } = useQuery({ queryKey: boardKey, queryFn: () => getBoard(orgId, projectId) });
   const { data: labels } = useQuery({ queryKey: ['labels', orgId], queryFn: () => listLabels(orgId) });
+  const { data: membersPage } = useQuery({
+    queryKey: ['members', orgId],
+    queryFn: () => listOrgMembers(orgId, { limit: 100 }),
+  });
+  const members = (membersPage?.items ?? []).map((m) => ({ user_id: m.user_id, name: m.name || m.email }));
 
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [selectMode, setSelectMode] = useState(false);
@@ -98,8 +104,15 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
   });
 
   const createTaskMutation = useMutation({
-    mutationFn: (v: { columnId: string; title: string }) =>
-      createTask(orgId, projectId, { column_id: v.columnId, title: v.title, description: '', priority: 'none' }),
+    mutationFn: (v: { columnId: string } & QuickTaskInput) =>
+      createTask(orgId, projectId, {
+        column_id: v.columnId,
+        title: v.title,
+        description: '',
+        priority: v.priority,
+        assignee_id: v.assignee_id,
+        due_date: v.due_date,
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: boardKey }),
     onError: (err) =>
       toast({
@@ -241,8 +254,9 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
               selectMode={selectMode}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
-              onAddTask={(columnId, title) => createTaskMutation.mutate({ columnId, title })}
+              onAddTask={(columnId, input) => createTaskMutation.mutate({ columnId, ...input })}
               addPending={createTaskMutation.isPending}
+              members={members}
             />
           ))}
 

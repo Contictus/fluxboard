@@ -3,12 +3,27 @@
 import Link from 'next/link';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { CalendarDays } from 'lucide-react';
 
 import type { TaskCard } from '@/lib/api/types';
 import { priorityLabel } from '@/lib/board/priority';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
+
+// Due-date presentation: overdue (red), due today (amber), upcoming (muted).
+function dueState(due: string): { label: string; className: string } {
+  const day = new Date(due);
+  day.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const label = day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (day.getTime() < today.getTime())
+    return { label, className: 'bg-red-500/15 text-red-600 dark:text-red-400' };
+  if (day.getTime() === today.getTime())
+    return { label: 'Today', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' };
+  return { label, className: 'bg-secondary text-muted-foreground' };
+}
 
 // A single kanban card. Sortable (drag handle = whole card). In select mode a
 // checkbox replaces drag interaction and toggles bulk selection.
@@ -18,12 +33,14 @@ export function Card({
   selectMode,
   selected,
   onToggle,
+  assigneeName,
 }: {
   task: TaskCard;
   href: string;
   selectMode: boolean;
   selected: boolean;
   onToggle: (id: string) => void;
+  assigneeName?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -85,8 +102,20 @@ export function Card({
                 {priorityLabel(task.priority)}
               </Badge>
             ) : null}
+            {task.due_date ? (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                  dueState(task.due_date).className,
+                )}
+                title={`Due ${new Date(task.due_date).toLocaleDateString()}`}
+              >
+                <CalendarDays className="h-3 w-3" />
+                {dueState(task.due_date).label}
+              </span>
+            ) : null}
             {task.assignee_id ? (
-              <Avatar name={task.assignee_id} size="sm" className="ml-auto" />
+              <Avatar name={assigneeName ?? task.assignee_id} size="sm" className="ml-auto" />
             ) : null}
           </div>
         </div>
