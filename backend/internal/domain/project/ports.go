@@ -251,6 +251,18 @@ type CustomFieldRepository interface {
 	ClearValue(ctx context.Context, orgID, taskID, fieldID string) error
 }
 
+// TaskLinkRepository persists task dependency edges (FR-LINKS).
+type TaskLinkRepository interface {
+	// AddLink records taskID blocked-by linkedID (idempotent).
+	AddLink(ctx context.Context, orgID, taskID, linkedID string) error
+	// RemoveLink deletes an edge. ErrNotFound if absent.
+	RemoveLink(ctx context.Context, orgID, taskID, linkedID string) error
+	// Blockers returns what blocks taskID.
+	Blockers(ctx context.Context, orgID, taskID string) ([]TaskLink, error)
+	// Blocked returns what taskID blocks.
+	Blocked(ctx context.Context, orgID, taskID string) ([]TaskLink, error)
+}
+
 // ActivityRepository appends and reads the per-task change log (FR-TASK-002).
 type ActivityRepository interface {
 	Append(ctx context.Context, orgID string, a *Activity) error
