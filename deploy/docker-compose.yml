@@ -155,6 +155,23 @@ services:
       redis:
         condition: service_healthy
 
+  # Production web (opt-in daily driver, NOT started by default). The dev
+  # override runs `next dev` (2-4s per-route compile stalls); this serves an
+  # ahead-of-time build instead. Start with:
+  #   docker compose --profile prod up -d --build web-prod
+  # then open http://localhost:3100 (same API, same login).
+  web-prod:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8080/api/v1}
+    ports:
+      - "${WEB_PROD_HOST_PORT:-3100}:3000"
+    depends_on:
+      - api
+    profiles: ["prod"]
+
 volumes:
   pgdata:
   redisdata:
