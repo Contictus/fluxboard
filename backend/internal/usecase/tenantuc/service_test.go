@@ -95,7 +95,8 @@ func (f *fakeOrgs) ClearLogo(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeOrgs) UpdateSlug(_ context.Context, id, newSlug string, _ time.Time) error {	for _, e := range f.orgs {
+func (f *fakeOrgs) UpdateSlug(_ context.Context, id, newSlug string, _ time.Time) error {
+	for _, e := range f.orgs {
 		if e.Slug == newSlug {
 			return domain.ErrConflict
 		}
