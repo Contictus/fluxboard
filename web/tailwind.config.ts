@@ -24,6 +24,22 @@ const config: Config = {
           'Segoe UI',
           'sans-serif',
         ],
+        display: [
+          'var(--font-sora)',
+          'Sora',
+          'var(--font-inter)',
+          'Inter',
+          'system-ui',
+          'sans-serif',
+        ],
+        mono: [
+          'var(--font-jetbrains-mono)',
+          'JetBrains Mono',
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'monospace',
+        ],
       },
       colors: {
         border: 'hsl(var(--border))',

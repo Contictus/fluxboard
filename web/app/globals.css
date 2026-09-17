@@ -104,6 +104,11 @@
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
 
+  /* Display type for headings (Sora); body stays Inter, code stays mono */
+  h1, h2, h3 {
+    @apply font-display;
+  }
+
   ::selection {
     background: hsl(var(--primary) / 0.2);
   }
