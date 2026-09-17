@@ -1,5 +1,6 @@
-# golangci-lint config. Conservative, high-signal set for a young codebase;
+# golangci-lint config (v2 format). Conservative, high-signal set for a young codebase;
 # tightened as the project grows.
+version: "2"
 run:
   timeout: 5m
 
