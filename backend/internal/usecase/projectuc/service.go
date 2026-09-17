@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/automation"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
@@ -33,6 +34,7 @@ type Deps struct {
 	Labels   project.LabelRepository // optional; nil ⇒ board cards carry no labels
 	Subtasks project.SubtaskRepository // optional; nil ⇒ board cards carry no subtask progress
 	Comments project.CommentRepository // optional; nil ⇒ board cards carry no comment counts
+	Automation automation.Evaluator // automation rules; nil ⇒ no evaluation
 	Events   notify.EventBus // realtime publish; nil ⇒ no SSE events
 	Logger   *slog.Logger
 	Now      func() time.Time // injectable for tests; defaults to time.Now
@@ -48,6 +50,7 @@ type Service struct {
 	labels   project.LabelRepository
 	subtasks project.SubtaskRepository
 	comments project.CommentRepository
+	automation automation.Evaluator
 	events   notify.EventBus
 	logger   *slog.Logger
 	now      func() time.Time
@@ -66,11 +69,20 @@ func New(d Deps) *Service {
 	return &Service{
 		projects: d.Projects, members: d.Members, boards: d.Boards,
 		columns: d.Columns, tasks: d.Tasks, labels: d.Labels, subtasks: d.Subtasks,
-		comments: d.Comments, events: d.Events, logger: logger, now: now,
+		comments: d.Comments, automation: d.Automation, events: d.Events, logger: logger, now: now,
 	}
 }
 
 func newID() string { return uuidv7.New().String() }
+
+// automate evaluates automation rules best-effort (nil ⇒ disabled). It never
+// fails the write that triggered it.
+func (s *Service) automate(ctx context.Context, e automation.Event) {
+	if s.automation == nil {
+		return
+	}
+	s.automation.Evaluate(ctx, e)
+}
 
 // publish emits a realtime event best-effort (a publish failure is logged, not
 // returned — realtime is off the critical write path).
@@ -464,6 +476,10 @@ func (s *Service) MoveTask(ctx context.Context, orgID, userID, taskID, columnID,
 	s.publish(ctx, orgID, notify.EventTaskMoved, userID, map[string]any{
 		"task_id": taskID, "project_id": t.ProjectID,
 		"from_column": fromColumn, "to_column": columnID, "rank": newRank,
+	})
+	s.automate(ctx, automation.Event{
+		OrgID: orgID, Trigger: automation.TriggerTaskMoved,
+		TaskID: taskID, ActorID: userID, ToColumnID: columnID,
 	})
 	return nil
 }

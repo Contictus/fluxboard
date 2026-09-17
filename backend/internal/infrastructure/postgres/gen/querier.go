@@ -55,6 +55,8 @@ type Querier interface {
 	// Attachments ([T], tenant-scoped) — FR-TASK-006 -----------------------------
 	// Insert the 'pending' row alongside minting a presigned PUT URL.
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) error
+	// Automation rules ([T], tenant-scoped, FR-AUTO) --------------------------
+	CreateAutomationRule(ctx context.Context, arg CreateAutomationRuleParams) error
 	// Boards + columns ([T], tenant-scoped, FR-PROJ-004) -----------------------
 	CreateBoard(ctx context.Context, arg CreateBoardParams) error
 	CreateColumn(ctx context.Context, arg CreateColumnParams) error
@@ -84,6 +86,7 @@ type Querier interface {
 	CreateTask(ctx context.Context, arg CreateTaskParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) error
 	DeleteAttachment(ctx context.Context, arg DeleteAttachmentParams) (int64, error)
+	DeleteAutomationRule(ctx context.Context, arg DeleteAutomationRuleParams) (int64, error)
 	DeleteColumn(ctx context.Context, arg DeleteColumnParams) (int64, error)
 	// The FK cascade on task_labels detaches this label from every task.
 	DeleteLabel(ctx context.Context, arg DeleteLabelParams) (int64, error)
@@ -100,6 +103,7 @@ type Querier interface {
 	// to 401 rather than a silent miss.
 	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
 	GetAttachment(ctx context.Context, arg GetAttachmentParams) (Attachment, error)
+	GetAutomationRule(ctx context.Context, arg GetAutomationRuleParams) (AutomationRule, error)
 	GetBoardByProject(ctx context.Context, arg GetBoardByProjectParams) (Board, error)
 	GetColumn(ctx context.Context, arg GetColumnParams) (BoardColumn, error)
 	GetComment(ctx context.Context, arg GetCommentParams) (Comment, error)
@@ -161,8 +165,10 @@ type Querier interface {
 	ListActiveUserSessions(ctx context.Context, userID uuid.UUID) ([]ListActiveUserSessionsRow, error)
 	ListActivityByTask(ctx context.Context, arg ListActivityByTaskParams) ([]TaskActivity, error)
 	ListAttachmentsByTask(ctx context.Context, arg ListAttachmentsByTaskParams) ([]Attachment, error)
+	ListAutomationRules(ctx context.Context, orgID uuid.UUID) ([]AutomationRule, error)
 	ListColumnsByBoard(ctx context.Context, arg ListColumnsByBoardParams) ([]BoardColumn, error)
 	ListCommentsByTask(ctx context.Context, arg ListCommentsByTaskParams) ([]Comment, error)
+	ListEnabledAutomationRules(ctx context.Context, arg ListEnabledAutomationRulesParams) ([]AutomationRule, error)
 	// Feature flags — Phase 6 (FR-ADM-006). feature_flags is [T] (RLS via TenantPool).
 	ListFeatureFlags(ctx context.Context, orgID uuid.UUID) ([]FeatureFlag, error)
 	ListInvoicesByOrg(ctx context.Context, orgID uuid.UUID) ([]Invoice, error)
@@ -274,6 +280,7 @@ type Querier interface {
 	// Advance last_used_at for a live session head. Called by the auth middleware on
 	// the cache-miss backfill path (≤ once per cache TTL), not per request.
 	TouchSessionLastUsed(ctx context.Context, id uuid.UUID) error
+	UpdateAutomationRule(ctx context.Context, arg UpdateAutomationRuleParams) (int64, error)
 	UpdateColumn(ctx context.Context, arg UpdateColumnParams) (int64, error)
 	UpdateComment(ctx context.Context, arg UpdateCommentParams) (int64, error)
 	UpdateInvitationToken(ctx context.Context, arg UpdateInvitationTokenParams) (int64, error)

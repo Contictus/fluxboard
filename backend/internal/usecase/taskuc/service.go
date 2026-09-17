@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/automation"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/billing"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/notify"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
@@ -54,6 +55,7 @@ type Deps struct {
 	Entitlements EntitlementResolver // plan storage ceiling; nil ⇒ Free const
 	Events       notify.EventBus     // realtime publish; nil ⇒ no SSE events
 	Notifier     Notifier            // notification fan-out; nil ⇒ no fan-out
+	Automation   automation.Evaluator  // automation rules; nil ⇒ no evaluation
 	Logger       *slog.Logger
 	Now          func() time.Time // injectable for tests; defaults to time.Now
 }
@@ -74,6 +76,7 @@ type Service struct {
 	entitlements EntitlementResolver
 	events       notify.EventBus
 	notifier     Notifier
+	automation   automation.Evaluator
 	logger       *slog.Logger
 	now          func() time.Time
 }
@@ -93,8 +96,18 @@ func New(d Deps) *Service {
 		activity: d.Activity, attachments: d.Attachments, projects: d.Projects,
 		members: d.Members, boards: d.Boards, columns: d.Columns, store: d.Store,
 		entitlements: d.Entitlements, events: d.Events, notifier: d.Notifier,
+		automation: d.Automation,
 		logger: logger, now: now,
 	}
+}
+
+// automate evaluates automation rules best-effort (nil ⇒ disabled). It never
+// fails the write that triggered it.
+func (s *Service) automate(ctx context.Context, e automation.Event) {
+	if s.automation == nil {
+		return
+	}
+	s.automation.Evaluate(ctx, e)
 }
 
 // publish emits a realtime event (best-effort; a publish failure is logged, not
@@ -209,6 +222,9 @@ func (s *Service) CreateTask(ctx context.Context, orgID, userID string, in Creat
 	s.publish(ctx, orgID, notify.EventTaskCreated, userID, map[string]any{
 		"task_id": t.ID, "project_id": t.ProjectID, "column_id": t.ColumnID, "title": t.Title,
 	})
+	s.automate(ctx, automation.Event{
+		OrgID: orgID, Trigger: automation.TriggerTaskCreated, TaskID: t.ID, ActorID: userID,
+	})
 	if t.AssigneeID != nil && s.notifier != nil {
 		s.notifier.NotifyAssigned(ctx, orgID, userID, t.ID, *t.AssigneeID, t.Title)
 	}
@@ -287,6 +303,16 @@ func (s *Service) UpdateTask(ctx context.Context, orgID, userID, taskID string, 
 	}
 	if assigneeChanged && in.AssigneeID != nil && s.notifier != nil {
 		s.notifier.NotifyAssigned(ctx, orgID, userID, taskID, *in.AssigneeID, t.Title)
+	}
+	if assigneeChanged {
+		assignee := ""
+		if in.AssigneeID != nil {
+			assignee = *in.AssigneeID
+		}
+		s.automate(ctx, automation.Event{
+			OrgID: orgID, Trigger: automation.TriggerTaskAssigned,
+			TaskID: taskID, ActorID: userID, AssigneeID: assignee,
+		})
 	}
 	return s.tasks.Get(ctx, orgID, taskID)
 }

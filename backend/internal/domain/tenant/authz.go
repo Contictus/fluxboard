@@ -16,6 +16,7 @@ const (
 	ObjAudit       = "audit"       // view org audit log
 	ObjProjects    = "projects"    // create projects
 	ObjLabels      = "labels"      // manage labels
+	ObjAutomations = "automations" // manage automation rules
 
 	ActRead  = "read"
 	ActWrite = "write"

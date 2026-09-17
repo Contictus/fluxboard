@@ -24,6 +24,7 @@ type Deps struct {
 	Orgs          *handlers.OrgHandlers
 	Projects      *handlers.ProjectHandlers
 	Tasks         *handlers.TaskHandlers
+	Automations   *handlers.AutomationHandlers // nil ⇒ automations disabled
 	Billing       *handlers.BillingHandlers
 	Webhooks      *handlers.WebhookHandlers
 	Events        *handlers.EventHandlers        // nil ⇒ SSE disabled (tests)
@@ -247,6 +248,16 @@ func NewRouter(d Deps) http.Handler {
 				o.With(write(tenant.ObjLabels)).Post("/labels", d.Tasks.CreateLabel)
 				o.With(write(tenant.ObjLabels)).Patch("/labels/{labelId}", d.Tasks.UpdateLabel)
 				o.With(write(tenant.ObjLabels)).Delete("/labels/{labelId}", d.Tasks.DeleteLabel)
+
+				// Automation rules (docs/08, FR-AUTO). Reads under read:org;
+				// writes need the ADMIN automations gate.
+				if d.Automations != nil {
+					o.With(read(tenant.ObjOrg)).Get("/automations", d.Automations.ListRules)
+					o.With(write(tenant.ObjAutomations)).Post("/automations", d.Automations.CreateRule)
+					o.With(write(tenant.ObjAutomations)).Patch("/automations/{ruleId}", d.Automations.UpdateRule)
+					o.With(write(tenant.ObjAutomations)).Post("/automations/{ruleId}/enabled", d.Automations.SetRuleEnabled)
+					o.With(write(tenant.ObjAutomations)).Delete("/automations/{ruleId}", d.Automations.DeleteRule)
+				}
 
 				// Phase 4 — billing (docs/06). The billing object gate resolves to
 				// ADMIN+ (docs/05 §2); reads and writes are both admin-only, so a
