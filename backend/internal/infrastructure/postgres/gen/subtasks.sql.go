@@ -11,6 +11,45 @@ import (
 	"github.com/google/uuid"
 )
 
+const countSubtasksForProject = `-- name: CountSubtasksForProject :many
+SELECT s.task_id, COUNT(*) AS total, COUNT(*) FILTER (WHERE s.done) AS done
+FROM subtasks s
+JOIN tasks t ON t.id = s.task_id
+WHERE s.org_id = $1 AND t.project_id = $2
+GROUP BY s.task_id
+`
+
+type CountSubtasksForProjectParams struct {
+	OrgID     uuid.UUID `json:"org_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+}
+
+type CountSubtasksForProjectRow struct {
+	TaskID uuid.UUID `json:"task_id"`
+	Total  int64     `json:"total"`
+	Done   int64     `json:"done"`
+}
+
+func (q *Queries) CountSubtasksForProject(ctx context.Context, arg CountSubtasksForProjectParams) ([]CountSubtasksForProjectRow, error) {
+	rows, err := q.db.Query(ctx, countSubtasksForProject, arg.OrgID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountSubtasksForProjectRow
+	for rows.Next() {
+		var i CountSubtasksForProjectRow
+		if err := rows.Scan(&i.TaskID, &i.Total, &i.Done); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createSubtask = `-- name: CreateSubtask :exec
 
 INSERT INTO subtasks (id, org_id, task_id, title, done, rank)

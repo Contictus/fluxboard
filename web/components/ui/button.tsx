@@ -12,7 +12,7 @@ const variants: Record<Variant, string> = {
   secondary:
     'bg-secondary text-secondary-foreground hover:bg-secondary/80',
   outline:
-    'border border-input bg-background hover:bg-secondary',
+    'bg-secondary/70 hover:bg-secondary',
   ghost:
     'hover:bg-secondary',
   destructive:
@@ -42,7 +42,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       type={type}
       disabled={disabled || isLoading}
       className={cn(
-        'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium ring-offset-background',
+        'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium ring-offset-background',
         'transition-colors duration-150 ease-out',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         'active:scale-[0.98]',

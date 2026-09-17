@@ -38,3 +38,11 @@ FROM task_labels tl
 JOIN labels l ON l.id = tl.label_id
 WHERE tl.org_id = @org_id AND tl.task_id = @task_id
 ORDER BY l.name;
+
+-- name: ListLabelsForProject :many
+SELECT tl.task_id, l.id, l.org_id, l.name, l.color, l.created_at, l.updated_at
+FROM task_labels tl
+JOIN labels l ON l.id = tl.label_id
+JOIN tasks t ON t.id = tl.task_id
+WHERE tl.org_id = @org_id AND t.project_id = @project_id
+ORDER BY l.name;

@@ -98,7 +98,7 @@ export function Subtasks({ taskId, canEdit }: { taskId: string; canEdit: boolean
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Add a subtask…"
-            className="flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex-1 rounded-xl border-0 bg-secondary/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <button
             type="submit"

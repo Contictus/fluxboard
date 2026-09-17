@@ -125,7 +125,7 @@ export function TaskDetail({
                 if (t && t !== task.title) patch.mutate({ title: t });
                 else setTitleDraft(task.title);
               }}
-              className="mt-1 w-full rounded-md border border-transparent bg-transparent text-xl font-bold tracking-tight outline-none hover:border-input focus:border-input focus:bg-background"
+              className="mt-1 w-full rounded-xl border-0 bg-transparent text-xl font-bold tracking-tight outline-none focus:bg-secondary/50"
             />
           ) : (
             <h1 className="mt-1 text-xl font-bold tracking-tight">{task.title}</h1>
@@ -144,7 +144,7 @@ export function TaskDetail({
                 }}
                 rows={4}
                 placeholder="Add a description…"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-xl border-0 bg-secondary/60 px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               {descDirty ? (
                 <div className="mt-1 flex gap-2">
@@ -192,7 +192,7 @@ export function TaskDetail({
             <select
               value={task.assignee_id ?? ''}
               onChange={(e) => patch.mutate({ assignee_id: e.target.value || null })}
-              className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-xl border-0 bg-secondary/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Unassigned</option>
               {members.map((m) => (
@@ -213,7 +213,7 @@ export function TaskDetail({
             <select
               value={task.priority}
               onChange={(e) => patch.mutate({ priority: e.target.value as Priority })}
-              className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-xl border-0 bg-secondary/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {PRIORITIES.map((p) => (
                 <option key={p} value={p}>
@@ -234,7 +234,7 @@ export function TaskDetail({
               onChange={(e) =>
                 patch.mutate({ due_date: e.target.value ? new Date(e.target.value).toISOString() : null })
               }
-              className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-xl border-0 bg-secondary/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           ) : (
             <span className="text-sm">
@@ -270,7 +270,7 @@ export function TaskDetail({
             <select
               value=""
               onChange={(e) => e.target.value && attach.mutate(e.target.value)}
-              className="mt-1.5 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-1.5 w-full rounded-xl border-0 bg-secondary/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Add label…</option>
               {available.map((l) => (

@@ -21,7 +21,7 @@ import { getProjectAnalytics } from '@/lib/api/analytics';
 import type { DailyStat } from '@/lib/api/types';
 
 // A muted palette for the cumulative-flow columns.
-const FLOW_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ec4899', '#06b6d4', '#a855f7'];
+const FLOW_COLORS = ['#2f7468', '#8cae65', '#d49a52', '#a77c91', '#5f8ea0', '#8d9a65'];
 
 function shortDay(day: string): string {
   const d = new Date(`${day}T00:00:00Z`);
@@ -51,8 +51,9 @@ export default function ProjectAnalyticsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-bold tracking-tight">{project.name} · Analytics</h1>
+    <div className="mx-auto max-w-6xl px-6 py-12 lg:px-10 lg:py-16">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Project / analytics</p>
+      <h1 className="text-4xl font-semibold tracking-[-0.06em]">{project.name} <span className="text-muted-foreground/60">/</span> Analytics</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Throughput, work-in-progress and cycle time from the nightly rollups.
       </p>
@@ -99,7 +100,7 @@ function AnalyticsBody({
 
       <ChartCard title="Throughput (created vs completed)">
         <LineChart data={rows}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
           <XAxis dataKey="day" tick={{ fontSize: 12 }} />
           <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={28} />
           <Tooltip />
@@ -111,7 +112,7 @@ function AnalyticsBody({
       {cols.length > 0 ? (
         <ChartCard title="Cumulative flow (cards per column)">
           <AreaChart data={rows}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
             <XAxis dataKey="day" tick={{ fontSize: 12 }} />
             <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={28} />
             <Tooltip />
@@ -132,7 +133,7 @@ function AnalyticsBody({
 
       <ChartCard title="Cycle time (days)">
         <LineChart data={rows}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
           <XAxis dataKey="day" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} width={28} />
           <Tooltip />

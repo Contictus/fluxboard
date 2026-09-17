@@ -67,12 +67,17 @@ func toColumnResp(c *project.Column) columnResp {
 }
 
 type taskCardResp struct {
-	ID       string  `json:"id"`
-	Number   int     `json:"number"`
-	Title    string  `json:"title"`
-	Priority string  `json:"priority"`
-	Assignee *string `json:"assignee_id,omitempty"`
-	Rank     string  `json:"rank"`
+	ID           string      `json:"id"`
+	Number       int         `json:"number"`
+	Title        string      `json:"title"`
+	Priority     string      `json:"priority"`
+	Assignee     *string     `json:"assignee_id,omitempty"`
+	DueDate      *time.Time  `json:"due_date,omitempty"`
+	Labels       []labelResp `json:"labels"`
+	CommentCount int         `json:"comment_count"`
+	SubtaskTotal int         `json:"subtask_total"`
+	SubtaskDone  int         `json:"subtask_done"`
+	Rank         string      `json:"rank"`
 }
 
 type boardColumnResp struct {
@@ -286,10 +291,18 @@ func (h *ProjectHandlers) GetBoard(w http.ResponseWriter, r *http.Request) {
 		bc := boardColumnResp{columnResp: toColumnResp(&cv.Column), Tasks: []taskCardResp{}}
 		for i := range cv.Tasks {
 			t := cv.Tasks[i]
-			bc.Tasks = append(bc.Tasks, taskCardResp{
+			card := taskCardResp{
 				ID: t.ID, Number: t.Number, Title: t.Title,
-				Priority: string(t.Priority), Assignee: t.AssigneeID, Rank: t.Rank,
-			})
+				Priority: string(t.Priority), Assignee: t.AssigneeID, DueDate: t.DueDate, Rank: t.Rank,
+				Labels: []labelResp{},
+				CommentCount: cv.Comments[t.ID],
+				SubtaskTotal: cv.Subtasks[t.ID].Total, SubtaskDone: cv.Subtasks[t.ID].Done,
+			}
+			for _, l := range cv.Labels[t.ID] {
+				ll := l
+				card.Labels = append(card.Labels, toLabelResp(&ll))
+			}
+			bc.Tasks = append(bc.Tasks, card)
 		}
 		resp.Columns = append(resp.Columns, bc)
 	}

@@ -36,11 +36,13 @@ type Querier interface {
 	// the code was valid and is now spent; 0 means invalid/already-used.
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (int64, error)
 	CountColumnTasks(ctx context.Context, arg CountColumnTasksParams) (int64, error)
+	CountCommentsForProject(ctx context.Context, arg CountCommentsForProjectParams) ([]CountCommentsForProjectRow, error)
 	// Total member (seat) count for the plan-limit gate (FR-BILL-009).
 	CountMembers(ctx context.Context, orgID uuid.UUID) (int64, error)
 	CountMembersByRole(ctx context.Context, arg CountMembersByRoleParams) (int64, error)
 	// Live (non-archived) project count for the plan-limit gate (FR-BILL-009).
 	CountProjectsByOrg(ctx context.Context, orgID uuid.UUID) (int64, error)
+	CountSubtasksForProject(ctx context.Context, arg CountSubtasksForProjectParams) ([]CountSubtasksForProjectRow, error)
 	// [@day, @next_day) is the UTC day window (bounds computed by the caller).
 	CountTasksCreatedOnDay(ctx context.Context, arg CountTasksCreatedOnDayParams) (int64, error)
 	CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (int64, error)
@@ -165,6 +167,7 @@ type Querier interface {
 	ListFeatureFlags(ctx context.Context, orgID uuid.UUID) ([]FeatureFlag, error)
 	ListInvoicesByOrg(ctx context.Context, orgID uuid.UUID) ([]Invoice, error)
 	ListLabels(ctx context.Context, orgID uuid.UUID) ([]Label, error)
+	ListLabelsForProject(ctx context.Context, arg ListLabelsForProjectParams) ([]ListLabelsForProjectRow, error)
 	ListLabelsForTask(ctx context.Context, arg ListLabelsForTaskParams) ([]Label, error)
 	ListMembers(ctx context.Context, orgID uuid.UUID) ([]ListMembersRow, error)
 	// Filtered + keyset-paginated member list (docs/08 §4 ?role=&q=). Optional role

@@ -23,7 +23,7 @@ function suggestKey(name: string): string {
   return withLetterHead.slice(0, 6);
 }
 
-const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#64748b'];
+const COLORS = ['#2f7468', '#6e9f8d', '#d49a52', '#c36d58', '#8d9a65', '#5f8ea0', '#a77c91', '#64748b'];
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -66,7 +66,7 @@ export default function NewProjectPage() {
   const planLimited = err instanceof ApiError && err.status === 402;
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-8">
+    <div className="mx-auto max-w-2xl px-6 py-12 lg:py-16">
       <Card>
         <CardHeader>
           <CardTitle>New project</CardTitle>
@@ -126,7 +126,7 @@ export default function NewProjectPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 placeholder="What is this project about?"
-                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex w-full rounded-xl border-0 bg-secondary/60 px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
             </Field>
 
@@ -163,8 +163,8 @@ export default function NewProjectPage() {
                     type="button"
                     onClick={() => setVisibility(v)}
                     className={cn(
-                      'rounded-md border p-3 text-left text-sm transition-colors',
-                      visibility === v ? 'border-primary bg-secondary/50' : 'hover:bg-secondary/40',
+                      'rounded-2xl bg-secondary/45 p-4 text-left text-sm transition-colors',
+                      visibility === v ? 'bg-primary/10 text-foreground ring-1 ring-primary/30' : 'hover:bg-secondary',
                     )}
                   >
                     <span className="font-medium">{label}</span>

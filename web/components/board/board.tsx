@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -19,6 +19,7 @@ import { Plus } from 'lucide-react';
 import type { Board as BoardData, BulkActionInput, TaskCard } from '@/lib/api/types';
 import { getBoard, bulkTasks, createColumn, createTask, moveTask } from '@/lib/api/board';
 import { listLabels } from '@/lib/api/labels';
+import { listOrgMembers } from '@/lib/api/orgs';
 import { useOrg } from '@/lib/org/context';
 import { useAuth } from '@/lib/auth/context';
 import { ApiError } from '@/lib/api/client';
@@ -26,7 +27,7 @@ import { useToast } from '@/components/ui/toast';
 import { between } from '@/lib/board/rank';
 import { priorityClass, priorityLabel } from '@/lib/board/priority';
 import { cn } from '@/lib/utils';
-import { Column } from './column';
+import { Column, type QuickTaskInput } from './column';
 import { BoardToolbar, EMPTY_FILTER, type BoardFilter } from './board-toolbar';
 
 interface MoveVars {
@@ -68,6 +69,11 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
 
   const { data: board, isLoading, isError } = useQuery({ queryKey: boardKey, queryFn: () => getBoard(orgId, projectId) });
   const { data: labels } = useQuery({ queryKey: ['labels', orgId], queryFn: () => listLabels(orgId) });
+  const { data: membersPage } = useQuery({
+    queryKey: ['members', orgId],
+    queryFn: () => listOrgMembers(orgId, { limit: 100 }),
+  });
+  const members = (membersPage?.items ?? []).map((m) => ({ user_id: m.user_id, name: m.name || m.email }));
 
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [selectMode, setSelectMode] = useState(false);
@@ -75,6 +81,26 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
   const [activeId, setActiveId] = useState<string | null>(null);
   const [addingColumn, setAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
+  // Bumped to open the quick composer of the first column (keyboard "c").
+  const [composeSignal, setComposeSignal] = useState(0);
+
+  // Board shortcuts: "/" focuses the filter, "c" starts a task in the first
+  // column. Ignored while typing, and never hijacks browser modifiers.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        document.getElementById('board-filter')?.focus();
+      } else if (e.key === 'c') {
+        setComposeSignal((n) => n + 1);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -98,8 +124,15 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
   });
 
   const createTaskMutation = useMutation({
-    mutationFn: (v: { columnId: string; title: string }) =>
-      createTask(orgId, projectId, { column_id: v.columnId, title: v.title, description: '', priority: 'none' }),
+    mutationFn: (v: { columnId: string } & QuickTaskInput) =>
+      createTask(orgId, projectId, {
+        column_id: v.columnId,
+        title: v.title,
+        description: '',
+        priority: v.priority,
+        assignee_id: v.assignee_id,
+        due_date: v.due_date,
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: boardKey }),
     onError: (err) =>
       toast({
@@ -231,8 +264,8 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-4">
-          {board.columns.map((col) => (
+        <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-5">
+          {board.columns.map((col, i) => (
             <Column
               key={col.id}
               column={col}
@@ -241,15 +274,20 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
               selectMode={selectMode}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
-              onAddTask={(columnId, title) => createTaskMutation.mutate({ columnId, title })}
+              onAddTask={(columnId, input) => createTaskMutation.mutate({ columnId, ...input })}
               addPending={createTaskMutation.isPending}
+              members={members}
+              orgId={orgId}
+              labels={labels ?? []}
+              onMutated={() => queryClient.invalidateQueries({ queryKey: boardKey })}
+              composeSignal={i === 0 ? composeSignal : 0}
             />
           ))}
 
           {isAdmin ? (
             <div className="w-72 shrink-0">
               {addingColumn ? (
-                <div className="rounded-lg border bg-card p-2">
+                <div className="rounded-2xl bg-card p-3 shadow-sm">
                   <input
                     autoFocus
                     value={newColumnName}
@@ -259,13 +297,13 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
                       if (e.key === 'Escape') setAddingColumn(false);
                     }}
                     placeholder="Column name…"
-                    className="w-full rounded border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full rounded-xl border-0 bg-secondary/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                   <div className="mt-1 flex gap-2">
                     <button
                       onClick={() => newColumnName.trim() && addColumnMutation.mutate(newColumnName.trim())}
                       disabled={addColumnMutation.isPending || !newColumnName.trim()}
-                      className="rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                    className="rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
                     >
                       Add
                     </button>
@@ -280,7 +318,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
               ) : (
                 <button
                   onClick={() => setAddingColumn(true)}
-                  className="flex w-full items-center gap-1.5 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  className="flex w-full items-center gap-1.5 rounded-2xl bg-secondary/45 px-3 py-3 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
                 >
                   <Plus className="h-4 w-4" /> Add column
                 </button>
@@ -291,7 +329,7 @@ export function Board({ projectId, projectKey }: { projectId: string; projectKey
 
         <DragOverlay>
           {activeTask ? (
-            <div className="w-64 rounded-md border bg-card p-2.5 text-sm shadow-lg">
+            <div className="w-64 rounded-2xl bg-card p-3 text-sm shadow-xl">
               <p className="truncate font-medium">{activeTask.title}</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <span className="font-mono text-xs text-muted-foreground">#{activeTask.number}</span>

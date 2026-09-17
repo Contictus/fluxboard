@@ -11,6 +11,44 @@ import (
 	"github.com/google/uuid"
 )
 
+const countCommentsForProject = `-- name: CountCommentsForProject :many
+SELECT c.task_id, COUNT(*) AS total
+FROM comments c
+JOIN tasks t ON t.id = c.task_id
+WHERE c.org_id = $1 AND t.project_id = $2 AND c.deleted_at IS NULL
+GROUP BY c.task_id
+`
+
+type CountCommentsForProjectParams struct {
+	OrgID     uuid.UUID `json:"org_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+}
+
+type CountCommentsForProjectRow struct {
+	TaskID uuid.UUID `json:"task_id"`
+	Total  int64     `json:"total"`
+}
+
+func (q *Queries) CountCommentsForProject(ctx context.Context, arg CountCommentsForProjectParams) ([]CountCommentsForProjectRow, error) {
+	rows, err := q.db.Query(ctx, countCommentsForProject, arg.OrgID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountCommentsForProjectRow
+	for rows.Next() {
+		var i CountCommentsForProjectRow
+		if err := rows.Scan(&i.TaskID, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createComment = `-- name: CreateComment :exec
 
 INSERT INTO comments (id, org_id, task_id, author_id, body)

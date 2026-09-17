@@ -185,3 +185,29 @@ func (r *LabelRepo) ListForTask(ctx context.Context, orgID, taskID string) ([]pr
 	})
 	return out, err
 }
+
+// ListForProject returns every label attachment in a project grouped by task
+// ID, in a single query (board projection enrichment).
+func (r *LabelRepo) ListForProject(ctx context.Context, orgID, projectID string) (map[string][]project.Label, error) {
+	pid, err := parseUUID(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("label list for project: %w", err)
+	}
+	out := make(map[string][]project.Label)
+	err = r.tp.WithTenant(ctx, orgID, func(q *gen.Queries) error {
+		oid, _ := parseUUID(orgID)
+		rows, err := q.ListLabelsForProject(ctx, gen.ListLabelsForProjectParams{OrgID: oid, ProjectID: pid})
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			tid := row.TaskID.String()
+			out[tid] = append(out[tid], project.Label{
+				ID: row.ID.String(), OrgID: row.OrgID.String(), Name: row.Name,
+				Color: row.Color, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			})
+		}
+		return nil
+	})
+	return out, err
+}
