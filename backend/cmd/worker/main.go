@@ -29,6 +29,7 @@ import (
 	redisx "github.com/mesutokul/fluxboard/backend/internal/infrastructure/redis"
 	stripex "github.com/mesutokul/fluxboard/backend/internal/infrastructure/stripe"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/jobs"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/aiuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/billinguc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/taskuc"
 )
@@ -195,6 +196,14 @@ func run(logger *slog.Logger) error {
 	notifyJobs.Register(mux)
 	webhookRetry.Register(mux)
 	auditRetention.Register(mux)
+
+	// AI retention (ADR-025, FR-AI-008). The sweep only needs the ledger, so
+	// the service is built with Runs alone; gates/metering are API-path only.
+	aiJobs := jobs.NewAI(aiuc.New(aiuc.Deps{
+		Runs:   postgres.NewAIRepo(tenantPool),
+		Logger: logger,
+	}), maintenanceRepo, logger)
+	aiJobs.Register(mux)
 
 	if err := srv.Start(mux); err != nil {
 		return err
