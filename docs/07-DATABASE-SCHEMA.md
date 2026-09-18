@@ -389,16 +389,31 @@ CREATE TABLE feature_flags (                     -- FR-ADM-006
 ## 5. Migration Order
 
 ```
-0001 extensions (citext, pgcrypto)     0009 tasks + subtasks + activity
-0002 users + oauth + sessions          0010 labels + task_labels + relations
-0003 one_time_tokens + recovery_codes  0011 comments + attachments
-0004 plans + organizations + slug_hist 0012 notifications + prefs
-0005 memberships + invitations         0013 audit_log (+grants)
-0006 subscriptions + invoices          0014 api_keys
-0007 usage_records + processed_events  0015 stats + flags + outbox
-     + outbox                          0016 RLS enable + policies (ALL [T] tables)
-0008 projects + members + columns      0017 db roles + grants (app / admin_ro)
+0001 extensions (citext, pgcrypto)     0017 automation_rules
+0002 users, oauth, sessions,            0018 RLS automation_rules
+     one_time_tokens, recovery_codes   0019 time_entries
+0003 organizations, slug_history,       0020 RLS time_entries
+     memberships, invitations          0021 sprints (+ tasks.sprint_id)
+0004 RLS tenancy [T]                    0022 RLS sprints
+0005 audit_log (append-only)            0023 custom_fields + values
+0006 session last_used                   0024 RLS custom_fields
+0007 projects, boards, columns, tasks,  0025 task_links
+     subtasks, labels, comments,       0026 RLS task_links
+     activity                          0027 project_forms (+ app_form_by_token)
+0008 RLS phase-3a [T]                   0028 RLS project_forms
+0009 trash, FTS tsvector, attachments   0029 tasks.start_date
+0010 RLS attachments                    0030 ai_runs, ai_risks
+0011 plans, subscriptions, invoices,    0031 RLS ai_runs, ai_risks
+     processed_stripe_events,          0032 ai_runs key_id (API-key callers)
+     usage_records, outbox
+0012 RLS billing [T]
+0013 notifications, prefs, stats_daily
+0014 RLS realtime [T]
+0015 api_keys, flags, overrides
+0016 RLS admin [T]
 ```
 
-RLS policies live in a dedicated migration (0016) so the isolation layer is
+Convention: DDL lands in the odd migration, RLS in the following even one,
+so the isolation layer reviews as one artifact. Next free number: **0033**.
+RLS policies live in dedicated migrations so the isolation layer is
 reviewable as one artifact.
