@@ -26,6 +26,7 @@ type Deps struct {
 	Tasks          *handlers.TaskHandlers
 	PublicForms    *handlers.PublicFormHandlers // nil ⇒ public intake forms disabled
 	Automations    *handlers.AutomationHandlers // nil ⇒ automations disabled
+	AI             *handlers.AIHandlers         // nil ⇒ AI surface disabled
 	Billing        *handlers.BillingHandlers
 	Webhooks       *handlers.WebhookHandlers
 	Events         *handlers.EventHandlers        // nil ⇒ SSE disabled (tests)
@@ -305,6 +306,21 @@ func NewRouter(d Deps) http.Handler {
 					o.With(write(tenant.ObjAutomations)).Patch("/automations/{ruleId}", d.Automations.UpdateRule)
 					o.With(write(tenant.ObjAutomations)).Post("/automations/{ruleId}/enabled", d.Automations.SetRuleEnabled)
 					o.With(write(tenant.ObjAutomations)).Delete("/automations/{ruleId}", d.Automations.DeleteRule)
+				}
+
+				// Governed AI (ADR-025, FR-AI-001..008). Member-level actions run
+				// under read:org; the usecase pipeline (surface gate, meter,
+				// BUSINESS+ risk gate) is the authorization. MCP POST needs a
+				// write-scoped key (scope guard, FR-AI-007 v1 note).
+				if d.AI != nil {
+					o.With(read(tenant.ObjOrg)).Post("/ai/parse", d.AI.Parse)
+					o.With(read(tenant.ObjOrg)).Post("/ai/plan", d.AI.PlanDraft)
+					o.With(read(tenant.ObjOrg)).Post("/ai/chat", d.AI.Chat)
+					o.With(read(tenant.ObjOrg)).Get("/ai/risks", d.AI.ListRisks)
+					o.With(read(tenant.ObjOrg)).Post("/ai/risks/scan", d.AI.ScanRisks)
+					o.With(read(tenant.ObjOrg)).Post("/ai/risks/dismiss", d.AI.DismissRisk)
+					o.With(read(tenant.ObjOrg)).Post("/mcp", d.AI.MCP)
+					o.With(read(tenant.ObjOrg)).Get("/projects/{projectId}/ai/digest", d.AI.Digest)
 				}
 
 				// Phase 4 — billing (docs/06). The billing object gate resolves to

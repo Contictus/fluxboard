@@ -56,6 +56,14 @@ type Config struct {
 	SMTPFrom     string `envconfig:"SMTP_FROM" default:"no-reply@fluxboard.local"`
 
 	WebOrigin string `envconfig:"WEB_ORIGIN" default:"http://localhost:3000"`
+
+	// Governed AI layer (ADR-025, FR-AI-001..008). Provider selects the
+	// ai.Provider implementation: "mock" (default — deterministic, keyless,
+	// boot-safe). Live providers ("claude", "azure") arrive later; unknown
+	// values fall back to mock at wiring (never fail boot). MonthlyCap bounds
+	// AI actions per org per calendar month (402 ai_actions at breach).
+	AIProvider   string `envconfig:"AI_PROVIDER" default:"mock"`
+	AIMonthlyCap int    `envconfig:"AI_MONTHLY_CAP" default:"200"`
 }
 
 // Load reads configuration from the environment and returns it, or an error
@@ -87,7 +95,7 @@ func (c *Config) String() string {
 		c.MinIOEndpoint, mask(c.MinIOAccessKey), mask(c.MinIOSecretKey), c.MinIOBucket, c.MinIOUseSSL)
 	fmt.Fprintf(&b, "SMTPHost=%s SMTPPort=%d SMTPUser=%s SMTPPassword=%s SMTPFrom=%s ",
 		c.SMTPHost, c.SMTPPort, c.SMTPUser, mask(c.SMTPPassword), c.SMTPFrom)
-	fmt.Fprintf(&b, "WebOrigin=%s}", c.WebOrigin)
+	fmt.Fprintf(&b, "WebOrigin=%s AIProvider=%s AIMonthlyCap=%d}", c.WebOrigin, c.AIProvider, c.AIMonthlyCap)
 	return b.String()
 }
 

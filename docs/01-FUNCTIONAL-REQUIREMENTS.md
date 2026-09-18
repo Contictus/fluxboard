@@ -128,3 +128,16 @@ Acceptance criteria for each phase = all **M** requirements of that module pass.
 |----|---|-------------|
 | FR-AN-001 | M | Project analytics page: tasks completed per week (12w bar), cumulative flow by column (stacked area), avg cycle time (In Progress→Done, 30d), per-assignee open/closed counts. Powered by nightly rollup table `project_stats_daily` — NOT live aggregate queries on the task table. |
 | FR-AN-002 | M | Org usage dashboard: seats vs limit, storage vs limit, API calls (30d sparkline), next-invoice estimate for metered plans (from local usage_records, labeled "estimate"). |
+
+## AI — Governed AI Layer (full spec: ADR-025)
+
+| ID | P | Requirement |
+|----|---|-------------|
+| FR-AI-001 | M | NL task parse: `POST /orgs/{id}/ai/parse` turns one sentence/paragraph into structured task drafts (title, due date, assignee if inferable). Deterministic mock provider in test/dev; no invented ids. |
+| FR-AI-002 | M | Plan draft: transcript/brief → epics, tasks, subtasks, milestones, risks, dependencies. Atomic instantiation (all-or-none). `Idempotency-Key` required, same 24h Redis store as checkout/invite. |
+| FR-AI-003 | M | Status digest: sponsor-ready report (summary, accomplishments, blockers, next-week, open risks) generated from LIVE project data only. Numbers computed by the engine; AI narrates prose. |
+| FR-AI-004 | M | Risk signals: overdue, capacity overcommit, dependency churn, scope-change frequency. Persisted per (org, task), dismissable, never re-noises. BUSINESS+ gate via entitlement middleware (402 `ai_actions` at cap). |
+| FR-AI-005 | M | Every AI write audit-logged (`severity=ai`, metadata: model, tokens, kind). Org-level master switch + per-surface toggle, enforced server-side (direct API call also 403 when off). |
+| FR-AI-006 | M | Tenant isolation: prompt context org-scoped only. Cross-tenant probe returns 404 like every other surface. `ai_runs`/`ai_risks` are `[T]` with RLS through `TenantPool`. |
+| FR-AI-007 | S | Minimal MCP: `POST /api/v1/mcp` JSON-RPC with ~15 typed tools over HybridAuth (session or `fbk_live_` key). Same RBAC/scope gates as HTTP. Concurrent-connection cap scales with plan tier. |
+| FR-AI-008 | S | Token/action metering through the existing usage pipeline (FR-BILL-007): monthly cap, 402 at breach, AI input/output 30-day retention with owner-pool purge job. |
