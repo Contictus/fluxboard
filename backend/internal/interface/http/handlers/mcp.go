@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mesutokul/fluxboard/backend/internal/domain"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/response"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/aiuc"
@@ -49,7 +50,7 @@ func (h *AIHandlers) MCP(w http.ResponseWriter, r *http.Request) {
 	if req.Params == nil {
 		req.Params = map[string]any{}
 	}
-	result, err := h.dispatchMCP(r, tc.OrgID, tc.UserID, req)
+	result, err := h.dispatchMCP(r, tc.OrgID, tc.UserID, tc.Role, req)
 	if err != nil {
 		response.Error(w, err)
 		return
@@ -57,7 +58,7 @@ func (h *AIHandlers) MCP(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, map[string]any{"tool": req.Tool, "result": result})
 }
 
-func (h *AIHandlers) dispatchMCP(r *http.Request, orgID, userID string, req mcpReq) (any, error) {
+func (h *AIHandlers) dispatchMCP(r *http.Request, orgID, userID string, orgRole tenant.OrgRole, req mcpReq) (any, error) {
 	ctx := r.Context()
 	str := func(key string) string {
 		v, _ := req.Params[key].(string)
@@ -105,11 +106,7 @@ func (h *AIHandlers) dispatchMCP(r *http.Request, orgID, userID string, req mcpR
 		if err != nil {
 			return nil, err
 		}
-		tc, ok := mw.TenantFrom(r.Context())
-		if !ok {
-			return nil, domain.ErrForbidden
-		}
-		out, err := h.svc.ApplyPlan(ctx, orgID, userID, tc.Role, aiuc.ApplyInput{
+		out, err := h.svc.ApplyPlan(ctx, orgID, userID, orgRole, aiuc.ApplyInput{
 			ProjectID: str("project_id"), ColumnID: str("column_id"),
 			Items: items, IdemKey: key,
 		})
