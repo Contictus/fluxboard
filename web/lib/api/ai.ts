@@ -103,3 +103,39 @@ export async function listRisks(orgId: string, projectId: string): Promise<AIRis
 export function dismissRisk(orgId: string, taskId: string): Promise<void> {
   return apiFetch(`/orgs/${orgId}/ai/risks/dismiss`, { method: 'POST', body: { task_id: taskId } });
 }
+
+export interface AIApplyItem {
+  title: string;
+  description?: string;
+  assignee_id?: string | null;
+  priority?: string;
+  start_date?: string | null;
+  due_date?: string | null;
+}
+
+export interface AIAppliedTask {
+  id: string;
+  number: number;
+  title: string;
+}
+
+export interface AIApplyResult {
+  run_id: string;
+  replayed: boolean;
+  tasks: AIAppliedTask[];
+}
+
+/** Materialize draft items as tasks (FR-AI-009, idempotent, ≤ 50 items). */
+export function applyPlan(
+  orgId: string,
+  input: { project_id: string; column_id: string; items: AIApplyItem[] },
+  key?: string,
+): Promise<AIApplyResult> {
+  const idempotencyKey =
+    key ?? (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`);
+  return apiFetch(`/orgs/${orgId}/ai/plan/apply`, {
+    method: 'POST',
+    body: input,
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+}

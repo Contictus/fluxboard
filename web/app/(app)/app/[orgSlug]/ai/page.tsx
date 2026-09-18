@@ -7,7 +7,9 @@ import { Brain, ListChecks, ScrollText, ShieldAlert } from 'lucide-react';
 
 import { useOrg } from '@/lib/org/context';
 import { listProjects } from '@/lib/api/projects';
+import { getBoard } from '@/lib/api/board';
 import {
+  applyPlan,
   chatTurn,
   dismissRisk,
   listRisks,
@@ -144,7 +146,23 @@ function ParseCard() {
 function PlanCard() {
   const { orgId, slug } = useOrg();
   const [brief, setBrief] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [columnId, setColumnId] = useState('');
   const plan = useMutation({ mutationFn: () => planDraft(orgId, brief.trim()) });
+  const boardQ = useQuery({
+    queryKey: ['board', orgId, projectId],
+    queryFn: () => getBoard(orgId, projectId),
+    enabled: projectId !== '',
+  });
+  const apply = useMutation({
+    mutationFn: () =>
+      applyPlan(orgId, {
+        project_id: projectId,
+        column_id: columnId,
+        items: (plan.data?.items ?? []).map((title) => ({ title })),
+      }),
+  });
+  const columns = boardQ.data?.columns ?? [];
 
   return (
     <Card>
@@ -152,7 +170,7 @@ function PlanCard() {
         <CardTitle className="flex items-center gap-2">
           <ScrollText className="h-4 w-4" /> Plan draft
         </CardTitle>
-        <CardDescription>Brief in, phased draft out. Idempotent per click.</CardDescription>
+        <CardDescription>Brief in, phased draft out. Apply writes real tasks, all or nothing.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <textarea
@@ -166,6 +184,46 @@ function PlanCard() {
           Draft plan
         </Button>
         {plan.data && <p className="whitespace-pre-wrap text-sm">{plan.data.text}</p>}
+        {plan.data && plan.data.items.length > 0 && (
+          <div className="space-y-3 rounded-lg border border-input p-3">
+            <ProjectPicker
+              projectId={projectId}
+              onChange={(id) => {
+                setProjectId(id);
+                setColumnId('');
+              }}
+            />
+            <select className={selectCls} value={columnId} onChange={(e) => setColumnId(e.target.value)}>
+              <option value="">Select a column…</option>
+              {columns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="secondary"
+              isLoading={apply.isPending}
+              disabled={!projectId || !columnId}
+              onClick={() => apply.mutate()}
+            >
+              Apply {plan.data.items.length} tasks
+            </Button>
+            {apply.data && (
+              <div className="text-sm">
+                {apply.data.replayed && <p className="text-muted-foreground">Replayed — nothing duplicated.</p>}
+                <ul className="list-disc pl-5">
+                  {apply.data.tasks.map((t) => (
+                    <li key={t.id}>
+                      #{t.number} {t.title}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <AIError error={apply.error} slug={slug} />
+          </div>
+        )}
         <AIError error={plan.error} slug={slug} />
       </CardContent>
     </Card>
