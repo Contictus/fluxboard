@@ -56,6 +56,11 @@ const (
 	// API keys (docs/build/PHASE-6 §5, FR-API-001).
 	ActionAPIKeyCreate Action = "apikey.create"
 	ActionAPIKeyRevoke Action = "apikey.revoke"
+
+	// Governed AI layer (ADR-025, FR-AI-005). Every AI write logs ai.run with
+	// model+tokens in metadata; risk dismissals log ai.risk_dismiss.
+	ActionAIRun         Action = "ai.run"
+	ActionAIRiskDismiss Action = "ai.risk_dismiss"
 )
 
 // Entry is one immutable audit record. Empty string IDs map to SQL NULL in the

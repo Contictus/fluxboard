@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -115,6 +116,41 @@ func (r *AIRepo) ListRecent(ctx context.Context, orgID string, limit int) ([]ai.
 		return rows.Err()
 	})
 	return out, err
+}
+
+const getAIRunSQL = `
+SELECT id::text, org_id::text, user_id::text, kind, input, output::text, model,
+       prompt_tokens, completion_tokens, status, COALESCE(idempotency_key, ''),
+       created_at
+FROM ai_runs
+WHERE org_id = $1 AND id = $2`
+
+// Get returns one run, or ErrNotFound (idempotency replay path).
+func (r *AIRepo) Get(ctx context.Context, orgID, id string) (*ai.Run, error) {
+	rid, err := parseUUID(id)
+	if err != nil {
+		return nil, fmt.Errorf("ai run get: %w", err)
+	}
+	var out *ai.Run
+	err = r.tp.WithTenantTx(ctx, orgID, func(tx pgx.Tx) error {
+		oid, _ := parseUUID(orgID)
+		run, err := scanAIRun(tx.QueryRow(ctx, getAIRunSQL, oid, rid).Scan)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return domain.ErrNotFound
+			}
+			return err
+		}
+		out = run
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		return nil, domain.ErrNotFound
+	}
+	return out, nil
 }
 
 const countAIRunsSQL = `

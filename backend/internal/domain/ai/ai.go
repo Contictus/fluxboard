@@ -116,6 +116,8 @@ type Risk struct {
 type RunRepository interface {
 	// Create appends a run. Duplicate (org, idempotency_key) ⇒ ErrConflict.
 	Create(ctx context.Context, orgID string, r *Run) error
+	// Get returns one run, or ErrNotFound (idempotency replay path).
+	Get(ctx context.Context, orgID, id string) (*Run, error)
 	// ListRecent returns the newest runs, bounded by limit (chat history).
 	ListRecent(ctx context.Context, orgID string, limit int) ([]Run, error)
 	// CountSince counts runs of any kind after t (monthly metering).
