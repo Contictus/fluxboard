@@ -28,6 +28,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/config"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
+	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/ai"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/casbinx"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/mailer"
 	miniox "github.com/mesutokul/fluxboard/backend/internal/infrastructure/minio"
@@ -42,6 +43,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/aesgcm"
 	"github.com/mesutokul/fluxboard/backend/internal/pkg/jwtx"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/adminuc"
+	"github.com/mesutokul/fluxboard/backend/internal/usecase/aiuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/analyticsuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/apikeyuc"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/audituc"
@@ -367,6 +369,22 @@ func run(logger *slog.Logger) error {
 		Columns: columnRepo, Boards: boardRepo, Logger: logger,
 	})
 	automationHandlers := handlers.NewAutomationHandlers(automationSvc, logger)
+
+	// Governed AI (ADR-025, FR-AI-001..008). Mock is the default provider:
+	// deterministic, keyless, boot-safe. Unknown AI_PROVIDER values fall back
+	// to mock with a loud warning (never fail boot — MinIO pattern).
+	aiProvider := ai.NewMock()
+	if cfg.AIProvider != "" && cfg.AIProvider != "mock" {
+		logger.Warn("unknown AI_PROVIDER; falling back to mock", "provider", cfg.AIProvider)
+	}
+	aiSvc := aiuc.New(aiuc.Deps{
+		Runs: postgres.NewAIRepo(tenantPool), Risks: postgres.NewAIRepo(tenantPool),
+		Flags: postgres.NewFeatureFlagRepo(tenantPool),
+		Tasks: taskRepo, Projects: projectRepo, Audit: auditRepo,
+		Provider: aiProvider, Idem: redisx.NewIdempotencyStore(rdb),
+		Entitlements: billingSvc, MonthlyCap: cfg.AIMonthlyCap, Logger: logger,
+	})
+	aiHandlers := handlers.NewAIHandlers(aiSvc, logger)
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
 		Columns: columnRepo, Tasks: taskRepo, Sprints: sprintRepo, Fields: fieldRepo, Labels: labelRepo,
@@ -418,6 +436,7 @@ func run(logger *slog.Logger) error {
 		Tasks:          taskHandlers,
 		PublicForms:    publicFormHandlers,
 		Automations:    automationHandlers,
+		AI:             aiHandlers,
 		Billing:        billingHandlers,
 		Webhooks:       webhookHandlers,
 		Events:         eventHandlers,
