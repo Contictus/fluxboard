@@ -29,8 +29,10 @@ is prod-shaped.
 12-factor: env only, parsed once at startup into a `Config` struct
 (`envconfig`), fail-fast on missing required keys. `.env.example` committed;
 `.env` gitignored. Key vars: `DATABASE_URL` (app role), `DATABASE_URL_MIGRATE`
-(owner role), `REDIS_ADDR`, `JWT_PRIVATE_KEY_PEM` (or path), `STRIPE_SECRET_KEY`,
-`STRIPE_WEBHOOK_SECRET`, `MINIO_*`, `SMTP_*`, `WEB_ORIGIN`, `TOTP_ENC_KEY`.
+(owner role), `REDIS_ADDR`, `JWT_PRIVATE_KEY_PEM` (or path), `STRIPE_MODE`
+(default stub), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `MINIO_*`,
+`SMTP_*`, `WEB_ORIGIN`, `TOTP_ENC_KEY`, `AI_PROVIDER` (default mock),
+`AI_MONTHLY_CAP` (default 200).
 Secrets never logged; config struct implements a redacting `String()`.
 
 ## 3. Makefile Targets
