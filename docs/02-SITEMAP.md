@@ -60,6 +60,7 @@ Guard legend: **P** public · **A** authenticated · **V** authenticated+verifie
 | `/app/{orgSlug}/search?q=…` | O(GUEST) | Full-text search results (tasks), filter sidebar |
 | `/app/{orgSlug}/notifications` | O(GUEST) | Notification center (unread/all tabs) |
 | `/app/{orgSlug}/trash` | O(MEMBER) | Soft-deleted tasks, restore/purge |
+| `/app/{orgSlug}/ai` | O(GUEST) | AI assistant: chat, task parse, plan draft + board apply, digest, risk review (FR-AI-001..009) |
 
 \* private projects additionally require project membership (403 → styled "no access" page).
 
