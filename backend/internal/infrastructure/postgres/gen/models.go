@@ -12,6 +12,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AiRisk struct {
+	ID          uuid.UUID          `json:"id"`
+	OrgID       uuid.UUID          `json:"org_id"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	TaskID      uuid.UUID          `json:"task_id"`
+	Score       string             `json:"score"`
+	Signals     []byte             `json:"signals"`
+	DismissedAt pgtype.Timestamptz `json:"dismissed_at"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+type AiRun struct {
+	ID               uuid.UUID   `json:"id"`
+	OrgID            uuid.UUID   `json:"org_id"`
+	UserID           pgtype.UUID `json:"user_id"`
+	Kind             string      `json:"kind"`
+	Input            string      `json:"input"`
+	Output           []byte      `json:"output"`
+	Model            string      `json:"model"`
+	PromptTokens     int32       `json:"prompt_tokens"`
+	CompletionTokens int32       `json:"completion_tokens"`
+	Status           string      `json:"status"`
+	IdempotencyKey   *string     `json:"idempotency_key"`
+	CreatedAt        time.Time   `json:"created_at"`
+	KeyID            *string     `json:"key_id"`
+}
+
 type ApiKey struct {
 	ID         uuid.UUID          `json:"id"`
 	OrgID      uuid.UUID          `json:"org_id"`
