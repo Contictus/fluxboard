@@ -79,7 +79,8 @@ func SurfaceFor(kind string) string {
 type Run struct {
 	ID               string
 	OrgID            string
-	UserID           string
+	UserID           string // session caller; "" for API-key callers
+	KeyID            string // API-key caller ("apikey:<id>" split at insert); "" for sessions
 	Kind             string
 	Input            string
 	Output           json.RawMessage

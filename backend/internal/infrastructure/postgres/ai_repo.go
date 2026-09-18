@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -32,9 +33,22 @@ var (
 
 const insertAIRunSQL = `
 INSERT INTO ai_runs
-  (id, org_id, user_id, kind, input, output, model,
+  (id, org_id, user_id, key_id, kind, input, output, model,
    prompt_tokens, completion_tokens, status, idempotency_key)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
+
+// splitCaller maps the tenant-context caller to (user_id, key_id): session
+// uuids go to user_id; "apikey:<id>" principals (non-uuid, Phase-6 fallback
+// note) go to key_id with a NULL user_id so the users FK never breaks.
+func splitCaller(caller string) (userID *string, keyID *string) {
+	if id, ok := strings.CutPrefix(caller, "apikey:"); ok {
+		return nil, &id
+	}
+	if _, err := parseUUID(caller); err != nil {
+		return nil, nil
+	}
+	return &caller, nil
+}
 
 // Create appends a run. Duplicate (org, idempotency_key) ⇒ ErrConflict.
 func (r *AIRepo) Create(ctx context.Context, orgID string, run *ai.Run) error {
@@ -42,9 +56,12 @@ func (r *AIRepo) Create(ctx context.Context, orgID string, run *ai.Run) error {
 	if err != nil {
 		return fmt.Errorf("ai run create: %w", err)
 	}
-	uid, err := parseUUID(run.UserID)
-	if err != nil {
-		return fmt.Errorf("ai run create: user: %w", err)
+	userID, keyID := splitCaller(run.UserID)
+	if userID == nil && keyID == nil {
+		// No attributable caller (should not happen: handlers always run under
+		// auth); attribute to the key side as "unknown" rather than failing.
+		unknown := "unknown"
+		keyID = &unknown
 	}
 	out := []byte("{}")
 	if len(run.Output) > 0 {
@@ -57,7 +74,7 @@ func (r *AIRepo) Create(ctx context.Context, orgID string, run *ai.Run) error {
 	err = r.tp.WithTenantTx(ctx, orgID, func(tx pgx.Tx) error {
 		oid, _ := parseUUID(orgID)
 		_, err := tx.Exec(ctx, insertAIRunSQL,
-			id, oid, uid, run.Kind, run.Input, out, run.Model,
+			id, oid, userID, keyID, run.Kind, run.Input, out, run.Model,
 			run.PromptTokens, run.CompletionTokens, status, ptrOrNil(run.IdempotencyKey),
 		)
 		return err
@@ -69,7 +86,8 @@ func (r *AIRepo) Create(ctx context.Context, orgID string, run *ai.Run) error {
 }
 
 const listAIRunsSQL = `
-SELECT id::text, org_id::text, user_id::text, kind, input, output::text, model,
+SELECT id::text, org_id::text, COALESCE(user_id::text, ''), COALESCE(key_id, ''),
+       kind, input, output::text, model,
        prompt_tokens, completion_tokens, status, COALESCE(idempotency_key, ''),
        created_at
 FROM ai_runs
@@ -82,7 +100,7 @@ func scanAIRun(scan func(dest ...any) error) (*ai.Run, error) {
 	var out string
 	var idem string
 	if err := scan(
-		&run.ID, &run.OrgID, &run.UserID, &run.Kind, &run.Input, &out, &run.Model,
+		&run.ID, &run.OrgID, &run.UserID, &run.KeyID, &run.Kind, &run.Input, &out, &run.Model,
 		&run.PromptTokens, &run.CompletionTokens, &run.Status, &idem,
 		&run.CreatedAt,
 	); err != nil {
@@ -119,7 +137,8 @@ func (r *AIRepo) ListRecent(ctx context.Context, orgID string, limit int) ([]ai.
 }
 
 const getAIRunSQL = `
-SELECT id::text, org_id::text, user_id::text, kind, input, output::text, model,
+SELECT id::text, org_id::text, COALESCE(user_id::text, ''), COALESCE(key_id, ''),
+       kind, input, output::text, model,
        prompt_tokens, completion_tokens, status, COALESCE(idempotency_key, ''),
        created_at
 FROM ai_runs
