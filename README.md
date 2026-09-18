@@ -12,6 +12,11 @@ Local operation procedures are collected in [`docs/runbooks/`](docs/runbooks/).
 
 **All build phases (0–7) complete.**
 
+- **8 — Governed AI** — NL task parse, idempotent plan draft + board apply
+  (validate-then-create with trash compensation), live-data status digest,
+  BUSINESS+ risk review, chat, 7-tool MCP, `ai_runs`/`ai_risks` ledger with
+  RLS, monthly metering + 30d retention (ADR-025, FR-AI-001..009).
+
 - **0–2** — scaffolding, auth (JWT + refresh rotation, OAuth2 PKCE, email
   verification), tenancy + RBAC/RLS + audit.
 - **3** — project-management core: projects, membership/roles, boards + columns
