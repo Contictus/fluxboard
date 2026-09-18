@@ -407,13 +407,13 @@ func (s *Service) requireBusiness(ctx context.Context, orgID string) error {
 
 // ledger persists the run + audits it. Audit is best-effort (never fails the
 // call); a failed ledger append surfaces (the call produced billable work).
-func (s *Service) ledger(ctx context.Context, orgID, userID, kind, input, idemKey string, res CompleteResponseAlias) string {
+func (s *Service) ledger(ctx context.Context, orgID, userID, kind, input, idemKey string, res ai.CompleteResponse) string {
 	out, _ := json.Marshal(map[string]string{"text": res.Text})
 	return s.newRun(ctx, orgID, userID, kind, input, idemKey, res, out)
 }
 
 // newRun stores one ledger row and audits it best-effort.
-func (s *Service) newRun(ctx context.Context, orgID, userID, kind, input, idemKey string, res CompleteResponseAlias, out json.RawMessage) string {
+func (s *Service) newRun(ctx context.Context, orgID, userID, kind, input, idemKey string, res ai.CompleteResponse, out json.RawMessage) string {
 	run := &ai.Run{
 		ID: uuidv7.New().String(), OrgID: orgID, UserID: userID,
 		Kind: kind, Input: input, Output: out, Model: res.Model,
@@ -540,7 +540,3 @@ func runText(run *ai.Run) string {
 func monthStart(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
 }
-
-// CompleteResponseAlias keeps the ledger helper independent of the provider
-// import cycle surface (same shape as ai.CompleteResponse).
-type CompleteResponseAlias = ai.CompleteResponse
