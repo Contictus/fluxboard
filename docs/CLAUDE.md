@@ -46,6 +46,7 @@ project demonstrating senior-level backend engineering.
 6. **Phase 5 — Realtime + jobs:** SSE event stream, Asynq workers (email, usage aggregation, webhook retry), notification center
 7. **Phase 6 — Admin + observability:** platform admin panel, audit log viewer, Prometheus metrics, Grafana dashboards
 8. **Phase 7 — Frontend completion:** all pages in 02-SITEMAP.md wired to API
+9. **Phase 8 — Governed AI:** mock-first provider, NL parse, idempotent plan draft + board apply, live-data digest, BUSINESS+ risk review, chat, MCP tools, ledger + audit + metering (ADR-025, FR-AI-001..009)
 
 Do NOT start a phase before the previous phase's acceptance criteria
 (defined in 01-FUNCTIONAL-REQUIREMENTS.md) pass.
