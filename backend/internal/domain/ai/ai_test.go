@@ -3,7 +3,7 @@ package ai
 import "testing"
 
 func TestValidKind(t *testing.T) {
-	for _, k := range []string{KindParse, KindPlanDraft, KindDigest, KindChat, KindRisk} {
+	for _, k := range []string{KindParse, KindPlanDraft, KindPlanApply, KindDigest, KindChat, KindRisk} {
 		if !ValidKind(k) {
 			t.Fatalf("ValidKind(%q) = false", k)
 		}

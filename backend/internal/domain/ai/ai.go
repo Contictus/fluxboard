@@ -15,6 +15,7 @@ import (
 const (
 	KindParse     = "parse"
 	KindPlanDraft = "plan_draft"
+	KindPlanApply = "plan_apply"
 	KindDigest    = "digest"
 	KindChat      = "chat"
 	KindRisk      = "risk"
@@ -23,7 +24,7 @@ const (
 // ValidKind reports whether k is a known run kind.
 func ValidKind(k string) bool {
 	switch k {
-	case KindParse, KindPlanDraft, KindDigest, KindChat, KindRisk:
+	case KindParse, KindPlanDraft, KindPlanApply, KindDigest, KindChat, KindRisk:
 		return true
 	}
 	return false
@@ -62,7 +63,7 @@ func SurfaceFor(kind string) string {
 	switch kind {
 	case KindParse:
 		return FlagParse
-	case KindPlanDraft:
+	case KindPlanDraft, KindPlanApply:
 		return FlagPlan
 	case KindDigest:
 		return FlagDigest
