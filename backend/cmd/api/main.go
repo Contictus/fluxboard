@@ -28,6 +28,7 @@ import (
 	"github.com/mesutokul/fluxboard/backend/internal/config"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/auth"
 	"github.com/mesutokul/fluxboard/backend/internal/domain/project"
+	"github.com/mesutokul/fluxboard/backend/internal/domain/tenant"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/ai"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/casbinx"
 	"github.com/mesutokul/fluxboard/backend/internal/infrastructure/mailer"
@@ -369,22 +370,6 @@ func run(logger *slog.Logger) error {
 		Columns: columnRepo, Boards: boardRepo, Logger: logger,
 	})
 	automationHandlers := handlers.NewAutomationHandlers(automationSvc, logger)
-
-	// Governed AI (ADR-025, FR-AI-001..008). Mock is the default provider:
-	// deterministic, keyless, boot-safe. Unknown AI_PROVIDER values fall back
-	// to mock with a loud warning (never fail boot — MinIO pattern).
-	aiProvider := ai.NewMock()
-	if cfg.AIProvider != "" && cfg.AIProvider != "mock" {
-		logger.Warn("unknown AI_PROVIDER; falling back to mock", "provider", cfg.AIProvider)
-	}
-	aiSvc := aiuc.New(aiuc.Deps{
-		Runs: postgres.NewAIRepo(tenantPool), Risks: postgres.NewAIRepo(tenantPool),
-		Flags: postgres.NewFeatureFlagRepo(tenantPool),
-		Tasks: taskRepo, Projects: projectRepo, Audit: auditRepo,
-		Provider: aiProvider, Idem: redisx.NewIdempotencyStore(rdb),
-		Entitlements: billingSvc, MonthlyCap: cfg.AIMonthlyCap, Logger: logger,
-	})
-	aiHandlers := handlers.NewAIHandlers(aiSvc, logger)
 	projectSvc := projectuc.New(projectuc.Deps{
 		Projects: projectRepo, Members: projectMemberRepo, Boards: boardRepo,
 		Columns: columnRepo, Tasks: taskRepo, Sprints: sprintRepo, Fields: fieldRepo, Labels: labelRepo,
@@ -402,6 +387,25 @@ func run(logger *slog.Logger) error {
 	projectHandlers := handlers.NewProjectHandlers(projectSvc, logger)
 	publicFormHandlers := handlers.NewPublicFormHandlers(projectSvc, logger)
 	taskHandlers := handlers.NewTaskHandlers(taskSvc, logger)
+
+	// Governed AI (ADR-025, FR-AI-001..009). Mock is the default provider:
+	// deterministic, keyless, boot-safe. Unknown AI_PROVIDER values fall back
+	// to mock with a loud warning (never fail boot — MinIO pattern). Built
+	// after taskSvc: plan-apply writes through it (adapter below), so
+	// numbering/ranks/events/automation are inherited, never reimplemented.
+	aiProvider := ai.NewMock()
+	if cfg.AIProvider != "" && cfg.AIProvider != "mock" {
+		logger.Warn("unknown AI_PROVIDER; falling back to mock", "provider", cfg.AIProvider)
+	}
+	aiSvc := aiuc.New(aiuc.Deps{
+		Runs: postgres.NewAIRepo(tenantPool), Risks: postgres.NewAIRepo(tenantPool),
+		Flags: postgres.NewFeatureFlagRepo(tenantPool),
+		Tasks: taskRepo, Projects: projectRepo, Audit: auditRepo,
+		Provider: aiProvider, Idem: redisx.NewIdempotencyStore(rdb),
+		Entitlements: billingSvc, Creator: taskCreator{svc: taskSvc},
+		MonthlyCap: cfg.AIMonthlyCap, Logger: logger,
+	})
+	aiHandlers := handlers.NewAIHandlers(aiSvc, logger)
 	billingHandlers := handlers.NewBillingHandlers(billingSvc, logger)
 	webhookHandlers := handlers.NewWebhookHandlers(billingSvc, stripeGW, logger)
 	eventHandlers := handlers.NewEventHandlers(notifySvc, logger)
@@ -560,6 +564,24 @@ func loadObjectStore(ctx context.Context, cfg *config.Config, logger *slog.Logge
 		return nil
 	}
 	return store
+}
+
+// taskCreator adapts taskuc.Service to aiuc.TaskCreator: plan-apply items cross
+// the usecase boundary through this narrow port (aiuc must not import taskuc —
+// clean layering). Living in the composition root keeps both packages
+// independent, like notifyDirectory above.
+type taskCreator struct{ svc *taskuc.Service }
+
+func (a taskCreator) CreateTask(ctx context.Context, orgID, userID string, in aiuc.TaskCreateInput, role tenant.OrgRole) (*project.Task, error) {
+	return a.svc.CreateTask(ctx, orgID, userID, taskuc.CreateTaskInput{
+		ProjectID: in.ProjectID, ColumnID: in.ColumnID, Title: in.Title,
+		Description: in.Description, AssigneeID: in.AssigneeID, Priority: in.Priority,
+		StartDate: in.StartDate, DueDate: in.DueDate,
+	}, role)
+}
+
+func (a taskCreator) TrashTask(ctx context.Context, orgID, userID, taskID string, role tenant.OrgRole) error {
+	return a.svc.TrashTask(ctx, orgID, userID, taskID, role)
 }
 
 // notifyDirectory adapts postgres.DirectoryRepo (which returns a postgres-layer

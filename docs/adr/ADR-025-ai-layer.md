@@ -57,4 +57,22 @@ AI katmanı 4 dilim, mock-first:
 - `domain/ai`, `usecase/aiuc`, `infrastructure/ai` (provider), postgres
   `ai_repo.go` (raw pgx), `handlers/ai.go` + `handlers/mcp.go`, jobs
   `ai_digest` + `ai:retention`, web chat panel.
-- sqlc `diff` temiz kalır (queries/*.sql değişmez, gen/* değişmez).
+- 0030-0032 schema migrationlari `gen/models.go`'ya AiRun/AiRisk ekler,
+  `sqlc generate` (pin v1.27.0) ile regen edilir, CI `sqlc diff` dogrular.
+
+## Addendum 2026-09-18 — plan apply (FR-AI-009)
+
+Draft → tasks writes through `taskuc.CreateTask` per item (per-project
+numbering, LexoRank append, SSE events, automation, assignment notifications
+all inherited — no parallel write path). Atomicity is validate-then-create
+with compensation: cheap rules (count ≤ 50, title 1..200, priority valid,
+date range) pre-validate before the first write; authoritative gates
+(CONTRIBUTOR+, column ∈ project) run inside taskuc per item; on the first
+failure already-created tasks are trashed (best-effort, logged) so the board
+never holds partial state — residue lands in Trash (restorable, 30d purge),
+never on the board. `Idempotency-Key` required (Redis + `plan_apply` run-row
+UNIQUE backstop, same pattern as plan draft). Caller role flows from
+`TenantContext.Role` (sessions, keys, impersonation-readonly all reuse the
+standard chain). Rejected: single-transaction bulk insert (repos own their
+tx scope; sharing tx across repos breaks the TenantPool discipline), hard
+purge compensation (trash is the designed undo area).

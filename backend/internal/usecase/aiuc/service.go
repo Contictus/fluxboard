@@ -59,7 +59,8 @@ type Deps struct {
 	Provider     ai.Provider
 	Idem         IdempotencyStore
 	Entitlements EntitlementResolver
-	MonthlyCap   int // <=0 ⇒ 200
+	Creator      TaskCreator // nil ⇒ ApplyPlan unavailable (wired in cmd)
+	MonthlyCap   int         // <=0 ⇒ 200
 	Now          func() time.Time
 	Logger       *slog.Logger
 }
@@ -75,6 +76,7 @@ type Service struct {
 	provider     ai.Provider
 	idem         IdempotencyStore
 	entitlements EntitlementResolver
+	creator      TaskCreator
 	cap          int
 	now          func() time.Time
 	logger       *slog.Logger
@@ -98,7 +100,8 @@ func New(d Deps) *Service {
 		runs: d.Runs, risks: d.Risks, flags: d.Flags,
 		tasks: d.Tasks, projects: d.Projects, audit: d.Audit,
 		provider: d.Provider, idem: d.Idem, entitlements: d.Entitlements,
-		cap: cap, now: now, logger: logger,
+		creator: d.Creator,
+		cap:     cap, now: now, logger: logger,
 	}
 }
 
