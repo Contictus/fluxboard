@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	mw "github.com/mesutokul/fluxboard/backend/internal/interface/http/middleware"
 	"github.com/mesutokul/fluxboard/backend/internal/interface/http/response"
 	"github.com/mesutokul/fluxboard/backend/internal/usecase/aiuc"
-	"log/slog"
 )
 
 // AIHandlers serves the governed AI surface.
