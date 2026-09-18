@@ -153,6 +153,25 @@ bound to a different org than the path → 403), scope `write` required for all
 non-GET, rate limit headers per FR-API-002. Session-auth requests share the
 same limiter keyed `rl:api:{orgId}:{userId}`.
 
+## 8b. Governed AI — `/orgs/{orgId}/ai/*` + `/mcp` (ADR-025, FR-AI-001..009)
+
+```
+POST   /orgs/{orgId}/ai/parse             {input} → items[]
+POST   /orgs/{orgId}/ai/plan              {brief}  [Idempotency-Key] → draft
+POST   /orgs/{orgId}/ai/plan/apply        {project_id, column_id, items[]}  [Idempotency-Key] → tasks (201, replay 200)
+POST   /orgs/{orgId}/ai/chat              {message, history[]} → turn
+GET    /orgs/{orgId}/projects/{projectId}/ai/digest   live-data report
+GET    /orgs/{orgId}/ai/risks?project_id= open risks
+POST   /orgs/{orgId}/ai/risks/scan        {project_id} (BUSINESS+)
+POST   /orgs/{orgId}/ai/risks/dismiss     {task_id} (204)
+POST   /orgs/{orgId}/mcp                  {tool, params} → {result}
+```
+
+MCP tools (closed set): `ai.parse`, `ai.plan_draft`, `ai.plan_apply`,
+`ai.digest`, `ai.chat`, `ai.risks_scan`, `ai.risks_list`, `ai.risks_dismiss`.
+POST ⇒ read-scoped keys 403 (v1). Every call: surface flag → monthly meter
+(402 `ai_actions`) → provider → `ai_runs` ledger → `ai.run` audit.
+
 ## 9. Platform Admin — `/admin/*` (separate router; platform_role=admin + TOTP enforced)
 
 ```
