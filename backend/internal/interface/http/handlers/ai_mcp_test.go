@@ -179,7 +179,7 @@ func newMCPHarness() *AIHandlers {
 }
 
 func callMCP(h *AIHandlers, tool string, params map[string]any) (any, error) {
-	req := httptest.NewRequest("POST", "/api/v1/orgs/o1/mcp", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/orgs/o1/mcp", nil)
 	return h.dispatchMCP(req, "o1", "u1", tenant.RoleAdmin, mcpReq{Tool: tool, Params: params})
 }
 
