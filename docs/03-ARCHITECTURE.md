@@ -24,7 +24,15 @@
    │  email send (SMTP→Mailpit local)
    │  usage aggregation (hourly) / usage push to Stripe (daily)
    │  stats rollup (nightly), orphan-upload GC, trash purge,
-   │  org hard-delete after grace, audit retention purge
+   │  org hard-delete after grace, audit retention purge,
+   │  ai:retention (ai_runs 30d purge, FR-AI-008)
+   ▼
+[AI provider — mock default] ◄── api/aiuc (clients never call it directly)
+   │  deterministic, keyless; live Claude/Azure failover plugs the same port
+   │  every run ledgered in ai_runs + audited (severity=ai)
+   ▼
+[MCP clients] ──POST /api/v1/orgs/{id}/mcp──► [Go API] (same gates: HybridAuth,
+   tenant, RBAC, scope, surface flag, monthly meter)
    ▼
 [Prometheus] scrapes /metrics of api+worker ──► [Grafana] provisioned dashboards
 

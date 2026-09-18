@@ -8,6 +8,7 @@ import {
   CheckSquare,
   Search,
   Trash2,
+  Brain,
   Users,
   Settings,
   CreditCard,
@@ -49,6 +50,7 @@ export function Sidebar({
     { href: `${base}/my-tasks`, label: 'My tasks', icon: CheckSquare, section: 'workspace' },
     { href: `${base}/search`, label: 'Search', icon: Search, section: 'workspace' },
     { href: `${base}/trash`, label: 'Trash', icon: Trash2, section: 'workspace' },
+    { href: `${base}/ai`, label: 'AI assistant', icon: Brain, section: 'workspace' },
   ];
   if (isAdmin) {
     items.push(
@@ -187,6 +189,7 @@ export function MobileSidebar({
     { href: `${base}/my-tasks`, label: 'My tasks', icon: CheckSquare, section: 'workspace' },
     { href: `${base}/search`, label: 'Search', icon: Search, section: 'workspace' },
     { href: `${base}/trash`, label: 'Trash', icon: Trash2, section: 'workspace' },
+    { href: `${base}/ai`, label: 'AI assistant', icon: Brain, section: 'workspace' },
   ];
   if (isAdmin) {
     items.push(

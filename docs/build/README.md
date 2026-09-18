@@ -15,7 +15,7 @@ follow-ups so historical phase checklists are not mistaken for unfinished work.
 - **Next check:** none — Phase 7 is the last phase. Only deferred follow-ups remain (see below), none blocking: run the dockerized e2e smoke of the new UI against the running API (build-verified only so far); add the org-logo upload endpoint (ADR-019); give the admin tenant-detail DTOs json tags for snake_case consistency (ADR-022); task-notification deep-linking + modal-over-board interception (ADR-018).
 - **Last verified commit:** Phase 7 §11 verify + `feat(web): phase 7 — frontend wired to API`; later maintenance commits may update documentation without changing this implementation milestone.
 - **Phase 7 progress:** §0 scaffold (Next 14 App Router, TS strict, pnpm, hand-written typed fetch client — OpenAPI too partial for codegen), §1 public/marketing, §2 auth flows, §B backend gap-fill (`/me`; ADR-015), §3 account, §4 org shell (ADR-016), §5 projects + kanban (dnd-kit board, optimistic LexoRank move + 409 rollback, filters + bulk, list view, settings; ADR-017), §6 task detail + org task views (search/my-tasks/trash; ADR-018), §7 org settings (general/members+invite/labels/api-keys/audit/danger; ADR-019), §8 billing (overview/plans+proration/checkout success-poll/usage Recharts/invoices/shared 402 modal; ADR-020), §9 notifications + realtime (`lib/sse.ts` fetch-stream SSE — not EventSource, bearer is memory-only; surgical cache invalidation; `/notifications` center; ADR-021), §10 platform admin `(admin)` group (KPI dashboard, tenants list+detail w/ flags/overrides/webhook-retry/impersonate, global audit, jobs) + impersonation banner + project analytics Recharts (ADR-022), §11 verify. All web gates green (`pnpm typecheck && lint && build`, **55 route files**); backend `go build/vet/test` green (160/49). **Not yet run:** dockerized e2e for the new UI (build-verified only — deferred follow-up).
-- **Stack state:** backend migrations still at `0016` — §B added **no** migration (reused existing `users.avatar_key` from 0002 + `one_time_tokens.purpose='email_change'`; only sqlc query additions to `users.sql`). Next free migration: `0017`. New Go: `internal/usecase/useruc`, `handlers.UserHandlers`, `postgres.UserOwnerRepo`; `/me` surface wired under the authed+verified group. Phase 6 remains DONE end-to-end (smoke6.ps1 ALL GREEN 2026-07-08):
+- **Stack state:** backend migrations at `0032` — Phase 7 left the stack at `0029`; the AI layer added `0030 ai_runs/ai_risks` DDL, `0031` RLS, `0032` API-key caller attribution (`key_id`, `user_id` nullable). Next free migration: `0033`. `gen/models.go` carries the sqlc-generated `AiRun`/`AiRisk` models (regen with pin v1.27.0; CI `sqlc diff` enforces). Phase 6 remains DONE end-to-end (smoke6.ps1 ALL GREEN 2026-07-08):
   platform-admin `/admin` router OUTSIDE tenant mw, gated by `PlatformAdminGuard`
   (platform_role=admin AND totp_enabled; impersonation tokens rejected). Cross-org
   admin reads + API-key by-hash auth run on the OWNER pool (`DATABASE_URL_MIGRATE`,
@@ -92,10 +92,10 @@ can begin area-by-area once the backing API for that area (its phase) is done.
   `postgres.TenantPool.WithTenant(orgID, fn)` (SET LOCAL app.current_tenant → RLS).
   `organizations` has NO RLS (readable pre-context; maintenance jobs list orgs via
   `MaintenanceRepo` on the plain pool).
-- sqlc v1.31.1: queries in `internal/infrastructure/postgres/queries/*.sql` are the
+- sqlc v1.27.0 pinned (CI + `make sqlc` use the same version): queries in `internal/infrastructure/postgres/queries/*.sql` are the
   source of truth → `sqlc generate` from `backend/`. Never hand-edit `gen/`.
-- Migrations split DDL from RLS (e.g. 0007/0008, 0009/0010, 0015/0016). Next free
-  number: **0017**.
+- Migrations split DDL from RLS (e.g. 0007/0008, 0009/0010, 0015/0016, 0030/0031). Next free
+  number: **0033**.
 - Error → HTTP mapping (single place): `ErrValidation→422`, `ErrConflict→409`,
   `ErrNotFound→404`, `ErrForbidden→403`. Billing adds `402 plan_limit_exceeded`.
 - Asynq worker + scheduler already run (`cmd/worker`); add handlers to its mux and
