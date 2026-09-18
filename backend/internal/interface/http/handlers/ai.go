@@ -263,3 +263,69 @@ func (h *AIHandlers) DismissRisk(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+type applyItemReq struct {
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	AssigneeID  *string    `json:"assignee_id"`
+	Priority    string     `json:"priority"`
+	StartDate   *time.Time `json:"start_date"`
+	DueDate     *time.Time `json:"due_date"`
+}
+
+type applyReq struct {
+	ProjectID string         `json:"project_id"`
+	ColumnID  string         `json:"column_id"`
+	Items     []applyItemReq `json:"items"`
+}
+
+type appliedTaskResp struct {
+	ID     string `json:"id"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+}
+
+type applyResp struct {
+	RunID    string            `json:"run_id"`
+	Replayed bool              `json:"replayed"`
+	Tasks    []appliedTaskResp `json:"tasks"`
+}
+
+// ApplyPlan materializes draft items as tasks (FR-AI-009). The
+// Idempotency-Key header is required; a retry returns the first apply with
+// replayed=true and creates nothing.
+func (h *AIHandlers) ApplyPlan(w http.ResponseWriter, r *http.Request) {
+	tc, ok := mw.TenantFrom(r.Context())
+	if !ok {
+		response.Error(w, domain.ErrForbidden)
+		return
+	}
+	var req applyReq
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	items := make([]aiuc.ApplyItem, 0, len(req.Items))
+	for _, it := range req.Items {
+		items = append(items, aiuc.ApplyItem{
+			Title: it.Title, Description: it.Description, AssigneeID: it.AssigneeID,
+			Priority: it.Priority, StartDate: it.StartDate, DueDate: it.DueDate,
+		})
+	}
+	out, err := h.svc.ApplyPlan(r.Context(), tc.OrgID, tc.UserID, tc.Role, aiuc.ApplyInput{
+		ProjectID: req.ProjectID, ColumnID: req.ColumnID,
+		Items: items, IdemKey: r.Header.Get("Idempotency-Key"),
+	})
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	tasks := make([]appliedTaskResp, 0, len(out.Tasks))
+	for _, t := range out.Tasks {
+		tasks = append(tasks, appliedTaskResp{ID: t.ID, Number: t.Number, Title: t.Title})
+	}
+	status := http.StatusCreated
+	if out.Replayed {
+		status = http.StatusOK
+	}
+	response.JSON(w, status, applyResp{RunID: out.RunID, Replayed: out.Replayed, Tasks: tasks})
+}

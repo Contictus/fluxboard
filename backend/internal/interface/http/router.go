@@ -315,6 +315,7 @@ func NewRouter(d Deps) http.Handler {
 				if d.AI != nil {
 					o.With(read(tenant.ObjOrg)).Post("/ai/parse", d.AI.Parse)
 					o.With(read(tenant.ObjOrg)).Post("/ai/plan", d.AI.PlanDraft)
+					o.With(read(tenant.ObjOrg)).Post("/ai/plan/apply", d.AI.ApplyPlan)
 					o.With(read(tenant.ObjOrg)).Post("/ai/chat", d.AI.Chat)
 					o.With(read(tenant.ObjOrg)).Get("/ai/risks", d.AI.ListRisks)
 					o.With(read(tenant.ObjOrg)).Post("/ai/risks/scan", d.AI.ScanRisks)
